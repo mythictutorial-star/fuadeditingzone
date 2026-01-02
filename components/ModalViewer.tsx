@@ -19,6 +19,19 @@ interface ModalViewerProps {
   highlightCommentId?: string | null;
 }
 
+const OWNER_HANDLE = 'fuadeditingzone';
+const ADMIN_HANDLE = 'studiomuzammil';
+
+const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
+    if (!username) return null;
+    const isOwner = username === OWNER_HANDLE;
+    const isAdmin = username === ADMIN_HANDLE;
+    if (!isOwner && !isAdmin) return null;
+    return (
+        <i className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1`}></i>
+    );
+};
+
 const CommentItem: React.FC<{
     comment: PostComment;
     postId: string;
@@ -93,10 +106,11 @@ const CommentItem: React.FC<{
             <div className="flex gap-3">
                 <img src={comment.userAvatar} className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0" alt="" />
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-1 mb-1">
                         <span className="text-[11px] font-black text-white uppercase tracking-tight">@{comment.userName}</span>
-                        <span className="text-[7px] text-zinc-700 font-bold uppercase">{new Date(comment.timestamp).toLocaleDateString()}</span>
-                        {comment.userId === postOwnerId && <span className="text-[6px] bg-red-600/20 text-red-500 px-1 rounded font-black border border-red-600/30">AUTHOR</span>}
+                        <VerificationBadge username={comment.userName} />
+                        <span className="text-[7px] text-zinc-700 font-bold uppercase ml-auto">{new Date(comment.timestamp).toLocaleDateString()}</span>
+                        {comment.userId === postOwnerId && <span className="text-[6px] bg-red-600/20 text-red-500 px-1 rounded font-black border border-red-600/30 ml-2">AUTHOR</span>}
                     </div>
                     <p className="text-zinc-300 text-xs leading-relaxed break-words font-sans">{comment.text}</p>
                     <div className="mt-2 flex items-center gap-4">
@@ -321,19 +335,23 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
             <div className="absolute inset-0 bg-cover bg-center filter blur-3xl brightness-[0.1] opacity-40 scale-110 pointer-events-none" 
                  style={{ backgroundImage: `url(${getImageUrl() || siteConfig.branding.profilePicUrl})` }} />
 
-            {/* Main Modal Container: Smaller and Constrained on Desktop */}
+            {/* Main Modal Container */}
             <div className="relative w-full h-full md:max-w-[1000px] md:max-h-[85vh] bg-black flex flex-col md:flex-row md:rounded-2xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] border border-white/10">
                 
                 <div className="relative flex-1 flex flex-col min-w-0 bg-black/60 overflow-hidden h-full">
-                    {/* Header */}
+                    {/* Header: Profile Info Only on Mobile, Close Only on Desktop */}
                     <div className="relative z-[100] flex justify-between items-center p-4 md:p-6 bg-gradient-to-b from-black/90 to-transparent flex-shrink-0">
-                        <div className="flex items-center gap-3">
-                            <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover" alt="" />
+                        <div className="md:hidden flex items-center gap-3">
+                            <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 rounded-full object-cover" alt="" />
                             <div className="flex flex-col">
-                                <span className="text-white font-black text-[10px] md:text-xs uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</span>
-                                <span className="text-zinc-500 font-bold text-[7px] md:text-[8px] uppercase tracking-widest">{(currentItem as any).category || (currentItem as any).userRole || 'Visual Artist'}</span>
+                                <div className="flex items-center">
+                                    <span className="text-white font-black text-[10px] uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</span>
+                                    <VerificationBadge username={(currentItem as any).userName} />
+                                </div>
+                                <span className="text-zinc-500 font-bold text-[7px] uppercase tracking-widest">{(currentItem as any).category || (currentItem as any).userRole || 'Visual Artist'}</span>
                             </div>
                         </div>
+                        <div className="hidden md:block"></div> {/* Spacer for desktop close button position */}
                         <button onClick={onClose} className="text-white p-2 rounded-full bg-white/5 border border-white/10 hover:bg-red-600 transition-all">
                             <CloseIcon className="h-5 w-5" />
                         </button>
@@ -369,7 +387,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                                     </button>
                                 </div>
 
-                                {/* Mobile-Only Info Flow (Instagram Style) */}
+                                {/* Mobile-Only Interaction Flow */}
                                 <div className="md:hidden flex flex-col bg-[#050505] p-5 pb-32 w-full">
                                     <div className="flex items-center justify-between mb-5">
                                         <div className="flex items-center gap-7">
@@ -400,7 +418,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                                         )}
                                     </div>
 
-                                    {/* Mobile Comments Section Container */}
+                                    {/* Mobile Comments Section */}
                                     <div ref={commentsSectionRef} className="pt-6 border-t border-white/5 space-y-6">
                                         <div className="flex justify-between items-center">
                                             <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
@@ -435,13 +453,16 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </div>
                 </div>
 
-                {/* Desktop Sidebar (Captions & Comments) */}
+                {/* Desktop Sidebar: Profile Info and Comments */}
                 <div className="hidden md:flex w-[380px] bg-[#080808] border-l border-white/10 flex-col flex-shrink-0 h-full overflow-hidden">
                     <div className="flex p-6 border-b border-white/5 items-center justify-between bg-black/20 backdrop-blur-xl">
                         <div className="flex items-center gap-3">
                             <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
-                            <div>
-                                <p className="text-white font-black text-xs uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</p>
+                            <div className="flex flex-col">
+                                <div className="flex items-center">
+                                    <p className="text-white font-black text-xs uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</p>
+                                    <VerificationBadge username={(currentItem as any).userName} />
+                                </div>
                                 <p className="text-red-500 font-black text-[8px] uppercase tracking-widest">{(currentItem as any).userRole || 'Visual Artist'}</p>
                             </div>
                         </div>
@@ -462,14 +483,14 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
 
                         <div ref={commentsSectionRef} className="pt-8 border-t border-white/5 space-y-8">
                             <div className="flex items-center justify-between">
-                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Communication Feed</h4>
+                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Communication</h4>
                                 <span className="text-[10px] font-black text-zinc-700 uppercase">{comments.length} Comments</span>
                             </div>
                             
                             {comments.length === 0 ? (
                                 <div className="py-24 text-center opacity-20">
                                     <ChatBubbleIcon className="w-12 h-12 mx-auto mb-4" />
-                                    <p className="text-[9px] font-black uppercase tracking-[0.4em]">Quiet here...</p>
+                                    <p className="text-[9px] font-black uppercase tracking-[0.4em]">No comments yet</p>
                                 </div>
                             ) : (
                                 <div className="space-y-8 pb-10">
@@ -490,7 +511,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                         </div>
                     </div>
 
-                    {/* Desktop Action Bar */}
+                    {/* Desktop Footer Actions */}
                     <div className="p-6 bg-black/60 border-t border-white/5 space-y-6 backdrop-blur-3xl flex-shrink-0">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-8">
@@ -530,7 +551,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                 </div>
             </div>
 
-            {/* Mobile Bottom Comment Input */}
+            {/* Mobile Bottom Input Stickier */}
             <div className="md:hidden fixed bottom-2 bg-black/95 border-t border-white/10 p-4 z-[120] backdrop-blur-3xl w-[calc(100%-24px)] mx-3 rounded-[1.8rem] shadow-2xl">
                 {isDynamicPost ? (
                     <form onSubmit={handlePostComment} className="relative w-full">
@@ -551,7 +572,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </form>
                 ) : (
                     <div className="text-center py-2">
-                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Viewing Portfolio Item</p>
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Portfolio View</p>
                     </div>
                 )}
             </div>
