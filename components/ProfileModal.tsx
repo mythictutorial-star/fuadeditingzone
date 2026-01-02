@@ -95,7 +95,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             const postsQuery = query(ref(db, 'explore_posts'), orderByChild('userId'), equalTo(currentProfileId));
             const unsubPosts = onValue(postsQuery, (snap) => {
                 const data = snap.val();
-                setUserPosts(data ? Object.values(data).sort((a: any, b: any) => b.timestamp - a.timestamp) : []);
+                if (data) {
+                    const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
+                        .sort((a, b) => b.timestamp - a.timestamp);
+                    setUserPosts(list);
+                } else {
+                    setUserPosts([]);
+                }
             });
 
             return () => { unsubUser(); unsubFollowers(); unsubFollowing(); unsubPosts(); };
@@ -388,13 +394,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                         <div className="h-px bg-white/5 flex-1 mx-8 hidden md:block"></div>
                                         <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Items</span>
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1 md:gap-2">
+                                    <div className="columns-2 sm:columns-3 gap-3 md:gap-4 no-scrollbar">
                                         {userPosts.map((post, i) => (
-                                            <div key={i} onClick={() => onOpenModal?.(userPosts, i)} className="aspect-square bg-white/[0.03] rounded-lg md:rounded-xl overflow-hidden group relative cursor-pointer border border-white/5 shadow-2xl transition-all duration-500">
+                                            <div key={post.id || i} onClick={() => onOpenModal?.(userPosts, i)} className="break-inside-avoid mb-4 bg-white/[0.03] rounded-xl overflow-hidden group relative cursor-pointer border border-white/5 shadow-2xl transition-all duration-500">
                                                 {post.mediaType === 'video' ? (
-                                                    <video src={post.mediaUrl} className="w-full h-full object-cover" />
+                                                    <video src={post.mediaUrl} className="w-full h-auto max-h-[500px] object-cover" muted loop autoPlay playsInline />
                                                 ) : (
-                                                    <img src={post.mediaUrl} className="w-full h-full object-cover" alt="" />
+                                                    <img src={post.mediaUrl} className="w-full h-auto max-h-[600px] object-cover" alt="" />
                                                 )}
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px]">
                                                     <div className="flex gap-8 text-sm font-black text-white uppercase tracking-widest scale-90 group-hover:scale-100 transition-all">
@@ -404,13 +410,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 </div>
                                             </div>
                                         ))}
-                                        {userPosts.length === 0 && (
-                                            <div className="col-span-2 md:col-span-3 py-32 text-center opacity-20">
-                                                <GalleryIcon className="w-16 h-16 mx-auto mb-6" />
-                                                <p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No signals archived</p>
-                                            </div>
-                                        )}
                                     </div>
+                                    {userPosts.length === 0 && (
+                                        <div className="py-32 text-center opacity-20">
+                                            <GalleryIcon className="w-16 h-16 mx-auto mb-6" />
+                                            <p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No signals archived</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
