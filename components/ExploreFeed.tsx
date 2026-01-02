@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -74,7 +73,8 @@ const PostItem: React.FC<{
                 const el = textRef.current;
                 const lineHeight = parseInt(window.getComputedStyle(el).lineHeight);
                 const height = el.scrollHeight;
-                if (height > lineHeight * 3.2) { 
+                // If text is more than 2 lines, show read more
+                if (height > lineHeight * 2.1) { 
                     setShowReadMore(true);
                 } else {
                     setShowReadMore(false);
@@ -92,14 +92,9 @@ const PostItem: React.FC<{
             animate={{ opacity: 1, y: 0 }}
             className="break-inside-avoid mb-3 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[0.8rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
-            <motion.div 
-                animate={{ 
-                    height: isExpanded ? 0 : 'auto', 
-                    opacity: isExpanded ? 0 : 1
-                }}
-                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            <div 
                 className="relative overflow-hidden bg-black cursor-pointer group flex-shrink-0"
-                onClick={() => !isExpanded && onOpenModal?.(posts, idx)}
+                onClick={() => onOpenModal?.(posts, idx)}
             >
                 {post.mediaType === 'video' ? (
                     <video src={post.mediaUrl} className="w-full h-auto max-h-[500px] object-cover" muted loop autoPlay playsInline />
@@ -125,7 +120,7 @@ const PostItem: React.FC<{
                 >
                     <CopyIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                 </button>
-            </motion.div>
+            </div>
 
             <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between mb-2">
@@ -145,11 +140,12 @@ const PostItem: React.FC<{
                     </div>
                 </div>
 
+                {/* Fixed size text area with conditional scrolling */}
                 <div className="font-sans relative w-full mt-1 flex-1 min-h-0 flex flex-col">
-                    <div className={`transition-all duration-500 ease-in-out ${isExpanded ? 'max-h-[300px] overflow-y-auto no-scrollbar pr-1' : 'max-h-[2.8rem] overflow-hidden'}`}>
+                    <div className={`h-[2.8rem] transition-all duration-300 ${isExpanded ? 'overflow-y-auto custom-scrollbar pr-1' : 'overflow-hidden'}`}>
                         <p 
                             ref={textRef}
-                            className={`text-zinc-500 text-[9px] md:text-[11px] font-medium leading-[1.4] md:leading-[1.6] break-words text-left ${!isExpanded ? 'line-clamp-2' : ''}`}
+                            className={`text-zinc-500 text-[9px] md:text-[11px] font-medium leading-[1.4] break-words text-left ${!isExpanded ? 'line-clamp-2' : ''}`}
                         >
                             {post.caption}
                         </p>
@@ -159,7 +155,7 @@ const PostItem: React.FC<{
                             onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} 
                             className="text-zinc-600 font-black hover:text-red-500 transition-colors text-[8px] md:text-[9px] mt-1 block text-left uppercase tracking-widest relative z-10"
                         >
-                            {isExpanded ? '...Close' : '...More'}
+                            {isExpanded ? '...Hide' : '...More'}
                         </button>
                     )}
                 </div>
@@ -224,7 +220,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             const q = searchQuery.toLowerCase();
             list = posts.filter(post => 
                 post.title?.toLowerCase().includes(q) || 
-                post.userName?.toLowerCase().includes(q)
+                post.userName?.toLowerCase().includes(q) ||
+                post.caption?.toLowerCase().includes(q)
             );
         }
         return list;

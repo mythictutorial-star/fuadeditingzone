@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignIn } from '@clerk/clerk-react';
@@ -106,17 +105,17 @@ export default function App() {
     if (modalState) {
       const item = modalState.items[modalState.currentIndex] as any;
       const title = item.title || 'Exclusive Masterpiece';
-      const desc = item.description || item.caption || "Official work from Fuad Editing Zone.";
-      const img = item.imageUrl || item.thumbnailUrl || (item.mediaUrl && item.mediaType === 'image' ? item.mediaUrl : siteConfig.branding.profilePicUrl);
+      const desc = item.caption || item.description || "Official work from Fuad Editing Zone.";
+      const img = item.mediaUrl || item.imageUrl || item.thumbnailUrl || siteConfig.branding.profilePicUrl;
       updateSEO(title, desc, img);
     } else if (viewingProfileId) {
       get(ref(db, `users/${viewingProfileId}`)).then(snap => {
           const data = snap.val();
-          if (data) updateSEO(`@${data.username} | Fuad Editing Zone`, data.profile?.bio || "Professional Designer Profile", data.avatar || siteConfig.branding.logoUrl);
+          if (data) updateSEO(`@${data.username}`, data.profile?.bio || "Professional Designer Profile", data.avatar || siteConfig.branding.logoUrl);
       });
     } else {
       if (route === 'home') updateSEO(siteConfig.seo.title, siteConfig.seo.description, siteConfig.branding.profilePicUrl);
-      else if (route === 'marketplace') updateSEO("Marketplace", "Discover premium assets.", siteConfig.branding.logoUrl);
+      else if (route === 'marketplace') updateSEO("Marketplace", "Discover premium assets and creative works.", siteConfig.branding.logoUrl);
       else if (route === 'community') updateSEO("Community Hub", "Professional design network.", siteConfig.branding.logoUrl);
     }
   }, [modalState, route, viewingProfileId]);

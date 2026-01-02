@@ -9,7 +9,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta property="og:url" content="https://fuadeditingzone.pages.dev" />
     <meta property="og:title" id="og-title" content="Fuad Editing Zone | VFX & Design" />
-    <meta property="og:description" id="og-desc" content="Graphic Designer & VFX Editor portfolio by Fuad Ahmed. High-impact visuals." />
+    <meta property="og:description" id="og-desc" content="Graphic Designer & VFX Editor portfolio by Fuad Ahmed. High-impact visuals and cinematic excellence." />
     <meta name="twitter:title" id="tw-title" content="Fuad Editing Zone | VFX & Design" />
     <meta name="twitter:description" id="tw-desc" content="Graphic Designer & VFX Editor portfolio by Fuad Ahmed." />
     
@@ -26,26 +26,16 @@
     <script type="text/javascript">
       window.updatePortalMetadata = function(title, desc, image) {
         if (title) {
-          document.title = title + " | Fuad Editing Zone";
-          const ogTitle = document.getElementById('og-title');
-          const twTitle = document.getElementById('tw-title');
-          if (ogTitle) ogTitle.setAttribute('content', title);
-          if (twTitle) twTitle.setAttribute('content', title);
+          const fullTitle = title + " | Fuad Editing Zone";
+          document.title = fullTitle;
+          document.querySelectorAll('meta[property="og:title"], meta[name="twitter:title"]').forEach(el => el.setAttribute('content', fullTitle));
         }
         if (desc) {
-          const descMeta = document.querySelector('meta[name="description"]');
-          const ogDesc = document.getElementById('og-desc');
-          const twDesc = document.getElementById('tw-desc');
-          if (descMeta) descMeta.setAttribute('content', desc);
-          if (ogDesc) ogDesc.setAttribute('content', desc);
-          if (twDesc) twDesc.setAttribute('content', desc);
+          document.querySelectorAll('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]').forEach(el => el.setAttribute('content', desc));
         }
         if (image) {
           const absoluteImgUrl = image.startsWith('http') ? image : window.location.origin + image;
-          const ogImg = document.getElementById('og-img');
-          const twImg = document.getElementById('tw-img');
-          if (ogImg) ogImg.setAttribute('content', absoluteImgUrl);
-          if (twImg) twImg.setAttribute('content', absoluteImgUrl);
+          document.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"]').forEach(el => el.setAttribute('content', absoluteImgUrl));
         }
       };
     </script>
@@ -104,23 +94,6 @@
         overflow-wrap: break-word;
       }
 
-      /* Strict Line Clamping for Descriptions */
-      .clamp-2 {
-        display: -webkit-box !important;
-        -webkit-line-clamp: 2 !important;
-        -webkit-box-orient: vertical !important;
-        overflow: hidden !important;
-        word-break: break-word !important;
-      }
-
-      .clamp-3 {
-        display: -webkit-box !important;
-        -webkit-line-clamp: 3 !important;
-        -webkit-box-orient: vertical !important;
-        overflow: hidden !important;
-        word-break: break-word !important;
-      }
-
       * { box-sizing: border-box; }
       
       .no-clip {
@@ -129,7 +102,6 @@
         white-space: normal;
       }
 
-      /* Solid black hero for professional depth */
       #home {
         background-color: #000000 !important;
       }
@@ -138,7 +110,6 @@
         font-family: 'Poppins', sans-serif !important;
       }
 
-      /* Centering for Order Database section as requested */
       #contact .text-center {
         text-align: center !important;
       }
