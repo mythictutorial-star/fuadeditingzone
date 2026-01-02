@@ -79,6 +79,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const [showFriendsOnly, setShowFriendsOnly] = useState(false);
   const [friendsList, setFriendsList] = useState<string[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -107,6 +108,12 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 setFriendsList([]);
             }
         });
+
+        // Sync unread counts
+        const unreadRef = ref(db, `users/${clerkUser.id}/unread`);
+        onValue(unreadRef, (snap) => {
+            setUnreadCounts(snap.val() || {});
+        });
     }
   }, [clerkUser, initialTargetUserId]);
 
@@ -120,10 +127,17 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
     if (!chatPath) return;
     setMessages([]);
     const chatQuery = query(ref(db, chatPath), limitToLast(50));
-    return onChildAdded(chatQuery, (snap) => {
+    const unsub = onChildAdded(chatQuery, (snap) => {
       setMessages(prev => [...prev, { ...snap.val() as Message, id: snap.key }]);
     });
-  }, [chatPath]);
+
+    // Reset unread count for selected user
+    if (!isGlobal && selectedUser && clerkUser) {
+        set(ref(db, `users/${clerkUser.id}/unread/${selectedUser.id}`), 0);
+    }
+
+    return () => unsub();
+  }, [chatPath, isGlobal, selectedUser, clerkUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -145,8 +159,18 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
       text: inputValue.trim(), 
       timestamp: Date.now() 
     };
+    
     setInputValue('');
     await push(ref(db, chatPath), newMessage);
+
+    // Increment unread count for recipient if private chat
+    if (!isGlobal && selectedUser) {
+        const recipientUnreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
+        get(recipientUnreadRef).then(snap => {
+            const current = snap.val() || 0;
+            set(recipientUnreadRef, current + 1);
+        });
+    }
   };
 
   const filteredUsers = useMemo(() => {
@@ -172,6 +196,22 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           setSelectedUser(user);
       }
       setIsMobileChatOpen(true);
+  };
+
+  const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
+    if (!count || count <= 0) return null;
+    
+    if (count > 500) {
+        return (
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border border-black shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse"></div>
+        );
+    }
+
+    return (
+        <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[8px] font-black min-w-[16px] h-[16px] flex items-center justify-center rounded-full border border-black px-1 shadow-lg">
+            {count}
+        </div>
+    );
   };
 
   return (
@@ -242,20 +282,23 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                   <button 
                     key={u.id} 
                     onClick={() => openSignal(u)} 
-                    className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group relative ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}
                   >
                     <div className="relative shrink-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username); }}>
                       <img src={u.avatar} className={`w-10 h-10 rounded-xl border object-cover ${u.username === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' : 'border-white/10'}`} alt="" />
                       <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border border-zinc-900 rounded-full"></div>
+                      <UnreadBadge count={unreadCounts[u.id] || 0} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
-                          <span className="text-[11px] font-black text-white uppercase truncate leading-none">{u.name}</span>
+                          <span className={`text-[11px] font-black uppercase truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-400'}`}>{u.name}</span>
                           {(u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE) && (
                             <i className={`fa-solid fa-circle-check ${u.username === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] flex-shrink-0 drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]`}></i>
                           )}
                       </div>
-                      <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">Active</span>
+                      <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">
+                        {unreadCounts[u.id] > 0 ? 'New message received' : 'Active'}
+                      </span>
                     </div>
                   </button>
                 ))
@@ -338,7 +381,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                   value={inputValue} 
                   onChange={e => setInputValue(e.target.value)} 
                   placeholder="Type a message..." 
-                  className="flex-1 bg-transparent px-5 md:px-8 py-2.5 md:py-4 text-xs md:text-sm font-bold text-white outline-none min-w-0 placeholder-zinc-800" 
+                  className="flex-1 bg-transparent px-5 md:px-8 py-2.5 md:py-4 text-xs md:sm font-bold text-white outline-none min-w-0 placeholder-zinc-800" 
                 />
                 <button 
                   type="submit" 

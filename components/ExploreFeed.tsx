@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, query, limitToLast, set, update, get, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, ThreeDotsIcon } from './Icons';
 import { ArrowLeft } from 'lucide-react';
 
 const firebaseConfig = {
@@ -21,6 +22,7 @@ const db = getDatabase(app);
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const POSTS_PER_PAGE = 30; 
+const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
 
 type UserRole = 'Designer' | 'Client';
 
@@ -60,12 +62,16 @@ const PostItem: React.FC<{
     onOpenModal?: (posts: Post[], index: number) => void;
     onShare: (e: React.MouseEvent, id: string) => void;
     onLike: (e: React.MouseEvent, post: Post, isLiked: boolean) => void;
+    onEdit: (post: Post) => void;
+    onDelete: (post: Post) => void;
     posts: Post[];
-}> = ({ post, idx, user, onOpenProfile, onOpenModal, onShare, onLike, posts }) => {
+}> = ({ post, idx, user, onOpenProfile, onOpenModal, onShare, onLike, onEdit, onDelete, posts }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [showReadMore, setShowReadMore] = useState(false);
+    const [showOptions, setShowOptions] = useState(false);
     const textRef = useRef<HTMLParagraphElement>(null);
     const isLiked = user ? !!post.likes?.[user.id] : false;
+    const isOwner = user?.id === post.userId;
 
     useEffect(() => {
         const checkLines = () => {
@@ -73,7 +79,6 @@ const PostItem: React.FC<{
                 const el = textRef.current;
                 const lineHeight = parseInt(window.getComputedStyle(el).lineHeight);
                 const height = el.scrollHeight;
-                // If text is more than 2 lines, show read more
                 if (height > lineHeight * 2.1) { 
                     setShowReadMore(true);
                 } else {
@@ -114,12 +119,37 @@ const PostItem: React.FC<{
                     </div>
                 )}
                 
-                <button 
-                    onClick={(e) => onShare(e, post.id)} 
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-red-600 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                >
-                    <CopyIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                </button>
+                <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
+                    <button 
+                        onClick={(e) => onShare(e, post.id)} 
+                        className="p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-red-600 transition-all"
+                    >
+                        <CopyIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                    </button>
+                    {isOwner && (
+                        <div className="relative">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setShowOptions(!showOptions); }}
+                                className="p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-zinc-700 transition-all"
+                            >
+                                <ThreeDotsIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                            </button>
+                            <AnimatePresence>
+                                {showOptions && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.9 }}
+                                        className="absolute right-0 mt-1 w-24 bg-[#111] border border-white/10 rounded-lg shadow-2xl z-[50] overflow-hidden"
+                                    >
+                                        <button onClick={(e) => { e.stopPropagation(); onEdit(post); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-[8px] font-black text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5">Edit</button>
+                                        <button onClick={(e) => { e.stopPropagation(); onDelete(post); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-[8px] font-black text-red-500 hover:bg-red-500/10 uppercase tracking-widest">Delete</button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0">
@@ -140,9 +170,8 @@ const PostItem: React.FC<{
                     </div>
                 </div>
 
-                {/* Fixed size text area with conditional scrolling */}
                 <div className="font-sans relative w-full mt-1 flex-1 min-h-0 flex flex-col">
-                    <div className={`h-[2.8rem] transition-all duration-300 ${isExpanded ? 'overflow-y-auto custom-scrollbar pr-1' : 'overflow-hidden'}`}>
+                    <div className={`h-auto transition-all duration-300 ${isExpanded ? 'max-h-[300px] overflow-y-auto custom-scrollbar pr-1' : 'max-h-[2.8rem] overflow-hidden'}`}>
                         <p 
                             ref={textRef}
                             className={`text-zinc-500 text-[9px] md:text-[11px] font-medium leading-[1.4] break-words text-left ${!isExpanded ? 'line-clamp-2' : ''}`}
@@ -159,6 +188,17 @@ const PostItem: React.FC<{
                         </button>
                     )}
                 </div>
+
+                {/* Tags Section */}
+                {post.tags && post.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-3">
+                        {post.tags.slice(0, 5).map((tag, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[7px] font-bold text-zinc-500 uppercase tracking-tight">
+                                #{tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
 
                 <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5">
                     <div className="flex items-center gap-3 md:gap-4">
@@ -189,6 +229,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     const [posts, setPosts] = useState<Post[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+    const [editingPost, setEditingPost] = useState<Post | null>(null);
     
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -197,6 +238,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     const [title, setTitle] = useState('');
     const [caption, setCaption] = useState('');
     const [budget, setBudget] = useState('');
+    const [tags, setTags] = useState<string>('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [shareToast, setShareToast] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -221,7 +263,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             list = posts.filter(post => 
                 post.title?.toLowerCase().includes(q) || 
                 post.userName?.toLowerCase().includes(q) ||
-                post.caption?.toLowerCase().includes(q)
+                post.caption?.toLowerCase().includes(q) ||
+                post.tags?.some(t => t.toLowerCase().includes(q))
             );
         }
         return list;
@@ -236,21 +279,27 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     const handleUpload = async () => {
         if (!user || !caption.trim()) return;
         setIsUploading(true);
-        let mediaUrl = "";
-        let mediaType: 'image' | 'video' | 'text' = 'text';
+        let mediaUrl = editingPost?.mediaUrl || "";
+        let mediaType: 'image' | 'video' | 'text' = editingPost?.mediaType || 'text';
 
         try {
             if (selectedFile) {
+                // If editing and has previous media, ideally we delete it from R2 first
+                if (editingPost?.mediaUrl) {
+                    await deleteMediaFromR2(editingPost.mediaUrl);
+                }
                 const formData = new FormData();
                 formData.append('file', selectedFile);
                 formData.append('folder', 'Marketplace');
-                const res = await fetch('https://quiet-haze-1898.fuadeditingzone.workers.dev', { method: 'POST', body: formData });
+                const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
                 const result = await res.json();
                 mediaUrl = result.url;
                 mediaType = selectedFile.type.startsWith('video') ? 'video' : 'image';
             }
 
-            const postData = {
+            const tagList = tags.split(',').map(t => t.trim()).filter(t => t !== "").slice(0, 5);
+
+            const postData: any = {
                 userId: user.id,
                 userName: user.username || user.fullName,
                 userAvatar: user.imageUrl,
@@ -259,16 +308,57 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                 mediaType,
                 title: title.trim(),
                 caption: caption.trim(),
-                tags: [],
+                tags: tagList,
                 budget,
-                timestamp: Date.now(),
-                targetSection: 'Marketplace Only'
+                timestamp: editingPost ? editingPost.timestamp : Date.now(),
+                lastEdited: editingPost ? Date.now() : null,
+                targetSection: editingPost?.targetSection || 'Marketplace Only'
             };
 
-            await push(ref(db, 'explore_posts'), postData);
-            setTitle(''); setCaption(''); setBudget(''); setSelectedFile(null);
+            if (editingPost) {
+                await update(ref(db, `explore_posts/${editingPost.id}`), postData);
+            } else {
+                await push(ref(db, 'explore_posts'), postData);
+            }
+
+            resetForm();
             setIsPostModalOpen(false);
-        } catch (err) { alert("Upload error"); } finally { setIsUploading(false); }
+            setEditingPost(null);
+        } catch (err) { alert("Action failed"); } finally { setIsUploading(false); }
+    };
+
+    const handleDelete = async (post: Post) => {
+        if (!window.confirm("Confirm signal termination? This will wipe the media from R2 storage.")) return;
+        try {
+            if (post.mediaUrl) {
+                await deleteMediaFromR2(post.mediaUrl);
+            }
+            await remove(ref(db, `explore_posts/${post.id}`));
+        } catch (e) { alert("Deletion failed"); }
+    };
+
+    const deleteMediaFromR2 = async (url: string) => {
+        try {
+            // Assume the worker supports DELETE method or a clear endpoint for deletion
+            await fetch(`${R2_WORKER_URL}?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
+        } catch (e) {
+            console.warn("R2 cleanup skipped or failed", e);
+        }
+    };
+
+    const handleEdit = (post: Post) => {
+        setEditingPost(post);
+        setTitle(post.title || '');
+        setCaption(post.caption || '');
+        setUserRole(post.userRole || 'Designer');
+        setBudget(post.budget || '');
+        setTags(post.tags?.join(', ') || '');
+        setIsPostModalOpen(true);
+    };
+
+    const resetForm = () => {
+        setTitle(''); setCaption(''); setBudget(''); setTags(''); setSelectedFile(null);
+        setEditingPost(null);
     };
 
     const handleLike = async (e: React.MouseEvent, post: Post, isLiked: boolean) => {
@@ -326,6 +416,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                         onOpenModal={onOpenModal}
                         onShare={handleShare}
                         onLike={handleLike}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
                         posts={posts}
                     />
                 ))}
@@ -342,11 +434,11 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             <AnimatePresence>
                 {isPostModalOpen && (
                     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setIsPostModalOpen(false)} className="absolute inset-0 bg-black/80" />
+                        <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { setIsPostModalOpen(false); resetForm(); }} className="absolute inset-0 bg-black/80" />
                         <motion.div initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,1)] overflow-hidden">
                             <div className="p-5 border-b border-white/5 flex justify-between items-center bg-black/40">
-                                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Create Post</h2>
-                                <button onClick={() => setIsPostModalOpen(false)} className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 transition-colors"><CloseIcon className="w-5 h-5" /></button>
+                                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{editingPost ? 'Update Signal' : 'Initialize Creation'}</h2>
+                                <button onClick={() => { setIsPostModalOpen(false); resetForm(); }} className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 transition-colors"><CloseIcon className="w-5 h-5" /></button>
                             </div>
                             <div className="p-6 space-y-5">
                                 <div className="flex gap-2 p-1 bg-black rounded-xl border border-white/5 w-fit">
@@ -357,6 +449,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                                 <div className="space-y-4">
                                     <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-bold uppercase tracking-widest" />
                                     <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Description..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none resize-none h-32 focus:border-red-600/50 transition-all font-medium" />
+                                    <input value={tags} onChange={e => setTags(e.target.value)} placeholder="Tags (comma separated, max 5)" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-medium italic" />
+                                    
                                     {userRole === 'Client' && (
                                         <div className="relative">
                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-red-600 font-black text-xs">$</span>
@@ -366,11 +460,11 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                                 </div>
                                 <div className="flex items-center justify-between border-t border-white/5 pt-6">
                                     <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedFile ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}>
-                                        <PhotoManipulationIcon className="w-4 h-4" /> {selectedFile ? 'Media Ready' : 'Add Media'}
+                                        <PhotoManipulationIcon className="w-4 h-4" /> {selectedFile ? 'Media Ready' : (editingPost ? 'Change Media' : 'Add Media')}
                                     </button>
                                     <input type="file" hidden ref={fileInputRef} accept="image/*,video/*" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
                                     <button disabled={isUploading || !caption.trim()} onClick={handleUpload} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] transition-all flex items-center gap-2 shadow-xl active:scale-95">
-                                        {isUploading ? 'Posting...' : 'Post'} <SendIcon className="w-4 h-4" />
+                                        {isUploading ? (editingPost ? 'Updating...' : 'Posting...') : (editingPost ? 'Update' : 'Post')} <SendIcon className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
@@ -383,7 +477,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                 <motion.button 
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setIsPostModalOpen(true)}
+                    onClick={() => { resetForm(); setIsPostModalOpen(true); }}
                     className="fixed bottom-24 right-5 md:bottom-10 md:right-10 z-[110] w-14 h-14 md:w-16 md:h-16 bg-red-600 text-white rounded-[1.2rem] flex items-center justify-center shadow-[0_20px_40px_rgba(220,38,38,0.4)] border-2 border-white/20 group"
                 >
                     <span className="text-3xl font-light group-hover:rotate-90 transition-transform">+</span>
