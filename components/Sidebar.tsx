@@ -10,7 +10,6 @@ import {
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-/* Added SendIcon to the imported icons to fix the 'Cannot find name SendIcon' error on line 200 */
 import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon } from './Icons';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,6 +36,7 @@ interface NavProps {
   onOpenChatWithUser?: (userId: string) => void;
   onOpenProfile?: (userId: string) => void;
   activeRoute?: string;
+  onOpenPost?: (postId: string, commentId?: string) => void;
 }
 
 export const SidebarSubNav: React.FC<{ active: 'marketplace' | 'community', onSwitch: (target: 'marketplace' | 'community') => void }> = ({ active, onSwitch }) => {
@@ -232,7 +232,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
     );
 };
 
-const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; onShowUser: (id: string) => void; onGoToInbox: (id: string) => void }> = ({ isOpen, setIsOpen, onShowUser, onGoToInbox }) => {
+const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; onShowUser: (id: string) => void; onGoToInbox: (id: string) => void; onOpenPost?: (postId: string, commentId?: string) => void }> = ({ isOpen, setIsOpen, onShowUser, onGoToInbox, onOpenPost }) => {
     const { user } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
 
@@ -257,7 +257,12 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
 
     const handleNotificationClick = async (n: any) => {
         if (!n.isGlobal) await update(ref(db, `notifications/${user?.id}/${n.id}`), { read: true });
-        if (n.fromId && n.fromId !== 'system') onShowUser(n.fromId);
+        
+        if (n.type === 'post_like' || n.type === 'post_comment' || n.type === 'comment_reply') {
+            onOpenPost?.(n.postId, n.commentId);
+        } else if (n.fromId && n.fromId !== 'system') {
+            onShowUser(n.fromId);
+        }
         setIsOpen(false);
     };
 
@@ -297,7 +302,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
     );
 };
 
-export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, activeRoute }) => {
+export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, activeRoute, onOpenPost }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
   
@@ -320,7 +325,7 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
         <div className="flex items-center gap-4">
             <SignedIn>
               <RequestHub isOpen={isRequestsOpen} setIsOpen={(v) => { setIsRequestsOpen(v); setIsNotificationsOpen(false); }} onShowUser={onOpenProfile!} />
-              <NotificationHub isOpen={isNotificationsOpen} setIsOpen={(v) => { setIsNotificationsOpen(v); setIsRequestsOpen(false); }} onShowUser={onOpenProfile!} onGoToInbox={onOpenChatWithUser!} />
+              <NotificationHub isOpen={isNotificationsOpen} setIsOpen={(v) => { setIsNotificationsOpen(v); setIsRequestsOpen(false); }} onShowUser={onOpenProfile!} onGoToInbox={onOpenChatWithUser!} onOpenPost={onOpenPost} />
               <UserButton appearance={{ elements: { userButtonAvatarBox: "w-9 h-9 border border-white/20" } }} />
             </SignedIn>
             <SignedOut>
@@ -331,7 +336,7 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
   );
 };
 
-export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile }) => {
+export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, onOpenPost }) => {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isRequestsOpen, setIsRequestsOpen] = useState(false);
     return (
@@ -346,7 +351,7 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
             <div className="flex items-center gap-3">
                 <SignedIn>
                     <RequestHub isOpen={isRequestsOpen} setIsOpen={(v) => { setIsRequestsOpen(v); setIsNotificationsOpen(false); }} onShowUser={onOpenProfile!} />
-                    <NotificationHub isOpen={isNotificationsOpen} setIsOpen={(v) => { setIsNotificationsOpen(v); setIsRequestsOpen(false); }} onShowUser={onOpenProfile!} onGoToInbox={onOpenChatWithUser!} />
+                    <NotificationHub isOpen={isNotificationsOpen} setIsOpen={(v) => { setIsNotificationsOpen(v); setIsRequestsOpen(false); }} onShowUser={onOpenProfile!} onGoToInbox={onOpenChatWithUser!} onOpenPost={onOpenPost} />
                     <UserButton />
                 </SignedIn>
                 <SignedOut><SignInButton mode="modal"><button className="text-[8px] font-black text-red-500 uppercase tracking-widest bg-red-600/10 px-3 py-1.5 rounded-lg border border-red-600/30">Log In</button></SignInButton></SignedOut>

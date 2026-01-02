@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { GraphicWork, VideoWork, ModalItem } from '../hooks/types';
+import type { Comment as PostComment } from './ExploreFeed';
 import { 
     CloseIcon, PlayIcon, CheckCircleIcon, HeartHoverIcon,
     ChatBubbleIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon
@@ -8,16 +9,167 @@ import {
 import { siteConfig } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
-import { getDatabase, ref, onValue, push, remove, set, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, onValue, push, remove, set, get, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
 interface ModalViewerProps {
   state: { items: ModalItem[]; currentIndex: number };
   onClose: () => void;
   onNext: (idx: number) => void;
   onPrev: (idx: number) => void;
+  highlightCommentId?: string | null;
 }
 
-export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext, onPrev }) => {
+const CommentItem: React.FC<{
+    comment: PostComment;
+    postId: string;
+    postOwnerId: string;
+    user: any;
+    db: any;
+    isHighlighted?: boolean;
+    isReply?: boolean;
+    parentCommentId?: string;
+}> = ({ comment, postId, postOwnerId, user, db, isHighlighted, isReply, parentCommentId }) => {
+    const [isReplying, setIsReplying] = useState(false);
+    const [replyText, setReplyText] = useState('');
+    const [showReplies, setShowReplies] = useState(false);
+    const itemRef = useRef<HTMLDivElement>(null);
+
+    const isLikedByOwner = !!comment.likes?.[postOwnerId];
+    const likesCount = Object.keys(comment.likes || {}).length;
+    const replies = comment.replies ? Object.entries(comment.replies).map(([id, val]: [string, any]) => ({ id, ...val })) : [];
+
+    useEffect(() => {
+        if (isHighlighted && itemRef.current) {
+            itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [isHighlighted]);
+
+    const handleLikeComment = async () => {
+        if (!user) return;
+        const commentPath = isReply 
+            ? `explore_posts/${postId}/comments/${parentCommentId}/replies/${comment.id}/likes/${user.id}`
+            : `explore_posts/${postId}/comments/${comment.id}/likes/${user.id}`;
+        
+        const likeRef = ref(db, commentPath);
+        const snap = await get(likeRef);
+        if (snap.exists()) await remove(likeRef);
+        else await set(likeRef, true);
+    };
+
+    const handlePostReply = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !replyText.trim()) return;
+        const replyRef = ref(db, `explore_posts/${postId}/comments/${comment.id}/replies`);
+        await push(replyRef, {
+            userId: user.id,
+            userName: user.username || user.fullName,
+            userAvatar: user.imageUrl,
+            text: replyText.trim(),
+            timestamp: Date.now()
+        });
+        
+        // Notify original commenter
+        if (comment.userId !== user.id) {
+            await push(ref(db, `notifications/${comment.userId}`), {
+                type: 'comment_reply',
+                fromId: user.id,
+                fromName: user.username || user.fullName,
+                fromAvatar: user.imageUrl,
+                text: `@${user.username || user.fullName} replied to your signal.`,
+                timestamp: Date.now(),
+                read: false,
+                postId,
+                commentId: comment.id
+            });
+        }
+
+        setReplyText('');
+        setIsReplying(false);
+        setShowReplies(true);
+    };
+
+    return (
+        <div ref={itemRef} className={`group flex flex-col gap-3 ${isHighlighted ? 'bg-red-600/5 ring-1 ring-red-600/20 rounded-xl p-3 -mx-3' : ''} transition-all`}>
+            <div className="flex gap-4">
+                <img src={comment.userAvatar} className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0" alt="" />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[11px] font-black text-white uppercase tracking-tight">@{comment.userName}</span>
+                        <span className="text-[7px] text-zinc-700 font-bold uppercase">{new Date(comment.timestamp).toLocaleDateString()}</span>
+                        {comment.userId === postOwnerId && <span className="text-[6px] bg-red-600/20 text-red-500 px-1 rounded font-black border border-red-600/30">AUTHOR</span>}
+                    </div>
+                    <p className="text-zinc-400 text-xs leading-relaxed break-words poppins-font">{comment.text}</p>
+                    <div className="mt-2 flex items-center gap-4">
+                        {!isReply && (
+                            <button onClick={() => setIsReplying(!isReplying)} className="text-[8px] font-black text-zinc-600 hover:text-white uppercase tracking-widest transition-colors">Reply</button>
+                        )}
+                        <button onClick={handleLikeComment} className={`flex items-center gap-1.5 transition-all ${isLikedByOwner ? 'text-red-500' : 'text-zinc-600 hover:text-red-500'}`}>
+                            <i className={`fa-${isLikedByOwner ? 'solid' : 'regular'} fa-heart text-[10px]`}></i>
+                            {likesCount > 0 && <span className="text-[8px] font-black">{likesCount}</span>}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Reply Input */}
+            <AnimatePresence>
+                {isReplying && (
+                    <motion.form 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        onSubmit={handlePostReply}
+                        className="ml-12 relative"
+                    >
+                        <input 
+                            autoFocus
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder={`Reply to @${comment.userName}...`}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-4 pr-10 text-[10px] text-white outline-none focus:border-red-600/50 transition-all font-medium placeholder-zinc-700" 
+                        />
+                        <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-red-600"><SendIcon className="w-3.5 h-3.5"/></button>
+                    </motion.form>
+                )}
+            </AnimatePresence>
+
+            {/* Nested Replies */}
+            {replies.length > 0 && (
+                <div className="ml-12 space-y-4 pt-2">
+                    <button onClick={() => setShowReplies(!showReplies)} className="flex items-center gap-2 text-[8px] font-black text-zinc-600 hover:text-zinc-400 uppercase tracking-widest group">
+                        <span className="w-8 h-[1px] bg-zinc-800 group-hover:bg-zinc-600 transition-colors"></span>
+                        {showReplies ? 'Hide replies' : `View ${replies.length} replies`}
+                    </button>
+                    <AnimatePresence>
+                        {showReplies && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="space-y-4 overflow-hidden"
+                            >
+                                {replies.map((reply) => (
+                                    <CommentItem 
+                                        key={reply.id}
+                                        comment={reply}
+                                        postId={postId}
+                                        postOwnerId={postOwnerId}
+                                        user={user}
+                                        db={db}
+                                        isReply
+                                        parentCommentId={comment.id}
+                                    />
+                                ))}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext, onPrev, highlightCommentId }) => {
     const { items, currentIndex } = state;
     const currentItem = items[currentIndex];
     const { user, isSignedIn } = useUser();
@@ -30,7 +182,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
     const commentsEndRef = useRef<HTMLDivElement>(null);
 
     const isDynamicPost = !!(currentItem as any).userId;
-    const isOwner = user?.id === (currentItem as any).userId;
+    const isOwnerOfPost = user?.id === (currentItem as any).userId;
     const isLiked = user ? !!likes?.[user.id] : false;
 
     useEffect(() => {
@@ -83,33 +235,63 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
         if (!isSignedIn || !user || !isDynamicPost) return;
         const likeRef = ref(db, `explore_posts/${(currentItem as any).id}/likes/${user.id}`);
         if (isLiked) await remove(likeRef);
-        else await set(likeRef, true);
+        else {
+            await set(likeRef, true);
+            // Notify author
+            if ((currentItem as any).userId !== user.id) {
+                await push(ref(db, `notifications/${(currentItem as any).userId}`), {
+                    type: 'post_like',
+                    fromId: user.id,
+                    fromName: user.username || user.fullName,
+                    fromAvatar: user.imageUrl,
+                    text: `@${user.username || user.fullName} liked your post.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    postId: (currentItem as any).id
+                });
+            }
+        }
     };
 
     const handlePostComment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isSignedIn || !user || !newComment.trim() || !isDynamicPost) return;
-        const commentRef = ref(db, `explore_posts/${(currentItem as any).id}/comments`);
-        await push(commentRef, {
+        const postId = (currentItem as any).id;
+        const postAuthorId = (currentItem as any).userId;
+        const commentRef = ref(db, `explore_posts/${postId}/comments`);
+        const newCommentRef = await push(commentRef, {
             userId: user.id,
             userName: user.username || user.fullName,
             userAvatar: user.imageUrl,
             text: newComment.trim(),
             timestamp: Date.now()
         });
+        
+        // Notify author
+        if (postAuthorId !== user.id) {
+            await push(ref(db, `notifications/${postAuthorId}`), {
+                type: 'post_comment',
+                fromId: user.id,
+                fromName: user.username || user.fullName,
+                fromAvatar: user.imageUrl,
+                text: `@${user.username || user.fullName} signaled on your post.`,
+                timestamp: Date.now(),
+                read: false,
+                postId,
+                commentId: newCommentRef.key
+            });
+        }
+
         setNewComment('');
         setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
 
     return (
         <div className="fixed inset-0 bg-black z-[9999] flex flex-col md:flex-row animate-fade-in overflow-hidden">
-            {/* Background Layer */}
             <div className="absolute inset-0 bg-cover bg-center filter blur-2xl brightness-[0.1] opacity-60 scale-110 pointer-events-none" 
                  style={{ backgroundImage: `url(${getImageUrl() || siteConfig.branding.profilePicUrl})` }} />
 
-            {/* Main Visual Content (Left Side on Desktop) */}
             <div className="relative flex-1 flex flex-col min-w-0 bg-black/40">
-                {/* Header */}
                 <div className="relative z-[100] flex justify-between items-center p-4 md:p-6 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0">
                     <div className="flex items-center gap-3">
                         <img src={siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white/20" alt="" />
@@ -123,7 +305,6 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </button>
                 </div>
 
-                {/* Content Area */}
                 <div className="flex-1 relative flex items-center justify-center overflow-hidden">
                     <div className="relative w-full h-full flex items-center justify-center p-2 md:p-8" onClick={onClose}>
                         <div className="relative max-w-full max-h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
@@ -139,7 +320,6 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                                 </div>
                             ) : null}
 
-                            {/* Nav Buttons */}
                             <button onClick={(e) => { e.stopPropagation(); onPrev((currentIndex - 1 + items.length) % items.length); }} className="absolute left-0 md:-left-16 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-2 md:p-4 transition-all">
                                 <ChevronLeftIcon className="w-8 h-8 md:w-12 md:h-12" />
                             </button>
@@ -150,16 +330,13 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </div>
                 </div>
 
-                {/* Mobile Bottom Info */}
                 <div className="md:hidden p-4 bg-black/80 border-t border-white/5 backdrop-blur-xl">
                     <h3 className="text-white font-black text-sm uppercase truncate">{(currentItem as any).title || 'Masterwork'}</h3>
                     <p className="text-zinc-500 text-[10px] mt-1 line-clamp-1 italic">{(currentItem as any).caption || (currentItem as any).description || 'No additional data.'}</p>
                 </div>
             </div>
 
-            {/* Social Panel (Right Side on Desktop) */}
             <div className="w-full md:w-[400px] lg:w-[450px] bg-[#080808] border-l border-white/5 flex flex-col flex-shrink-0 z-[110]">
-                {/* Panel Header */}
                 <div className="hidden md:flex p-6 border-b border-white/5 items-center justify-between">
                     <div className="flex items-center gap-3">
                         <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-9 h-9 rounded-xl object-cover border border-white/10" alt="" />
@@ -171,7 +348,6 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><CloseIcon className="w-6 h-6" /></button>
                 </div>
 
-                {/* Description & Scrollable Comments */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
                     <div className="space-y-4">
                         <h3 className="text-white font-black text-xl lg:text-2xl uppercase tracking-tighter">{(currentItem as any).title || 'Masterwork'}</h3>
@@ -197,18 +373,17 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                                 <p className="text-[9px] font-black uppercase tracking-[0.4em]">No signals received</p>
                             </div>
                         ) : (
-                            <div className="space-y-6">
+                            <div className="space-y-8">
                                 {comments.map((cm) => (
-                                    <div key={cm.id} className="flex gap-4 group">
-                                        <img src={cm.userAvatar} className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0" alt="" />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-[11px] font-black text-white uppercase tracking-tight">@{cm.userName}</span>
-                                                <span className="text-[7px] text-zinc-700 font-bold uppercase">{new Date(cm.timestamp).toLocaleDateString()}</span>
-                                            </div>
-                                            <p className="text-zinc-400 text-xs leading-relaxed break-words poppins-font">{cm.text}</p>
-                                        </div>
-                                    </div>
+                                    <CommentItem 
+                                        key={cm.id}
+                                        comment={cm}
+                                        postId={(currentItem as any).id}
+                                        postOwnerId={(currentItem as any).userId}
+                                        user={user}
+                                        db={db}
+                                        isHighlighted={cm.id === highlightCommentId}
+                                    />
                                 ))}
                                 <div ref={commentsEndRef} />
                             </div>
@@ -216,7 +391,6 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </div>
                 </div>
 
-                {/* Interaction Footer */}
                 <div className="p-6 bg-black/40 border-t border-white/5 space-y-6 backdrop-blur-3xl">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-6">

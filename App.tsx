@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignIn } from '@clerk/clerk-react';
@@ -54,6 +55,7 @@ export default function App() {
   const [modalState, setModalState] = useState<{ items: ModalItem[]; currentIndex: number } | null>(null);
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
+  const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   
   const [isServicesPopupOpen, setIsServicesPopupOpen] = useState(false);
   const [isYouTubeRedirectOpen, setIsYouTubeRedirectOpen] = useState(false);
@@ -79,9 +81,21 @@ export default function App() {
     return false;
   };
 
+  const handleOpenPost = async (postId: string, commentId?: string) => {
+      const postSnap = await get(ref(db, `explore_posts/${postId}`));
+      if (postSnap.exists()) {
+          setModalState({ items: [{ id: postId, ...postSnap.val() }], currentIndex: 0 });
+          setHighlightCommentId(commentId || null);
+          window.history.pushState(null, '', `/post/${postId}${commentId ? `?commentId=${commentId}` : ''}`);
+      }
+  };
+
   useEffect(() => {
     const handleInitialLink = async () => {
       const path = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      const commentId = searchParams.get('commentId');
+
       if (path.startsWith('/work/')) {
         const id = path.split('/')[2];
         const allWorks = [...siteConfig.content.portfolio.graphicWorks, ...siteConfig.content.portfolio.vfxEdits];
@@ -90,7 +104,10 @@ export default function App() {
       } else if (path.startsWith('/post/')) {
         const id = path.split('/')[2];
         const postSnap = await get(ref(db, `explore_posts/${id}`));
-        if (postSnap.exists()) setModalState({ items: [{ id, ...postSnap.val() }], currentIndex: 0 });
+        if (postSnap.exists()) {
+            setModalState({ items: [{ id, ...postSnap.val() }], currentIndex: 0 });
+            if (commentId) setHighlightCommentId(commentId);
+        }
       } else {
         const resolved = await resolveProfileFromUrl(path);
         if (!resolved) {
@@ -125,6 +142,7 @@ export default function App() {
     const path = item.userId ? `/post/${item.id}` : `/work/${item.id}`;
     window.history.pushState(null, '', path);
     setModalState({ items, currentIndex: index });
+    setHighlightCommentId(null);
   };
 
   const handleCloseModal = () => {
@@ -139,6 +157,7 @@ export default function App() {
         window.history.pushState(null, '', base);
     }
     setModalState(null);
+    setHighlightCommentId(null);
   };
 
   useEffect(() => {
@@ -227,8 +246,8 @@ export default function App() {
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
           <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} />
-            <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} />
+            <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} onOpenPost={handleOpenPost} />
+            <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} onOpenPost={handleOpenPost} />
           </div>
           
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
@@ -260,7 +279,15 @@ export default function App() {
             onMessageUser={handleOpenChatWithUser}
             onShowProfile={handleOpenProfile}
           />
-          {modalState && <ModalViewer state={{ ...modalState, items: normalizedModalItems }} onClose={handleCloseModal} onNext={(idx) => handleSetModal(modalState.items, idx)} onPrev={(idx) => handleSetModal(modalState.items, idx)} />}
+          {modalState && (
+              <ModalViewer 
+                state={{ ...modalState, items: normalizedModalItems }} 
+                onClose={handleCloseModal} 
+                onNext={(idx) => handleSetModal(modalState.items, idx)} 
+                onPrev={(idx) => handleSetModal(modalState.items, idx)} 
+                highlightCommentId={highlightCommentId}
+              />
+          )}
           {isServicesPopupOpen && <ServicesListPopup onClose={() => setIsServicesPopupOpen(false)} />}
           {isYouTubeRedirectOpen && <YouTubeRedirectPopup onClose={() => setIsYouTubeRedirectOpen(false)} onConfirm={() => { setIsYouTubeRedirectOpen(false); handleScrollTo('portfolio'); }} />}
           {pipVideo && <VideoPipPlayer video={pipVideo} onClose={() => setPipVideo(null)} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />}

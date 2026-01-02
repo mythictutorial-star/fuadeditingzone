@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -25,16 +26,18 @@ const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
 
 type UserRole = 'Designer' | 'Client';
 
-interface Comment {
+export interface Comment {
     id: string;
     userId: string;
     userName: string;
     userAvatar: string;
     text: string;
     timestamp: number;
+    likes?: Record<string, boolean>;
+    replies?: Record<string, Comment>;
 }
 
-interface Post {
+export interface Post {
     id: string;
     userId: string;
     userName: string;
@@ -141,7 +144,7 @@ const PostItem: React.FC<{
                                 {post.userName === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>}
                                 {post.userName === ADMIN_HANDLE && <i className="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>}
                             </p>
-                            <p className="text-[6px] md:text-[7px] font-black text-red-500 uppercase tracking-widest leading-none mt-0.5">{post.userRole || 'Designer'}</p>
+                            <p className="text-[6px] md:text-[7px] font-black text-red-500 uppercase tracking-widest mt-0.5">{post.userRole || 'Designer'}</p>
                         </div>
                     </div>
                 </div>
@@ -370,8 +373,24 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
         e.stopPropagation();
         if (!isSignedIn || !user) return;
         const likeRef = ref(db, `explore_posts/${post.id}/likes/${user.id}`);
-        if (isLiked) await remove(likeRef);
-        else await set(likeRef, true);
+        if (isLiked) {
+            await remove(likeRef);
+        } else {
+            await set(likeRef, true);
+            // Notify author
+            if (post.userId !== user.id) {
+                await push(ref(db, `notifications/${post.userId}`), {
+                    type: 'post_like',
+                    fromId: user.id,
+                    fromName: user.username || user.fullName,
+                    fromAvatar: user.imageUrl,
+                    text: `@${user.username || user.fullName} liked your post.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    postId: post.id
+                });
+            }
+        }
     };
 
     const handleShare = (e: React.MouseEvent, postId: string) => {
