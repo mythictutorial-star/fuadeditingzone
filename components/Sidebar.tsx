@@ -27,7 +27,7 @@ const db = getDatabase(app);
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 
-const getBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm"></i> : null);
+const getBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i> : null);
 
 interface NavProps {
   onScrollTo: (section: string) => void;
@@ -284,7 +284,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                                 <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">Empty</p>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent ${!n.read && !n.isGlobal ? 'bg-red-600/5 border-red-600/10' : 'opacity-50 hover:bg-white/5'}`}>
+                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent ${!n.read && !n.isGlobal ? 'fez-verified-badge bg-red-600/5 border-red-600/10' : 'opacity-50 hover:bg-white/5'}`}>
                                         <div className="flex gap-3 items-center">
                                             {n.fromAvatar && <img src={n.fromAvatar} className="w-6 h-6 rounded-full object-cover" alt="" />}
                                             <div className="flex-1 min-w-0">

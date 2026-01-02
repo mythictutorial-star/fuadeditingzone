@@ -28,7 +28,7 @@ const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
     const isAdmin = username === ADMIN_HANDLE;
     if (!isOwner && !isAdmin) return null;
     return (
-        <i className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1`}></i>
+        <i className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1 fez-verified-badge`}></i>
     );
 };
 
@@ -126,7 +126,7 @@ const CommentItem: React.FC<{
                                 <div className="flex items-center gap-1.5" title="Liked by author">
                                     <span className="w-px h-2 bg-zinc-800"></span>
                                     <div className="relative">
-                                        <i className="fa-solid fa-heart text-[8px] text-red-600"></i>
+                                        <i className="fa-solid fa-heart text-[8px] text-red-600 fez-verified-badge"></i>
                                         <div className="absolute inset-0 bg-red-600/20 blur-[4px] rounded-full"></div>
                                     </div>
                                     <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Author liked</span>

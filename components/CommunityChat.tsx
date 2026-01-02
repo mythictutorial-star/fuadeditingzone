@@ -53,7 +53,7 @@ const getIdentity = (username: string, role?: string, hideRole = false) => {
     return (
         <div className="flex items-center gap-1.5 ml-1.5 flex-shrink-0">
             {(isOwner || isAdmin) && (
-                <i className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]`}></i>
+                <i className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
             )}
             {!hideRole && (
               <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded border leading-none tracking-[0.1em] ${
@@ -294,7 +294,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                       <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
                           <span className={`text-[11px] font-black uppercase truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-400'}`}>{u.name}</span>
                           {(u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE) && (
-                            <i className={`fa-solid fa-circle-check ${u.username === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] flex-shrink-0 drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]`}></i>
+                            <i className={`fa-solid fa-circle-check ${u.username === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] flex-shrink-0 drop-shadow-[0_0_5px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
                           )}
                       </div>
                       <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">

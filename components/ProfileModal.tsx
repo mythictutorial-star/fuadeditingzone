@@ -223,7 +223,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         setUserListMode(null);
     };
 
-    const getVerifiedBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg"></i> : null);
+    const getVerifiedBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i> : null);
 
     if (!isLoaded || !clerkUser || !isOpen) return null;
 
@@ -404,7 +404,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 )}
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px]">
                                                     <div className="flex gap-8 text-sm font-black text-white uppercase tracking-widest scale-90 group-hover:scale-100 transition-all">
-                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]"></i> {Object.keys(post.likes || {}).length}</span>
+                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)] fez-verified-badge"></i> {Object.keys(post.likes || {}).length}</span>
                                                         <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-comment text-white/50"></i> {Object.keys(post.comments || {}).length}</span>
                                                     </div>
                                                 </div>
