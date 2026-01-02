@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, onValue, set, update, get, remove, query, limitToLast, orderByChild, equalTo } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon } from './Icons';
+import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
 import { ArrowLeft } from 'lucide-react';
 
@@ -78,6 +77,8 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
+  const [showFriendsOnly, setShowFriendsOnly] = useState(false);
+  const [friendsList, setFriendsList] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,7 +97,18 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           }
       }
     });
-  }, [initialTargetUserId]);
+
+    if (clerkUser) {
+        const friendsRef = ref(db, `social/${clerkUser.id}/friends`);
+        onValue(friendsRef, (snap) => {
+            if (snap.exists()) {
+                setFriendsList(Object.keys(snap.val()));
+            } else {
+                setFriendsList([]);
+            }
+        });
+    }
+  }, [clerkUser, initialTargetUserId]);
 
   const chatPath = useMemo(() => {
     if (isGlobal) return 'community/global';
@@ -138,13 +150,18 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   };
 
   const filteredUsers = useMemo(() => {
-    return users
-      .filter(u => u.id !== clerkUser?.id)
+    let list = users.filter(u => u.id !== clerkUser?.id);
+    
+    if (showFriendsOnly) {
+        list = list.filter(u => friendsList.includes(u.id));
+    }
+
+    return list
       .filter(u => 
         u.name?.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) || 
         u.username?.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
       ).slice(0, 50);
-  }, [users, sidebarSearchQuery, clerkUser]);
+  }, [users, sidebarSearchQuery, clerkUser, showFriendsOnly, friendsList]);
 
   const openSignal = (user: ChatUser | null) => {
       if (user === null) {
@@ -166,11 +183,24 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           <div className="p-4 flex flex-col gap-2">
             <SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} />
             
-            <div className="flex items-center justify-end mb-2">
+            <div className="flex items-center gap-2 mb-2">
               {clerkUser && (
-                <button onClick={() => onShowProfile?.(clerkUser.id, clerkUser.username || undefined)} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white transition-all flex items-center justify-center">
-                  <UserCircleIcon className="w-5 h-5" />
-                </button>
+                <>
+                  <button 
+                    onClick={() => setShowFriendsOnly(!showFriendsOnly)} 
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border transition-all ${showFriendsOnly ? 'bg-red-600 border-red-500 text-white shadow-[0_10px_20px_rgba(220,38,38,0.2)]' : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white'}`}
+                  >
+                    <UserGroupIcon className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Friends</span>
+                  </button>
+                  <button 
+                    onClick={() => onShowProfile?.(clerkUser.id, clerkUser.username || undefined)} 
+                    className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white transition-all flex items-center justify-center flex-shrink-0"
+                    title="Your Profile"
+                  >
+                    <UserCircleIcon className="w-5 h-5" />
+                  </button>
+                </>
               )}
             </div>
 
@@ -179,7 +209,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               <input 
                 value={sidebarSearchQuery} 
                 onChange={e => setSidebarSearchQuery(e.target.value)} 
-                placeholder="Find users..." 
+                placeholder={showFriendsOnly ? "Search friends..." : "Find users..."} 
                 className="w-full bg-black/60 border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-bold placeholder-zinc-800 shadow-inner" 
               />
             </div>
@@ -194,12 +224,18 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           </div>
 
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-5 mb-3">Messages</h4>
+            <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-5 mb-3">
+                {showFriendsOnly ? 'Friends List' : 'Messages'}
+            </h4>
             <div className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1.5">
               {filteredUsers.length === 0 ? (
                   <div className="py-12 text-center opacity-20">
-                      <SearchIcon className="w-8 h-8 mx-auto mb-2" />
-                      <p className="text-[8px] font-black uppercase tracking-widest">No users found</p>
+                      <div className="w-12 h-12 mx-auto mb-4 bg-white/5 rounded-full flex items-center justify-center">
+                          {showFriendsOnly ? <UserGroupIcon className="w-6 h-6" /> : <SearchIcon className="w-6 h-6" />}
+                      </div>
+                      <p className="text-[8px] font-black uppercase tracking-widest">
+                          {showFriendsOnly ? 'No friends found' : 'No users found'}
+                      </p>
                   </div>
               ) : (
                 filteredUsers.map(u => (
