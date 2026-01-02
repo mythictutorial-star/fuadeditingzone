@@ -225,7 +225,7 @@ export default function App() {
           
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route === 'community' ? 'h-[calc(100dvh-80px)] md:h-[calc(100dvh-80px)] pt-20' : ''}`}>
             {route === 'home' && (
-              <div className="flex flex-col">
+              <div className="flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth">
                 <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
                 <Portfolio openModal={handleSetModal} isYouTubeApiReady={isYouTubeApiReady} playingVfxVideo={playingVfxVideo} setPlayingVfxVideo={setPlayingVfxVideo} pipVideo={pipVideo} setPipVideo={setPipVideo} activeYouTubeId={activeYouTubeId} setActiveYouTubeId={setActiveYouTubeId} isYtPlaying={isYtPlaying} setIsYtPlaying={setIsYtPlaying} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />
                 <Contact onStartOrder={() => {}} />

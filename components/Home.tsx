@@ -94,7 +94,7 @@ export const Home: React.FC<HomeProps> = ({
     return (
         <section 
             id="home" 
-            className="h-[100dvh] w-full flex flex-col items-center justify-center relative select-none overflow-hidden p-0 bg-black"
+            className="min-h-[100dvh] w-full flex flex-col items-center justify-center relative select-none overflow-hidden bg-black py-20"
         >
             <div className="absolute inset-0 z-0 bg-black"></div>
 
@@ -105,7 +105,7 @@ export const Home: React.FC<HomeProps> = ({
                 className="relative z-30 w-full text-center flex flex-col items-center max-w-5xl px-6" 
                 style={headlineStyle}
             >
-                <div className="relative flex flex-col md:flex-row items-center justify-center mb-6 md:mb-10 gap-4 md:gap-10 min-h-[140px] md:min-h-[200px]">
+                <div className="relative flex flex-col md:flex-row items-center justify-center mb-8 md:mb-12 gap-6 md:gap-12">
                     <motion.div 
                         initial={{ opacity: 0, scale: 0.9, rotateY: 30 }}
                         animate={isImageLoaded ? { opacity: 1, scale: 1, rotateY: 0 } : { opacity: 0 }}
@@ -113,7 +113,7 @@ export const Home: React.FC<HomeProps> = ({
                         className="relative group flex-shrink-0 z-40"
                     >
                         <div className="absolute -inset-6 bg-red-600/10 rounded-[2.5rem] blur-3xl animate-pulse group-hover:bg-red-600/20 transition-colors duration-700"></div>
-                        <div className="relative w-28 h-28 md:w-44 md:h-44 rounded-[2rem] md:rounded-[3rem] overflow-hidden border-2 border-white/10 transition-all duration-1000 bg-black shadow-[0_20px_60px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+                        <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden border-2 border-white/10 transition-all duration-1000 bg-black shadow-[0_20px_60px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
                             <motion.img 
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -123,9 +123,9 @@ export const Home: React.FC<HomeProps> = ({
                                 className="w-full h-full object-cover object-top origin-top transition-all duration-700 group-hover:scale-110 group-hover:brightness-110" 
                             />
                         </div>
-                        <div className="absolute -bottom-2 -right-2 md:-bottom-3 md:-right-3 bg-red-600 text-white py-1 px-2.5 md:py-2 md:px-4 rounded-full shadow-2xl flex items-center gap-1.5 border border-white/20 z-50 transform hover:scale-110 transition-transform">
-                            <CheckCircleIcon className="w-2.5 md:w-3.5 text-white" />
-                            <span className="text-[6px] md:text-[9px] font-black uppercase tracking-[0.25em]">Official</span>
+                        <div className="absolute -bottom-2 -right-2 md:-bottom-3 md:-right-3 bg-red-600 text-white py-1 px-3 md:py-2 md:px-5 rounded-full shadow-2xl flex items-center gap-1.5 border border-white/20 z-50 transform hover:scale-110 transition-transform">
+                            <CheckCircleIcon className="w-3 md:w-4 text-white" />
+                            <span className="text-[7px] md:text-[10px] font-black uppercase tracking-[0.25em]">Official</span>
                         </div>
                     </motion.div>
 
@@ -136,20 +136,20 @@ export const Home: React.FC<HomeProps> = ({
                             transition={{ duration: 1.2, delay: 0.5 }}
                             className="font-black text-white tracking-tighter uppercase m-0 p-0 font-display"
                         >
-                            <span className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl block -mb-[0.05em] relative leading-[0.8] opacity-90 whitespace-nowrap drop-shadow-[0_15px_30px_rgba(0,0,0,0.7)]">FUAD</span>
-                            <span className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl block text-red-600 relative leading-[0.8] opacity-100 whitespace-nowrap drop-shadow-[0_10px_20px_rgba(220,38,38,0.3)]">AHMED</span>
+                            <span className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl block -mb-[0.05em] relative leading-[0.8] opacity-90 whitespace-nowrap drop-shadow-[0_15px_30px_rgba(0,0,0,0.7)]">FUAD</span>
+                            <span className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl block text-red-600 relative leading-[0.8] opacity-100 whitespace-nowrap drop-shadow-[0_10px_20px_rgba(220,38,38,0.3)]">AHMED</span>
                         </motion.h1>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap justify-center items-center gap-2 md:gap-3 mb-8 md:mb-14 px-4 max-w-4xl">
+                <div className="flex flex-wrap justify-center items-center gap-2 md:gap-3 mb-10 md:mb-16 px-4 max-w-4xl">
                     {sortedHeroSkills.map((skill, i) => (
                         <motion.span 
                             key={skill}
                             initial={{ opacity: 0, y: 10 }}
                             animate={isImageLoaded ? { opacity: 1, y: 0 } : { opacity: 0 }}
                             transition={{ delay: 0.9 + (0.05 * i), duration: 0.5 }}
-                            className="flex items-center bg-white/5 border border-white/10 rounded-xl md:rounded-2xl px-4 py-2 md:px-6 md:py-3.5 text-[8px] md:text-[11px] font-bold text-zinc-300 uppercase tracking-widest transition-all duration-500 hover:text-white hover:bg-red-600/20 hover:border-red-600/50 hover:-translate-y-1 shadow-lg"
+                            className="flex items-center bg-white/5 border border-white/10 rounded-xl md:rounded-2xl px-4 py-2.5 md:px-7 md:py-4 text-[9px] md:text-[12px] font-bold text-zinc-300 uppercase tracking-widest transition-all duration-500 hover:text-white hover:bg-red-600/20 hover:border-red-600/50 hover:-translate-y-1 shadow-lg"
                         >
                             {skill}
                             {proSkills.includes(skill) && (
@@ -162,19 +162,19 @@ export const Home: React.FC<HomeProps> = ({
                         animate={isImageLoaded ? { opacity: 1 } : { opacity: 0 }}
                         transition={{ delay: 1.3 }}
                         onClick={(e) => { e.stopPropagation(); onOpenServices(); }}
-                        className="w-10 h-10 md:w-14 md:h-14 flex items-center justify-center bg-white/5 hover:bg-red-600 border border-white/10 rounded-xl md:rounded-2xl transition-all duration-300 group shadow-lg"
+                        className="w-12 h-12 md:w-16 md:h-16 flex items-center justify-center bg-white/5 hover:bg-red-600 border border-white/10 rounded-xl md:rounded-2xl transition-all duration-300 group shadow-lg"
                     >
-                        <ThreeDotsIcon className="w-4 h-4 md:w-6 md:h-6 text-white group-hover:rotate-90 transition-transform" />
+                        <ThreeDotsIcon className="w-5 h-5 md:w-7 md:h-7 text-white group-hover:rotate-90 transition-transform" />
                     </motion.button>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-center gap-8 md:gap-16 w-full justify-center">
+                <div className="flex flex-col md:flex-row items-center gap-10 md:gap-20 w-full justify-center">
                     <motion.button 
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
                         transition={{ delay: 1.4, duration: 1, ease: [0.16, 1, 0.3, 1] }}
                         onClick={(e) => { e.stopPropagation(); onOrderNow(); }}
-                        className="relative overflow-hidden bg-white text-black text-sm md:text-base font-black px-12 py-5 md:px-20 md:py-7 rounded-full hover:scale-105 active:scale-95 transition-all shadow-[0_20px_50px_rgba(255,255,255,0.1)] uppercase tracking-[0.5em] flex-shrink-0 group/order"
+                        className="relative overflow-hidden bg-white text-black text-sm md:text-base font-black px-14 py-6 md:px-24 md:py-8 rounded-full hover:scale-105 active:scale-95 transition-all shadow-[0_20px_50px_rgba(255,255,255,0.1)] uppercase tracking-[0.5em] flex-shrink-0 group/order"
                     >
                         <span className="relative z-10">Get a Quote</span>
                     </motion.button>
@@ -183,26 +183,26 @@ export const Home: React.FC<HomeProps> = ({
                         initial={{ opacity: 0 }}
                         animate={isImageLoaded ? { opacity: 1 } : { opacity: 0 }}
                         transition={{ delay: 1.6, duration: 1.2 }}
-                        className="flex items-center gap-8 sm:gap-12 md:gap-16 px-2"
+                        className="flex items-center gap-10 sm:gap-16 md:gap-20 px-2"
                     >
                         <div className="text-left cursor-pointer group/stat flex-shrink-0" onClick={onYouTubeClick}>
-                            <div className="flex items-center gap-2 md:gap-4 mb-1">
-                                <div className="text-3xl sm:text-4xl md:text-6xl font-black text-white leading-none group-hover:text-red-600 transition-colors font-display">
+                            <div className="flex items-center gap-3 md:gap-5 mb-1.5">
+                                <div className="text-4xl sm:text-5xl md:text-7xl font-black text-white leading-none group-hover:text-red-600 transition-colors font-display">
                                     {loading ? '---' : <StretchyCounter value={animatedSubs} />}
                                 </div>
-                                <div className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)]"></div>
+                                <div className="w-3 h-3 md:w-4 md:h-4 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)]"></div>
                             </div>
-                            <span className="text-[9px] md:text-[12px] text-zinc-500 font-black uppercase tracking-[0.4em] group-hover:text-red-600 transition-colors whitespace-nowrap">Followers</span>
+                            <span className="text-[10px] md:text-[14px] text-zinc-500 font-black uppercase tracking-[0.4em] group-hover:text-red-600 transition-colors whitespace-nowrap">Followers</span>
                         </div>
 
-                        <div className="text-left border-l border-white/10 pl-8 sm:pl-12 md:pl-16 cursor-pointer group/stat flex-shrink-0" onClick={onYouTubeClick}>
-                            <div className="flex items-center gap-2 md:gap-4 mb-1">
-                                <div className="text-3xl sm:text-4xl md:text-6xl font-black text-white leading-none group-hover:text-red-600 transition-colors font-display">
+                        <div className="text-left border-l border-white/10 pl-10 sm:pl-16 md:pl-20 cursor-pointer group/stat flex-shrink-0" onClick={onYouTubeClick}>
+                            <div className="flex items-center gap-3 md:gap-5 mb-1.5">
+                                <div className="text-4xl sm:text-5xl md:text-7xl font-black text-white leading-none group-hover:text-red-600 transition-colors font-display">
                                     {loading ? '---' : <StretchyCounter value={animatedViews} />}
                                 </div>
-                                <YouTubeIcon className="w-5 h-5 md:w-8 md:h-8 text-red-600 opacity-70 group-hover:opacity-100 transition-all" />
+                                <YouTubeIcon className="w-6 h-6 md:w-10 md:h-10 text-red-600 opacity-70 group-hover:opacity-100 transition-all" />
                             </div>
-                            <span className="text-[9px] md:text-[12px] text-zinc-500 font-black uppercase tracking-[0.4em] group-hover:text-red-600 transition-colors whitespace-nowrap">Views</span>
+                            <span className="text-[10px] md:text-[14px] text-zinc-500 font-black uppercase tracking-[0.4em] group-hover:text-red-600 transition-colors whitespace-nowrap">Views</span>
                         </div>
                     </motion.div>
                 </div>
