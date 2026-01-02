@@ -164,17 +164,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             const fPath = `social/${viewingUserId}/followers/${clerkUser.id}`;
             if (socialState.isFollowing) {
                 await remove(ref(db, path));
-                await remove(ref(db, fPath));
+                await remove(ref(fPath));
             } else {
                 await set(ref(db, path), true);
                 await set(ref(fPath), true);
                 await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'follow', fromId: clerkUser.id, fromName: clerkUser.username || clerkUser.fullName, fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
+                    type: 'follow', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
                 });
             }
         } else {
             if (socialState.friendStatus === 'accepted') {
-                if (window.confirm(`Unfriend @${targetUser?.username}?`)) {
+                if (window.confirm(`Unfriend @${(targetUser?.username || '').toLowerCase()}?`)) {
                     await remove(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`));
                     await remove(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`));
                     await remove(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`));
@@ -186,7 +186,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 await set(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`), true);
                 await set(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`), true);
                 await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'friend_accepted', fromId: clerkUser.id, fromName: clerkUser.username || clerkUser.fullName, fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
+                    type: 'friend_accepted', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
                 });
             } else if (socialState.friendStatus === 'requested') {
                 if (window.confirm("Cancel friend request?")) {
@@ -197,7 +197,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 await set(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`), { timestamp: Date.now() });
                 await set(ref(viewingUserId ? db : null, `social/${viewingUserId}/requests/received/${clerkUser.id}`), { timestamp: Date.now() });
                 await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'friend_request', fromId: clerkUser.id, fromName: clerkUser.username || clerkUser.fullName, fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
+                    type: 'friend_request', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
                 });
             }
         }
@@ -211,7 +211,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     };
 
     const handleCopyProfileLink = () => {
-        const username = targetUser?.username || clerkUser?.username || currentProfileId;
+        const username = (targetUser?.username || clerkUser?.username || currentProfileId).toLowerCase();
         const url = `${window.location.origin}/@${username}`;
         navigator.clipboard.writeText(url);
         setShowCopyToast(true);
@@ -219,11 +219,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     };
 
     const handleSwitchToOtherProfile = (id: string, username: string) => {
-        onShowProfile?.(id, username);
+        onShowProfile?.(id, username.toLowerCase());
         setUserListMode(null);
     };
 
-    const getVerifiedBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i> : null);
+    const getVerifiedBadge = (u: string) => {
+        const low = u?.toLowerCase();
+        if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
+        if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
+        return null;
+    };
 
     if (!isLoaded || !clerkUser || !isOpen) return null;
 
@@ -237,7 +242,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         <div className="flex items-center gap-4">
                             <button onClick={() => userListMode ? setUserListMode(null) : onClose()} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
                             <div className="flex items-center">
-                                <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">{targetUser?.username || clerkUser.username}</h2>
+                                <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">{(targetUser?.username || clerkUser.username || '').toLowerCase()}</h2>
                                 {getVerifiedBadge(targetUser?.username || clerkUser.username)}
                                 <button onClick={handleCopyProfileLink} className="ml-4 flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-red-600/20 rounded-xl text-zinc-500 hover:text-red-500 transition-all border border-white/5" title="Copy Profile Link">
                                     <CopyIcon className="w-4 h-4" />
@@ -270,7 +275,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 <img src={u.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
-                                                        <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{u.username}</p>
+                                                        <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{(u.username || '').toLowerCase()}</p>
                                                         {getVerifiedBadge(u.username)}
                                                     </div>
                                                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Designer'}</p>
@@ -284,13 +289,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         ) : (
                             <div className="p-8 md:p-16 max-w-5xl mx-auto space-y-8">
                                 <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
-                                    <div className={`w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] md:rounded-[3.5rem] border-2 p-1.5 flex-shrink-0 transition-transform hover:scale-105 duration-500 ${targetUser?.username === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.4)]' : targetUser?.username === ADMIN_HANDLE ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)]' : 'border-white/10'}`}>
+                                    <div className={`w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] md:rounded-[3.5rem] border-2 p-1.5 flex-shrink-0 transition-transform hover:scale-105 duration-500 ${targetUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.4)]' : targetUser?.username?.toLowerCase() === ADMIN_HANDLE ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)]' : 'border-white/10'}`}>
                                         <img src={targetUser?.avatar || clerkUser.imageUrl} className="w-full h-full object-cover rounded-[2.2rem] md:rounded-[3.2rem]" alt="" />
                                     </div>
                                     <div className="flex-1 text-center md:text-left">
                                         <div className="flex flex-col md:flex-row items-center gap-5 mb-5">
                                             <div className="flex items-center gap-2">
-                                                <h3 className="text-2xl md:text-4xl font-black text-white tracking-tighter">@{targetUser?.username || clerkUser.username}</h3>
+                                                <h3 className="text-2xl md:text-4xl font-black text-white tracking-tighter">@{(targetUser?.username || clerkUser.username || '').toLowerCase()}</h3>
                                                 {getVerifiedBadge(targetUser?.username || clerkUser.username)}
                                             </div>
                                             <div className="flex gap-3">
@@ -337,7 +342,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                       {(targetUser?.profile?.skills || []).map((s: string, i: number) => (
                                                           <span key={i} className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.1em] px-2 py-0.5 border border-white/5 rounded-md bg-white/[0.02]">{s}</span>
                                                       ))}
-                                                      {isEditing && <button onClick={() => { const s = window.prompt("Add Skill:"); if(s) setEditData({...editData, profile: {...editData.profile, skills: [...(editData.profile.skills||[]), s]}}); }} className="text-[9px] text-red-500 font-black uppercase">+ Add Skill</button>}
                                                   </div>
 
                                                   <div className="flex items-center justify-center md:justify-start gap-4 pt-3">
@@ -367,20 +371,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                         <cfg.icon className="w-5 h-5 text-zinc-500" />
                                                         <div className="flex-1 min-w-0">
                                                             <p className="text-[8px] text-zinc-600 font-black uppercase mb-1">{net.name}</p>
-                                                            <input value={net.handle} onChange={e => { const n = [...editData.profile.networks]; n[i].handle = e.target.value.replace('@',''); setEditData({...editData, profile: {...editData.profile, networks: n}}); }} className="bg-transparent text-sm text-white w-full outline-none font-bold" placeholder="username" />
+                                                            <input value={net.handle} onChange={e => { const n = [...editData.profile.networks]; n[i].handle = e.target.value.replace('@','').toLowerCase(); setEditData({...editData, profile: {...editData.profile, networks: n}}); }} className="bg-transparent text-sm text-white w-full outline-none font-bold" placeholder="username" />
                                                         </div>
                                                         <button onClick={() => setEditData({...editData, profile: {...editData.profile, networks: editData.profile.networks.filter((_:any,idx:number)=>idx!==i)}})} className="text-zinc-600 hover:text-red-600"><CloseIcon className="w-4 h-4"/></button>
                                                     </div>
                                                 );
                                             })}
-                                        </div>
-                                        <div className="pt-4 border-t border-white/5">
-                                            <h4 className="text-[10px] font-black text-red-600 uppercase tracking-[0.3em] mb-4">Edit Skills</h4>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(editData.profile?.skills || []).map((s: string, i: number) => (
-                                                    <span key={i} className="px-3 py-1.5 bg-black border border-white/10 rounded-lg text-[10px] font-bold text-zinc-300 flex items-center gap-2">{s}<button onClick={() => setEditData({...editData, profile: {...editData.profile, skills: editData.profile.skills.filter((_:any,idx:number)=>idx!==i)}})} className="text-red-600"><CloseIcon className="w-3 h-3"/></button></span>
-                                                ))}
-                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -404,7 +400,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 )}
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px]">
                                                     <div className="flex gap-8 text-sm font-black text-white uppercase tracking-widest scale-90 group-hover:scale-100 transition-all">
-                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)] fez-verified-badge"></i> {Object.keys(post.likes || {}).length}</span>
+                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]"></i> {Object.keys(post.likes || {}).length}</span>
                                                         <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-comment text-white/50"></i> {Object.keys(post.comments || {}).length}</span>
                                                     </div>
                                                 </div>
@@ -420,10 +416,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                 </div>
                             </div>
                         )}
-                    </div>
-                    
-                    <div className="p-4 bg-black/80 border-t border-white/5 flex items-center justify-center md:hidden flex-shrink-0">
-                         <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.5em]">Profile</p>
                     </div>
                 </motion.div>
             </div>

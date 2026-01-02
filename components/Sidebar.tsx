@@ -167,7 +167,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                     receivedRequests.map((req) => (
                                         <div key={req.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.06] transition-all">
                                             <div className="flex items-center gap-4 cursor-pointer group/user" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
-                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
+                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10 shadow-xl" alt="" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
@@ -177,8 +177,8 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Confirm</button>
-                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-zinc-300 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10">Delete</button>
+                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(220,38,38,0.3)] active:scale-95 disabled:opacity-50">Confirm</button>
+                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-zinc-300 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 active:scale-95 disabled:opacity-50">Delete</button>
                                             </div>
                                         </div>
                                     ))
@@ -190,7 +190,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                     sentRequests.map((req) => (
                                         <div key={req.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.06] transition-all">
                                             <div className="flex items-center gap-4 cursor-pointer group/user" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
-                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
+                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10 shadow-xl" alt="" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>

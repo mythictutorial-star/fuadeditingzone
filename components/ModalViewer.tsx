@@ -236,6 +236,9 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
         setNewComment('');
     };
 
+    // Correctly resolve the display name for the header
+    const resolvedUsername = ((currentItem as any).userName || OWNER_HANDLE).toLowerCase();
+
     return (
         <div className="fixed inset-0 bg-black/95 z-[5000000] flex items-center justify-center p-0 md:p-10 animate-fade-in overflow-hidden">
             <div className="absolute inset-0 bg-cover bg-center filter blur-3xl brightness-[0.1] opacity-40 scale-110 pointer-events-none" 
@@ -248,8 +251,8 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                             <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 rounded-full object-cover" alt="" />
                             <div className="flex flex-col">
                                 <div className="flex items-center">
-                                    <span className="text-white font-black text-[10px] uppercase tracking-tight">@{ ((currentItem as any).userName || OWNER_HANDLE).toLowerCase() }</span>
-                                    <VerificationBadge username={(currentItem as any).userName || OWNER_HANDLE} />
+                                    <span className="text-white font-black text-[10px] uppercase tracking-tight">@{resolvedUsername}</span>
+                                    <VerificationBadge username={resolvedUsername} />
                                 </div>
                                 <span className="text-zinc-500 font-bold text-[7px] uppercase tracking-widest">{(currentItem as any).category || 'Visual Artist'}</span>
                             </div>
@@ -260,7 +263,6 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
 
                     <div className="flex-1 relative overflow-y-auto no-scrollbar md:flex md:items-center md:justify-center">
                         <div className="w-full flex flex-col md:items-center md:justify-center" onClick={e => e.stopPropagation()}>
-                            {/* Media content remains same */}
                             <div className="relative w-full max-h-[65vh] md:max-h-[85vh] flex items-center justify-center bg-black/40">
                                 {('imageUrl' in currentItem || ('mediaUrl' in (currentItem as any) && (currentItem as any).mediaType === 'image')) ? (
                                     <img src={getImageUrl()} className="max-w-full max-h-[65vh] md:max-h-[85vh] object-contain animate-fade-in" alt="" />
@@ -282,8 +284,8 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                             <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
                             <div className="flex flex-col">
                                 <div className="flex items-center">
-                                    <p className="text-white font-black text-xs uppercase tracking-tight">@{ ((currentItem as any).userName || OWNER_HANDLE).toLowerCase() }</p>
-                                    <VerificationBadge username={(currentItem as any).userName || OWNER_HANDLE} />
+                                    <p className="text-white font-black text-xs uppercase tracking-tight">@{resolvedUsername}</p>
+                                    <VerificationBadge username={resolvedUsername} />
                                 </div>
                                 <p className="text-red-500 font-black text-[8px] uppercase tracking-widest">{(currentItem as any).userRole || 'Visual Artist'}</p>
                             </div>

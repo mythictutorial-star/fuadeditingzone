@@ -70,10 +70,9 @@ const PostItem: React.FC<{
 }> = ({ post, idx, user, onOpenProfile, onOpenModal, onShare, onLike, onEdit, onDelete, posts }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [showReadMore, setShowReadMore] = useState(false);
-    const [showOptions, setShowOptions] = useState(false);
+    const [isMediaLoaded, setIsMediaLoaded] = useState(false);
     const textRef = useRef<HTMLParagraphElement>(null);
     const isLiked = user ? !!post.likes?.[user.id] : false;
-    const isOwner = user?.id === post.userId;
 
     useEffect(() => {
         const checkLines = () => {
@@ -90,16 +89,41 @@ const PostItem: React.FC<{
     }, [post.caption]);
 
     return (
-        <motion.article initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500">
-            <div className="relative overflow-hidden bg-black cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
-                {post.mediaType === 'video' ? (
-                    <video src={post.mediaUrl} className="w-full h-auto max-h-[500px] object-cover" muted loop autoPlay playsInline />
-                ) : (
-                    <img src={post.mediaUrl} className="w-full h-auto max-h-[600px] object-cover" alt="" />
+        <motion.article 
+            initial={{ scale: 0.85, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: (idx % 10) * 0.05 }}
+            className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
+        >
+            <div className="relative overflow-hidden bg-[#0a0a0a] cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
+                {/* Loader Placeholder */}
+                {!isMediaLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <div className="w-6 h-6 border-2 border-red-600/30 border-t-red-600 rounded-full animate-spin"></div>
+                    </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
-                    <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
-                </div>
+                
+                {post.mediaType === 'video' ? (
+                    <video 
+                        src={post.mediaUrl} 
+                        className={`w-full h-auto max-h-[500px] object-cover transition-opacity duration-700 ${isMediaLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                        muted loop autoPlay playsInline 
+                        onLoadedData={() => setIsMediaLoaded(true)}
+                    />
+                ) : (
+                    <img 
+                        src={post.mediaUrl} 
+                        className={`w-full h-auto max-h-[600px] object-cover transition-opacity duration-700 ${isMediaLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                        alt="" 
+                        onLoad={() => setIsMediaLoaded(true)}
+                    />
+                )}
+
+                {isMediaLoaded && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
+                        <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
+                    </div>
+                )}
                 {post.budget && (
                     <div className="absolute top-2 left-2 bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md">${post.budget}</div>
                 )}
@@ -145,7 +169,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     const [isPostModalOpen, setIsPostModalOpen] = useState(false);
     const [editingPost, setEditingPost] = useState<Post | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
     const [userRole, setUserRole] = useState<UserRole>('Designer');
     const [title, setTitle] = useState('');
     const [caption, setCaption] = useState('');

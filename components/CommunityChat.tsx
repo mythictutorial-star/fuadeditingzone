@@ -205,7 +205,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               <input value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder={showFriendsOnly ? "Search friends..." : "Find users..."} className="w-full bg-black/60 border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-bold placeholder-zinc-800 shadow-inner" />
             </div>
             <div className="flex flex-col gap-1">
-                <button onClick={() => openChat(null)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}><i className="fa-solid fa-earth-americas text-lg"></i><span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Chat</span></button>
+                <button onClick={() => openChat(null)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/20' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}><i className="fa-solid fa-earth-americas text-lg"></i><span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Chat</span></button>
                 <div className="flex items-center gap-1.5 px-4 mt-1 opacity-60"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div><span className="text-[7px] font-black text-zinc-400 uppercase tracking-widest">{activeCount} ACTIVE PERSONS</span></div>
             </div>
           </div>
@@ -218,7 +218,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 filteredUsers.map(u => (
                   <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group relative ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
                     <div className="relative shrink-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }}>
-                      <img src={u.avatar} className={`w-10 h-10 rounded-xl border object-cover ${u.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600' : 'border-white/10'}`} alt="" />
+                      <img src={u.avatar} className={`w-10 h-10 rounded-xl border object-cover ${u.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' : 'border-white/10'}`} alt="" />
                       <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border border-zinc-900 rounded-full"></div>
                       <UnreadBadge count={unreadCounts[u.id] || 0} />
                     </div>
@@ -237,7 +237,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             <div className="flex items-center gap-4 min-w-0">
               <button onClick={onBack} className="hidden md:flex p-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group mr-2"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
               <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
-              <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className={`w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-600/10 flex items-center justify-center border-2 overflow-hidden flex-shrink-0 cursor-pointer ${!isGlobal && selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-lg' : 'border-white/10'}`}>{isGlobal ? <i className="fa-solid fa-earth-americas text-red-600 text-xl"></i> : <img src={selectedUser?.avatar} className="w-full h-full object-cover" alt="" />}</div>
+              <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className={`w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-600/10 flex items-center justify-center border-2 overflow-hidden flex-shrink-0 cursor-pointer ${!isGlobal && selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.3)]' : 'border-white/10'}`}>{isGlobal ? <i className="fa-solid fa-earth-americas text-red-600 text-xl"></i> : <img src={selectedUser?.avatar} className="w-full h-full object-cover" alt="" />}</div>
               <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())}>
                 <h3 className="text-sm md:text-xl font-black text-white uppercase tracking-tighter flex items-center leading-none">{isGlobal ? 'Global Chat' : selectedUser?.name}{!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}</h3>
                 <p className="text-[8px] md:text-[10px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1 leading-none">{isGlobal ? 'Connected' : `@${(selectedUser?.username || '').toLowerCase()}`}</p>
@@ -252,13 +252,13 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 const isOwner = low === OWNER_HANDLE;
                 return (
                   <div key={msg.id} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group`}>
-                    <img src={msg.senderAvatar} className={`w-7 h-7 md:w-10 md:h-10 rounded-lg border object-cover cursor-pointer flex-shrink-0 shadow-lg transition-transform ${isOwner ? 'border-red-600' : 'border-white/10'}`} alt="" onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())} />
+                    <img src={msg.senderAvatar} className={`w-7 h-7 md:w-10 md:h-10 rounded-lg border object-cover cursor-pointer flex-shrink-0 shadow-lg transition-transform ${isOwner ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.4)]' : 'border-white/10'}`} alt="" onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())} />
                     <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
                       <div className={`flex items-center mb-1 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'} cursor-pointer`} onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}>
                         <span className="text-[10px] md:text-[12px] font-black text-white uppercase tracking-tight truncate leading-none">{low === OWNER_HANDLE ? "FUAD EDITING ZONE" : msg.senderName}</span>
                         {getIdentity(msg.senderUsername || '', msg.senderRole)}
                       </div>
-                      <div className={`p-3 md:p-4 rounded-xl md:rounded-[1.8rem] text-[12px] md:text-[14px] border font-medium leading-relaxed shadow-xl poppins-font ${isMe ? 'bg-red-600/15 border-red-600/30 text-white rounded-br-none' : (isOwner ? 'bg-zinc-900 border-red-600/40 text-white rounded-bl-none' : 'bg-white/5 border-white/10 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
+                      <div className={`p-3 md:p-4 rounded-xl md:rounded-[1.8rem] text-[12px] md:text-[14px] border font-medium leading-relaxed shadow-xl poppins-font ${isMe ? 'bg-red-600/15 border-red-600/30 text-white rounded-br-none' : (isOwner ? 'bg-zinc-900 border-red-600/40 text-white rounded-bl-none shadow-red-600/5' : 'bg-white/5 border-white/10 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
                     </div>
                   </div>
                 );
