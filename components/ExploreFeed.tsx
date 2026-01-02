@@ -90,13 +90,13 @@ const PostItem: React.FC<{
 
     return (
         <motion.article 
-            initial={{ opacity: 0, y: 10 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.4, ease: "easeOut", delay: (idx % 8) * 0.04 }}
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            transition={{ type: 'spring', damping: 25, stiffness: 120, delay: (idx % 10) * 0.03 }}
             className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
             <div className="relative overflow-hidden bg-transparent cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
-                {/* Background loader trigger - invisible but functional */}
+                {/* Background preloader */}
                 <div className="hidden">
                     {post.mediaType === 'video' ? (
                         <video src={post.mediaUrl} onLoadedData={() => setIsMediaLoaded(true)} muted playsInline />
@@ -108,48 +108,40 @@ const PostItem: React.FC<{
                 <AnimatePresence>
                     {isMediaLoaded && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                            className="overflow-hidden"
+                            initial={{ y: "40%", opacity: 0, scale: 0.95 }}
+                            animate={{ y: 0, opacity: 1, scale: 1 }}
+                            transition={{ 
+                                type: "spring",
+                                damping: 20,
+                                stiffness: 90,
+                                duration: 0.8
+                            }}
+                            className="w-full relative"
                         >
-                            <motion.div
-                                initial={{ y: '50%', scale: 0.9 }}
-                                animate={{ y: 0, scale: 1 }}
-                                transition={{ 
-                                    type: 'spring', 
-                                    damping: 18, 
-                                    stiffness: 110,
-                                    duration: 0.8
-                                }}
-                                className="w-full relative"
-                            >
-                                {post.mediaType === 'video' ? (
-                                    <video 
-                                        src={post.mediaUrl} 
-                                        className="w-full h-auto max-h-[500px] object-cover" 
-                                        muted loop autoPlay playsInline 
-                                    />
-                                ) : (
-                                    <img 
-                                        src={post.mediaUrl} 
-                                        className="w-full h-auto max-h-[600px] object-cover" 
-                                        alt="" 
-                                    />
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
-                                    <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
-                                </div>
-                            </motion.div>
+                            {post.mediaType === 'video' ? (
+                                <video 
+                                    src={post.mediaUrl} 
+                                    className="w-full h-auto max-h-[500px] object-cover" 
+                                    muted loop autoPlay playsInline 
+                                />
+                            ) : (
+                                <img 
+                                    src={post.mediaUrl} 
+                                    className="w-full h-auto max-h-[600px] object-cover" 
+                                    alt="" 
+                                />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
+                                <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-                
+
                 {post.budget && (
                     <div className="absolute top-2 left-2 bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md z-10">${post.budget}</div>
                 )}
             </div>
-
             <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 md:gap-2.5 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
