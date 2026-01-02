@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -214,7 +213,7 @@ const PostItem: React.FC<{
                                         onClick={(e) => { e.stopPropagation(); onEdit(post); setShowOptions(false); }} 
                                         className="w-full text-left px-4 py-2.5 text-[9px] font-black text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5 transition-colors"
                                     >
-                                        Edit Signal
+                                        Edit
                                     </button>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); onDelete(post); setShowOptions(false); }} 
