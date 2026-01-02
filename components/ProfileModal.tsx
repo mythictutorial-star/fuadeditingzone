@@ -195,7 +195,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 }
             } else if (socialState.friendStatus === 'none') {
                 await set(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`), { timestamp: Date.now() });
-                await set(ref(db, `social/${viewingUserId}/requests/received/${clerkUser.id}`), { timestamp: Date.now() });
+                await set(ref(viewingUserId ? db : null, `social/${viewingUserId}/requests/received/${clerkUser.id}`), { timestamp: Date.now() });
                 await push(ref(db, `notifications/${viewingUserId}`), { 
                     type: 'friend_request', fromId: clerkUser.id, fromName: clerkUser.username || clerkUser.fullName, fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
                 });
@@ -229,7 +229,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-[2000000] flex items-center justify-center">
+            <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/98 backdrop-blur-3xl" />
                 <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl">
                     

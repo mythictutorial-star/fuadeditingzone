@@ -317,18 +317,18 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
     };
 
     return (
-        <div className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-0 md:p-10 animate-fade-in overflow-hidden">
+        <div className="fixed inset-0 bg-black/95 z-[5000000] flex items-center justify-center p-0 md:p-10 animate-fade-in overflow-hidden">
             <div className="absolute inset-0 bg-cover bg-center filter blur-3xl brightness-[0.1] opacity-40 scale-110 pointer-events-none" 
                  style={{ backgroundImage: `url(${getImageUrl() || siteConfig.branding.profilePicUrl})` }} />
 
-            {/* Main Modal Container: Constrained on Desktop */}
-            <div className="relative w-full h-full md:max-w-[1200px] md:max-h-[90vh] bg-black flex flex-col md:flex-row md:rounded-2xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] border border-white/10">
+            {/* Main Modal Container: Smaller and Constrained on Desktop */}
+            <div className="relative w-full h-full md:max-w-[1000px] md:max-h-[85vh] bg-black flex flex-col md:flex-row md:rounded-2xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] border border-white/10">
                 
                 <div className="relative flex-1 flex flex-col min-w-0 bg-black/60 overflow-hidden h-full">
                     {/* Header */}
                     <div className="relative z-[100] flex justify-between items-center p-4 md:p-6 bg-gradient-to-b from-black/90 to-transparent flex-shrink-0">
                         <div className="flex items-center gap-3">
-                            <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white/20 object-cover" alt="" />
+                            <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover" alt="" />
                             <div className="flex flex-col">
                                 <span className="text-white font-black text-[10px] md:text-xs uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</span>
                                 <span className="text-zinc-500 font-bold text-[7px] md:text-[8px] uppercase tracking-widest">{(currentItem as any).category || (currentItem as any).userRole || 'Visual Artist'}</span>
@@ -436,7 +436,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                 </div>
 
                 {/* Desktop Sidebar (Captions & Comments) */}
-                <div className="hidden md:flex w-[400px] bg-[#080808] border-l border-white/10 flex-col flex-shrink-0 h-full overflow-hidden">
+                <div className="hidden md:flex w-[380px] bg-[#080808] border-l border-white/10 flex-col flex-shrink-0 h-full overflow-hidden">
                     <div className="flex p-6 border-b border-white/5 items-center justify-between bg-black/20 backdrop-blur-xl">
                         <div className="flex items-center gap-3">
                             <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
@@ -558,7 +558,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
 
             <AnimatePresence>
                 {showShareToast && (
-                    <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl z-[200]">Link Copied</motion.div>
+                    <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl z-[5000001]">Link Copied</motion.div>
                 )}
             </AnimatePresence>
         </div>
