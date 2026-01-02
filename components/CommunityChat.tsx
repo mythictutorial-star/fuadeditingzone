@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
@@ -187,7 +188,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
       ).slice(0, 50);
   }, [users, sidebarSearchQuery, clerkUser, showFriendsOnly, friendsList]);
 
-  const openSignal = (user: ChatUser | null) => {
+  const openChat = (user: ChatUser | null) => {
       if (user === null) {
           setIsGlobal(true);
           setSelectedUser(null);
@@ -255,7 +256,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             </div>
 
             <button 
-              onClick={() => openSignal(null)} 
+              onClick={() => openChat(null)} 
               className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}
             >
               <GlobeAltIcon className="w-5 h-5" />
@@ -281,7 +282,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 filteredUsers.map(u => (
                   <button 
                     key={u.id} 
-                    onClick={() => openSignal(u)} 
+                    onClick={() => openChat(u)} 
                     className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group relative ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}
                   >
                     <div className="relative shrink-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username); }}>

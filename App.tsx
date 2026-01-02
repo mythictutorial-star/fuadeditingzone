@@ -121,19 +121,19 @@ export default function App() {
   useEffect(() => {
     if (modalState) {
       const item = modalState.items[modalState.currentIndex] as any;
-      const title = item.title || 'Exclusive Masterpiece';
+      const title = item.title || 'Work Preview';
       const desc = item.caption || item.description || "Official work from Fuad Editing Zone.";
       const img = item.mediaUrl || item.imageUrl || item.thumbnailUrl || siteConfig.branding.profilePicUrl;
       updateSEO(title, desc, img);
     } else if (viewingProfileId) {
       get(ref(db, `users/${viewingProfileId}`)).then(snap => {
           const data = snap.val();
-          if (data) updateSEO(`@${data.username}`, data.profile?.bio || "Professional Designer Profile", data.avatar || siteConfig.branding.logoUrl);
+          if (data) updateSEO(`@${data.username}`, data.profile?.bio || "Professional Designer", data.avatar || siteConfig.branding.logoUrl);
       });
     } else {
       if (route === 'home') updateSEO(siteConfig.seo.title, siteConfig.seo.description, siteConfig.branding.profilePicUrl);
       else if (route === 'marketplace') updateSEO("Marketplace", "Discover premium assets and creative works.", siteConfig.branding.logoUrl);
-      else if (route === 'community') updateSEO("Community Hub", "Professional design network.", siteConfig.branding.logoUrl);
+      else if (route === 'community') updateSEO("Community", "Join our design network.", siteConfig.branding.logoUrl);
     }
   }, [modalState, route, viewingProfileId]);
 

@@ -68,14 +68,13 @@ const CommentItem: React.FC<{
             timestamp: Date.now()
         });
         
-        // Notify original commenter
         if (comment.userId !== user.id) {
             await push(ref(db, `notifications/${comment.userId}`), {
                 type: 'comment_reply',
                 fromId: user.id,
                 fromName: user.username || user.fullName,
                 fromAvatar: user.imageUrl,
-                text: `@${user.username || user.fullName} replied to your signal.`,
+                text: `@${user.username || user.fullName} replied to your comment.`,
                 timestamp: Date.now(),
                 read: false,
                 postId,
@@ -111,7 +110,6 @@ const CommentItem: React.FC<{
                 </div>
             </div>
 
-            {/* Reply Input */}
             <AnimatePresence>
                 {isReplying && (
                     <motion.form 
@@ -133,7 +131,6 @@ const CommentItem: React.FC<{
                 )}
             </AnimatePresence>
 
-            {/* Nested Replies */}
             {replies.length > 0 && (
                 <div className="ml-12 space-y-4 pt-2">
                     <button onClick={() => setShowReplies(!showReplies)} className="flex items-center gap-2 text-[8px] font-black text-zinc-600 hover:text-zinc-400 uppercase tracking-widest group">
@@ -179,7 +176,10 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
     const [comments, setComments] = useState<any[]>([]);
     const [newComment, setNewComment] = useState('');
     const [likes, setLikes] = useState<Record<string, boolean>>({});
+    
     const commentsEndRef = useRef<HTMLDivElement>(null);
+    const commentsSectionRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const isDynamicPost = !!(currentItem as any).userId;
     const isOwnerOfPost = user?.id === (currentItem as any).userId;
@@ -231,13 +231,18 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
         setTimeout(() => setShowShareToast(false), 2000);
     };
 
+    const handleScrollToComments = () => {
+        if (commentsSectionRef.current) {
+            commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
     const handleLike = async () => {
         if (!isSignedIn || !user || !isDynamicPost) return;
         const likeRef = ref(db, `explore_posts/${(currentItem as any).id}/likes/${user.id}`);
         if (isLiked) await remove(likeRef);
         else {
             await set(likeRef, true);
-            // Notify author
             if ((currentItem as any).userId !== user.id) {
                 await push(ref(db, `notifications/${(currentItem as any).userId}`), {
                     type: 'post_like',
@@ -267,14 +272,13 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
             timestamp: Date.now()
         });
         
-        // Notify author
         if (postAuthorId !== user.id) {
             await push(ref(db, `notifications/${postAuthorId}`), {
                 type: 'post_comment',
                 fromId: user.id,
                 fromName: user.username || user.fullName,
                 fromAvatar: user.imageUrl,
-                text: `@${user.username || user.fullName} signaled on your post.`,
+                text: `@${user.username || user.fullName} commented on your post.`,
                 timestamp: Date.now(),
                 read: false,
                 postId,
@@ -291,32 +295,35 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
             <div className="absolute inset-0 bg-cover bg-center filter blur-2xl brightness-[0.1] opacity-60 scale-110 pointer-events-none" 
                  style={{ backgroundImage: `url(${getImageUrl() || siteConfig.branding.profilePicUrl})` }} />
 
-            <div className="relative flex-1 flex flex-col min-w-0 bg-black/40">
+            <div className="relative flex-1 flex flex-col min-w-0 bg-black/40 overflow-hidden">
+                {/* Unified Header for both Mobile and Desktop */}
                 <div className="relative z-[100] flex justify-between items-center p-4 md:p-6 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        <img src={siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white/20" alt="" />
+                        <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white/20 object-cover" alt="" />
                         <div className="flex flex-col">
-                            <span className="text-white font-black text-[9px] md:text-[10px] uppercase tracking-widest">{(currentItem as any).category || 'Portfolio Work'}</span>
-                            <span className="text-zinc-500 font-bold text-[7px] md:text-[8px] uppercase tracking-widest">Selected Legend Protocol</span>
+                            <span className="text-white font-black text-[10px] md:text-xs uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</span>
+                            <span className="text-zinc-500 font-bold text-[7px] md:text-[8px] uppercase tracking-widest">{(currentItem as any).category || (currentItem as any).userRole || 'Visual Artist'}</span>
                         </div>
                     </div>
-                    <button onClick={onClose} className="md:hidden text-white p-2 rounded-full bg-white/5 border border-white/10 hover:bg-red-600 transition-all">
+                    <button onClick={onClose} className="text-white p-2 rounded-full bg-white/5 border border-white/10 hover:bg-red-600 transition-all">
                         <CloseIcon className="h-5 w-5" />
                     </button>
                 </div>
 
                 <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-                    <div className="relative w-full h-full flex items-center justify-center p-2 md:p-8" onClick={onClose}>
-                        <div className="relative max-w-full max-h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                    <div className="relative w-full h-full flex items-center justify-center p-2 md:p-4" onClick={onClose}>
+                        <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
                             {isImage(currentItem) ? (
-                                <img src={getImageUrl()} className="max-w-full max-h-full object-contain shadow-2xl animate-fade-in" alt="" />
+                                <img src={getImageUrl()} className="max-w-full max-h-full object-contain shadow-2xl animate-fade-in pointer-events-none" alt="" />
                             ) : isVideo(currentItem) ? (
-                                <div className="w-full h-full max-w-5xl aspect-video bg-black rounded-xl shadow-2xl overflow-hidden border border-white/5">
-                                    {getVideoUrl() ? (
-                                        <video src={getVideoUrl()} controls autoPlay className="w-full h-full object-contain" />
-                                    ) : (
-                                        <iframe src={`https://www.youtube.com/embed/${(currentItem as any).videoId}?autoplay=1`} className="w-full h-full border-0" allowFullScreen></iframe>
-                                    )}
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <div className="w-full h-full max-w-5xl aspect-video bg-black rounded-xl shadow-2xl overflow-hidden border border-white/5 flex items-center justify-center">
+                                        {getVideoUrl() ? (
+                                            <video src={getVideoUrl()} controls autoPlay className="max-w-full max-h-full object-contain" />
+                                        ) : (
+                                            <iframe src={`https://www.youtube.com/embed/${(currentItem as any).videoId}?autoplay=1`} className="w-full h-full border-0" allowFullScreen></iframe>
+                                        )}
+                                    </div>
                                 </div>
                             ) : null}
 
@@ -330,13 +337,14 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </div>
                 </div>
 
-                <div className="md:hidden p-4 bg-black/80 border-t border-white/5 backdrop-blur-xl">
+                {/* Mobile Caption Bar - Simplified for Insta-style */}
+                <div className="md:hidden px-4 py-3 bg-black/80 border-t border-white/5 backdrop-blur-xl flex-shrink-0">
                     <h3 className="text-white font-black text-sm uppercase truncate">{(currentItem as any).title || 'Masterwork'}</h3>
-                    <p className="text-zinc-500 text-[10px] mt-1 line-clamp-1 italic">{(currentItem as any).caption || (currentItem as any).description || 'No additional data.'}</p>
+                    <p className="text-zinc-500 text-[10px] mt-1 line-clamp-1 italic">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
                 </div>
             </div>
 
-            <div className="w-full md:w-[400px] lg:w-[450px] bg-[#080808] border-l border-white/5 flex flex-col flex-shrink-0 z-[110]">
+            <div className="w-full md:w-[400px] lg:w-[450px] bg-[#080808] border-l border-white/5 flex flex-col flex-shrink-0 z-[110] h-full overflow-hidden">
                 <div className="hidden md:flex p-6 border-b border-white/5 items-center justify-between">
                     <div className="flex items-center gap-3">
                         <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-9 h-9 rounded-xl object-cover border border-white/10" alt="" />
@@ -348,10 +356,10 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><CloseIcon className="w-6 h-6" /></button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8 no-scrollbar">
                     <div className="space-y-4">
                         <h3 className="text-white font-black text-xl lg:text-2xl uppercase tracking-tighter">{(currentItem as any).title || 'Masterwork'}</h3>
-                        <p className="text-zinc-400 text-sm leading-relaxed poppins-font">{(currentItem as any).caption || (currentItem as any).description || 'Protocol data archived.'}</p>
+                        <p className="text-zinc-400 text-sm leading-relaxed poppins-font">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
                         {isDynamicPost && (currentItem as any).tags && (
                             <div className="flex flex-wrap gap-2">
                                 {(currentItem as any).tags.map((tag: string, i: number) => (
@@ -361,16 +369,16 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                         )}
                     </div>
 
-                    <div className="pt-8 border-t border-white/5 space-y-6">
+                    <div ref={commentsSectionRef} className="pt-8 border-t border-white/5 space-y-6">
                         <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Communication Feed</h4>
+                            <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Comments</h4>
                             <span className="text-[10px] font-black text-zinc-700 uppercase">{comments.length} Signals</span>
                         </div>
                         
                         {comments.length === 0 ? (
                             <div className="py-20 text-center opacity-20">
                                 <ChatBubbleIcon className="w-12 h-12 mx-auto mb-4" />
-                                <p className="text-[9px] font-black uppercase tracking-[0.4em]">No signals received</p>
+                                <p className="text-[9px] font-black uppercase tracking-[0.4em]">No comments yet</p>
                             </div>
                         ) : (
                             <div className="space-y-8">
@@ -391,14 +399,14 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </div>
                 </div>
 
-                <div className="p-6 bg-black/40 border-t border-white/5 space-y-6 backdrop-blur-3xl">
+                <div className="p-6 bg-black/40 border-t border-white/5 space-y-6 backdrop-blur-3xl flex-shrink-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-6">
                             <button onClick={handleLike} className={`flex items-center gap-2 transition-all ${isLiked ? 'text-red-500 scale-110' : 'text-zinc-600 hover:text-white'}`}>
                                 <i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-xl`}></i>
                                 <span className="text-xs font-black uppercase tracking-widest">{Object.keys(likes).length}</span>
                             </button>
-                            <button className="flex items-center gap-2 text-zinc-600">
+                            <button onClick={handleScrollToComments} className="flex items-center gap-2 text-zinc-600 hover:text-white transition-colors">
                                 <ChatBubbleIcon className="w-5 h-5" />
                                 <span className="text-xs font-black uppercase tracking-widest">{comments.length}</span>
                             </button>
@@ -413,7 +421,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                             <input 
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
-                                placeholder={isSignedIn ? "Add signal..." : "Log in to signal"}
+                                placeholder={isSignedIn ? "Add a comment..." : "Log in to comment"}
                                 disabled={!isSignedIn}
                                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-5 pr-12 text-xs text-white outline-none focus:border-red-600/50 transition-all font-medium placeholder-zinc-700" 
                             />
@@ -431,7 +439,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
 
             <AnimatePresence>
                 {showShareToast && (
-                    <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl z-[200]">Signal Link Copied</motion.div>
+                    <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl z-[200]">Link Copied</motion.div>
                 )}
             </AnimatePresence>
         </div>

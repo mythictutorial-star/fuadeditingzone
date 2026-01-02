@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -71,10 +72,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 const initializedData = {
                     ...data,
                     profile: {
-                        bio: 'Identity synchronized.',
-                        origin: 'Location Hidden',
-                        profession: 'Visual Architecture',
-                        skills: ['VFX Master', 'Graphic Design'],
+                        bio: 'New member.',
+                        origin: 'Location not set',
+                        profession: 'Designer',
+                        skills: ['Visual Effects', 'Graphic Design'],
                         networks: [
                             { name: 'Facebook', handle: '' }, { name: 'Instagram', handle: '' },
                             { name: 'YouTube', handle: '' }, { name: 'TikTok', handle: '' }, { name: 'Behance', handle: '' }
@@ -212,8 +213,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const handleCopyProfileLink = () => {
         const username = targetUser?.username || clerkUser?.username || currentProfileId;
         const url = `${window.location.origin}/@${username}`;
-        const textToCopy = `@${username} | ${url}`;
-        navigator.clipboard.writeText(textToCopy);
+        navigator.clipboard.writeText(url);
         setShowCopyToast(true);
         setTimeout(() => setShowCopyToast(false), 2000);
     };
@@ -239,9 +239,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             <div className="flex items-center">
                                 <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">{targetUser?.username || clerkUser.username}</h2>
                                 {getVerifiedBadge(targetUser?.username || clerkUser.username)}
-                                <button onClick={handleCopyProfileLink} className="ml-4 flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-red-600/20 rounded-xl text-zinc-500 hover:text-red-500 transition-all border border-white/5" title="Copy Info">
+                                <button onClick={handleCopyProfileLink} className="ml-4 flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-red-600/20 rounded-xl text-zinc-500 hover:text-red-500 transition-all border border-white/5" title="Copy Profile Link">
                                     <CopyIcon className="w-4 h-4" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">Copy Info</span>
+                                    <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">Copy Link</span>
                                 </button>
                             </div>
                         </div>
@@ -254,7 +254,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     <div className="flex-1 overflow-y-auto custom-scrollbar relative">
                         <AnimatePresence>
                             {showCopyToast && (
-                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-6 left-1/2 -translate-x-1/2 z-[100] bg-white text-black px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl">Identity Captured</motion.div>
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-6 left-1/2 -translate-x-1/2 z-[100] bg-white text-black px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl">Link Copied</motion.div>
                             )}
                         </AnimatePresence>
 
@@ -262,7 +262,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-6">
                                 <h3 className="text-2xl font-black text-white uppercase tracking-[0.2em] mb-10">{userListMode === 'followers' ? 'Followers' : 'Following'}</h3>
                                 {resolvedUserList.length === 0 ? (
-                                    <div className="py-20 text-center opacity-20"><UserCircleIcon className="w-20 h-20 mx-auto mb-6" /><p className="text-sm font-black uppercase tracking-[0.5em]">Sector Empty</p></div>
+                                    <div className="py-20 text-center opacity-20"><UserCircleIcon className="w-20 h-20 mx-auto mb-6" /><p className="text-sm font-black uppercase tracking-[0.5em]">No users found</p></div>
                                 ) : (
                                     resolvedUserList.map(u => (
                                         <div key={u.id} onClick={() => handleSwitchToOtherProfile(u.id, u.username)} className="flex items-center justify-between p-4 bg-white/10 border border-white/5 rounded-2xl cursor-pointer hover:bg-white/20 transition-all group">
@@ -324,7 +324,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 pt-2">
                                                       <div className="flex items-center gap-2 text-zinc-500">
                                                           <BriefcaseIcon className="w-4 h-4 text-red-600 opacity-60" />
-                                                          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUser?.profile?.profession || 'VISUAL ARTIST'}</span>
+                                                          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUser?.profile?.profession || 'Designer'}</span>
                                                       </div>
                                                       <div className="flex items-center gap-2 text-zinc-500">
                                                           <GlobeAltIcon className="w-4 h-4 text-red-600 opacity-60" />
@@ -358,7 +358,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
                                 {isEditing && (
                                     <div className="bg-white/5 p-6 rounded-2xl border border-white/5 space-y-6 max-w-5xl mx-auto">
-                                        <div className="flex justify-between items-center"><h4 className="text-[10px] md:text-xs font-black text-red-600 uppercase tracking-[0.3em]">Configure Networks</h4><button onClick={() => { const name = window.prompt("Platform: Facebook, Instagram, YouTube, TikTok, Behance:"); if (name && NETWORK_CONFIGS[name]) setEditData({...editData, profile: {...editData.profile, networks: [...(editData.profile.networks || []), { name, handle: '' }]}}); }} className="text-[10px] text-zinc-500 hover:text-red-600 transition-colors">+ Add Platform</button></div>
+                                        <div className="flex justify-between items-center"><h4 className="text-[10px] md:text-xs font-black text-red-600 uppercase tracking-[0.3em]">Social Networks</h4><button onClick={() => { const name = window.prompt("Platform: Facebook, Instagram, YouTube, TikTok, Behance:"); if (name && NETWORK_CONFIGS[name]) setEditData({...editData, profile: {...editData.profile, networks: [...(editData.profile.networks || []), { name, handle: '' }]}}); }} className="text-[10px] text-zinc-500 hover:text-red-600 transition-colors">+ Add Platform</button></div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {(editData.profile?.networks || []).map((net: any, i: number) => {
                                                 const cfg = NETWORK_CONFIGS[net.name] || { icon: GlobeAltIcon, baseUrl: '' };
@@ -392,7 +392,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-[0.4em] font-display">Gallery</h4>
                                         </div>
                                         <div className="h-px bg-white/5 flex-1 mx-8 hidden md:block"></div>
-                                        <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Items</span>
+                                        <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Posts</span>
                                     </div>
                                     <div className="columns-2 sm:columns-3 gap-3 md:gap-4 no-scrollbar">
                                         {userPosts.map((post, i) => (
@@ -414,7 +414,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                     {userPosts.length === 0 && (
                                         <div className="py-32 text-center opacity-20">
                                             <GalleryIcon className="w-16 h-16 mx-auto mb-6" />
-                                            <p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No signals archived</p>
+                                            <p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No posts yet</p>
                                         </div>
                                     )}
                                 </div>
@@ -423,7 +423,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     </div>
                     
                     <div className="p-4 bg-black/80 border-t border-white/5 flex items-center justify-center md:hidden flex-shrink-0">
-                         <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.5em]">Identity Profile V2.0</p>
+                         <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.5em]">Profile</p>
                     </div>
                 </motion.div>
             </div>

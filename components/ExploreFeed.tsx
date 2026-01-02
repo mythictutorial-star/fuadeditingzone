@@ -337,7 +337,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     };
 
     const handleDelete = async (post: Post) => {
-        if (!window.confirm("Confirm deletion? This will permanently wipe the media from storage.")) return;
+        if (!window.confirm("Confirm deletion? This will permanently remove the post.")) return;
         try {
             if (post.mediaUrl) {
                 await deleteMediaFromR2(post.mediaUrl);
@@ -461,7 +461,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { setIsPostModalOpen(false); resetForm(); }} className="absolute inset-0 bg-black/80" />
                         <motion.div initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,1)] overflow-hidden">
                             <div className="p-5 border-b border-white/5 flex justify-between items-center bg-black/40">
-                                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{editingPost ? 'Update Signal' : 'Initialize Creation'}</h2>
+                                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{editingPost ? 'Edit Post' : 'Create New Post'}</h2>
                                 <button onClick={() => { setIsPostModalOpen(false); resetForm(); }} className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 transition-colors"><CloseIcon className="w-5 h-5" /></button>
                             </div>
                             <div className="p-6 space-y-5">
@@ -472,23 +472,23 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                                 </div>
                                 <div className="space-y-4">
                                     <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-black uppercase tracking-widest" />
-                                    <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Description..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none resize-none h-32 focus:border-red-600/50 transition-all font-medium" />
+                                    <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="What's on your mind?..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none resize-none h-32 focus:border-red-600/50 transition-all font-medium" />
                                     <input value={tags} onChange={e => setTags(e.target.value)} placeholder="Tags (comma separated, max 5)" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-medium italic" />
                                     
                                     {userRole === 'Client' && (
                                         <div className="relative">
                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-red-600 font-black text-xs">$</span>
-                                            <input type="number" value={budget} onChange={e => setBudget(e.target.value)} placeholder="Budget Allocation" className="w-full bg-black border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-bold" />
+                                            <input type="number" value={budget} onChange={e => setBudget(e.target.value)} placeholder="Budget" className="w-full bg-black border border-white/10 rounded-xl py-3 pl-8 pr-4 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-bold" />
                                         </div>
                                     )}
                                 </div>
                                 <div className="flex items-center justify-between border-t border-white/5 pt-6">
                                     <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedFile ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}>
-                                        <PhotoManipulationIcon className="w-4 h-4" /> {selectedFile ? 'Media Ready' : (editingPost ? 'Change Media' : 'Add Media')}
+                                        <PhotoManipulationIcon className="w-4 h-4" /> {selectedFile ? 'Ready' : (editingPost ? 'Change Media' : 'Add Media')}
                                     </button>
                                     <input type="file" hidden ref={fileInputRef} accept="image/*,video/*" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
                                     <button disabled={isUploading || !caption.trim()} onClick={handleUpload} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] transition-all flex items-center gap-2 shadow-xl active:scale-95">
-                                        {isUploading ? (editingPost ? 'Updating...' : 'Posting...') : (editingPost ? 'Update' : 'Post')} <SendIcon className="w-4 h-4" />
+                                        {isUploading ? 'Uploading...' : (editingPost ? 'Save' : 'Share')} <SendIcon className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>

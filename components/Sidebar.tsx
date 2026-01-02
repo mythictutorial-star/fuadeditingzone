@@ -186,7 +186,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
                                                         {getBadge(req.username)}
                                                     </div>
-                                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 truncate">{req.profile?.profession || 'Visual Artist'}</p>
+                                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 truncate">{req.profile?.profession || 'Designer'}</p>
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
@@ -200,7 +200,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                 sentRequests.length === 0 ? (
                                     <div className="py-16 text-center opacity-20">
                                         <SendIcon className="w-12 h-12 mx-auto mb-4" />
-                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No active outgoing requests</p>
+                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No active requests</p>
                                     </div>
                                 ) : (
                                     sentRequests.map((req) => (
@@ -212,7 +212,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
                                                         {getBadge(req.username)}
                                                     </div>
-                                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 italic">Requesting Access...</p>
+                                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 italic">Requested</p>
                                                 </div>
                                             </div>
                                             <button disabled={loading} onClick={() => handleCancel(req.id)} className="w-full bg-zinc-800/50 hover:bg-red-600/20 hover:text-red-500 text-zinc-500 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Cancel Request</button>
@@ -223,7 +223,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                         </div>
                         
                         <div className="p-4 bg-black/40 border-t border-white/5 text-center">
-                            <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.4em]">Protocol Social v2.4</p>
+                            <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.4em]">Community</p>
                         </div>
                     </motion.div>
                 )}
