@@ -309,7 +309,7 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
   return (
     <header className="hidden md:flex items-center justify-between h-20 px-10 bg-transparent">
         <div onClick={() => onScrollTo('home')} className="cursor-pointer flex items-center gap-4">
-            <img src={siteConfig.branding.logoUrl} alt="Logo" className="h-9 w-9 rounded-full shadow-lg" />
+            <img src={siteConfig.branding.logoUrl} alt="Logo" className="h-9 w-9" />
             <div className="flex items-center gap-1">
                 <span className="font-black text-white text-sm uppercase tracking-[0.2em] font-display">{siteConfig.branding.name}</span>
                 {getBadge(OWNER_HANDLE)}
@@ -342,7 +342,7 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
     return (
         <header className="md:hidden flex items-center justify-between h-20 px-6 bg-transparent">
             <div onClick={() => onScrollTo('home')} className="flex items-center gap-3">
-                <img src={siteConfig.branding.logoUrl} alt="Logo" className="h-8 w-8 rounded-full shadow-lg" />
+                <img src={siteConfig.branding.logoUrl} alt="Logo" className="h-8 w-8" />
                 <div className="flex items-center gap-1">
                     <span className="font-bold text-white tracking-widest text-[8px] uppercase font-display">FUAD EDITING ZONE</span>
                     {getBadge(OWNER_HANDLE)}
