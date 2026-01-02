@@ -174,7 +174,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   };
 
   const filteredUsers = useMemo(() => {
-    let list = users.filter(u => u.id !== clerkUser?.id);
+    let list = users;
     
     if (showFriendsOnly) {
         list = list.filter(u => friendsList.includes(u.id));
