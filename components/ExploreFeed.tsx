@@ -5,7 +5,7 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, query, limitToLast, set, update, get, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, ThreeDotsIcon } from './Icons';
+import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, TwoDotsIcon } from './Icons';
 import { ArrowLeft } from 'lucide-react';
 
 const firebaseConfig = {
@@ -126,29 +126,6 @@ const PostItem: React.FC<{
                     >
                         <CopyIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                     </button>
-                    {isOwner && (
-                        <div className="relative">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setShowOptions(!showOptions); }}
-                                className="p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-zinc-700 transition-all"
-                            >
-                                <ThreeDotsIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                            </button>
-                            <AnimatePresence>
-                                {showOptions && (
-                                    <motion.div 
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.9 }}
-                                        className="absolute right-0 mt-1 w-24 bg-[#111] border border-white/10 rounded-lg shadow-2xl z-[50] overflow-hidden"
-                                    >
-                                        <button onClick={(e) => { e.stopPropagation(); onEdit(post); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-[8px] font-black text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5">Edit</button>
-                                        <button onClick={(e) => { e.stopPropagation(); onDelete(post); setShowOptions(false); }} className="w-full text-left px-3 py-2 text-[8px] font-black text-red-500 hover:bg-red-500/10 uppercase tracking-widest">Delete</button>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -189,18 +166,18 @@ const PostItem: React.FC<{
                     )}
                 </div>
 
-                {/* Tags Section */}
+                {/* Post 5 tags - gray color and small texts box */}
                 {post.tags && post.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-3">
+                    <div className="flex flex-wrap gap-1.5 mt-3 mb-1">
                         {post.tags.slice(0, 5).map((tag, i) => (
-                            <span key={i} className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[7px] font-bold text-zinc-500 uppercase tracking-tight">
-                                #{tag}
+                            <span key={i} className="px-2 py-0.5 bg-zinc-800/40 border border-zinc-700/30 rounded text-[6px] md:text-[8px] font-black text-zinc-400 uppercase tracking-widest">
+                                {tag}
                             </span>
                         ))}
                     </div>
                 )}
 
-                <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5">
+                <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5 relative">
                     <div className="flex items-center gap-3 md:gap-4">
                         <button 
                             onClick={(e) => onLike(e, post, isLiked)} 
@@ -214,9 +191,40 @@ const PostItem: React.FC<{
                             {Object.keys(post.comments || {}).length}
                         </div>
                     </div>
-                    <div className="flex gap-1 opacity-20 md:group-hover:opacity-100 transition-opacity">
-                        <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white"></div>
-                        <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white"></div>
+
+                    {/* Bottom Right Options Menu */}
+                    <div className="relative">
+                        {isOwner && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setShowOptions(!showOptions); }}
+                                className="p-1 text-zinc-600 hover:text-red-500 transition-all flex items-center justify-center group/dots"
+                            >
+                                <TwoDotsIcon className="w-4 h-4" />
+                            </button>
+                        )}
+                        <AnimatePresence>
+                            {showOptions && (
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                    className="absolute bottom-full right-0 mb-2 w-28 bg-[#0c0c0c] border border-white/10 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] z-[60] overflow-hidden"
+                                >
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onEdit(post); setShowOptions(false); }} 
+                                        className="w-full text-left px-4 py-2.5 text-[9px] font-black text-white hover:bg-white/5 uppercase tracking-widest border-b border-white/5 transition-colors"
+                                    >
+                                        Edit Signal
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onDelete(post); setShowOptions(false); }} 
+                                        className="w-full text-left px-4 py-2.5 text-[9px] font-black text-red-500 hover:bg-red-500/10 uppercase tracking-widest transition-colors"
+                                    >
+                                        Delete
+                                    </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
             </div>
@@ -284,7 +292,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
 
         try {
             if (selectedFile) {
-                // If editing and has previous media, ideally we delete it from R2 first
                 if (editingPost?.mediaUrl) {
                     await deleteMediaFromR2(editingPost.mediaUrl);
                 }
@@ -328,7 +335,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     };
 
     const handleDelete = async (post: Post) => {
-        if (!window.confirm("Confirm signal termination? This will wipe the media from R2 storage.")) return;
+        if (!window.confirm("Confirm deletion? This will permanently wipe the media from storage.")) return;
         try {
             if (post.mediaUrl) {
                 await deleteMediaFromR2(post.mediaUrl);
@@ -339,7 +346,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
 
     const deleteMediaFromR2 = async (url: string) => {
         try {
-            // Assume the worker supports DELETE method or a clear endpoint for deletion
             await fetch(`${R2_WORKER_URL}?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
         } catch (e) {
             console.warn("R2 cleanup skipped or failed", e);
@@ -447,7 +453,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                                     ))}
                                 </div>
                                 <div className="space-y-4">
-                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-bold uppercase tracking-widest" />
+                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-black uppercase tracking-widest" />
                                     <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Description..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none resize-none h-32 focus:border-red-600/50 transition-all font-medium" />
                                     <input value={tags} onChange={e => setTags(e.target.value)} placeholder="Tags (comma separated, max 5)" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-medium italic" />
                                     
