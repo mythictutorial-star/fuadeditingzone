@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDatabase, ref, onValue, query, orderByChild, equalTo, update, set, remove, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
@@ -23,6 +24,7 @@ const PortfolioSection: React.FC<{
     isOwner?: boolean;
     onDeleteItem?: (work: any) => void;
 }> = ({ title, works, onItemClick, id, aspectRatio = 'square', isOwner, onDeleteItem }) => {
+    // triggerOnce: true ensures that once the section is in view and loaded, it stays active.
     const [ref, inView] = useIntersectionObserver({ threshold: 0.1, triggerOnce: true });
     const [copyToast, setCopyToast] = useState(false);
 
@@ -142,7 +144,7 @@ const VfxVideoPlayer: React.FC<{
     onDeleteItem?: (work: any) => void;
 }> = ({ video, currentlyPlaying, pipVideo, onPlayRequest, setPipVideo, currentTime, setCurrentTime, variants, isOwner, onDeleteItem }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const [containerRef] = useIntersectionObserver({ threshold: 0.5 });
+    const [containerRef, visible] = useIntersectionObserver({ threshold: 0.1, triggerOnce: true });
     const [isMuted, setIsMuted] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [copyToast, setCopyToast] = useState(false);
@@ -170,7 +172,12 @@ const VfxVideoPlayer: React.FC<{
     }, [isPlaying, isThisVideoInPip]);
 
     return (
-        <motion.div ref={containerRef as any} variants={variants} className="group relative aspect-square bg-black rounded-[1.2rem] md:rounded-[1.5rem] overflow-hidden border border-white/10 hover:border-red-600/50 transition-all duration-500">
+        <motion.div 
+            ref={containerRef as any} 
+            variants={variants} 
+            animate={visible ? "visible" : "hidden"}
+            className="group relative aspect-square bg-black rounded-[1.2rem] md:rounded-[1.5rem] overflow-hidden border border-white/10 hover:border-red-600/50 transition-all duration-500"
+        >
             <AnimatePresence>
                 {copyToast && (
                     <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] bg-white text-black px-4 py-2 rounded-full font-bold uppercase text-[8px] tracking-widest shadow-2xl">Signal Copied</motion.div>

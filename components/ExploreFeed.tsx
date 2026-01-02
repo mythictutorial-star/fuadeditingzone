@@ -90,13 +90,13 @@ const PostItem: React.FC<{
 
     return (
         <motion.article 
-            initial={{ scale: 0.95, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }} 
-            transition={{ type: 'spring', damping: 20, stiffness: 100, delay: (idx % 10) * 0.05 }}
+            initial={{ opacity: 0, y: 10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.4, ease: "easeOut", delay: (idx % 8) * 0.04 }}
             className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
             <div className="relative overflow-hidden bg-transparent cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
-                {/* Immediate placeholder to trigger loading without showing UI */}
+                {/* Background loader trigger - invisible but functional */}
                 <div className="hidden">
                     {post.mediaType === 'video' ? (
                         <video src={post.mediaUrl} onLoadedData={() => setIsMediaLoaded(true)} muted playsInline />
@@ -105,18 +105,23 @@ const PostItem: React.FC<{
                     )}
                 </div>
 
-                <AnimatePresence mode="wait">
+                <AnimatePresence>
                     {isMediaLoaded && (
                         <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
-                            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
                             className="overflow-hidden"
                         >
                             <motion.div
-                                initial={{ y: '30%', scale: 0.95 }}
+                                initial={{ y: '50%', scale: 0.9 }}
                                 animate={{ y: 0, scale: 1 }}
-                                transition={{ type: 'spring', damping: 15, stiffness: 80 }}
+                                transition={{ 
+                                    type: 'spring', 
+                                    damping: 18, 
+                                    stiffness: 110,
+                                    duration: 0.8
+                                }}
                                 className="w-full relative"
                             >
                                 {post.mediaType === 'video' ? (
