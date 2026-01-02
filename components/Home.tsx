@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { siteConfig } from '../config';
@@ -175,7 +176,7 @@ export const Home: React.FC<HomeProps> = ({
                         onClick={(e) => { e.stopPropagation(); onOrderNow(); }}
                         className="relative bg-white text-black text-[9px] font-black px-8 py-3 rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg uppercase tracking-[0.2em] flex-shrink-0"
                     >
-                        Get a Quote
+                        Order Now
                     </motion.button>
                     
                     <motion.div 

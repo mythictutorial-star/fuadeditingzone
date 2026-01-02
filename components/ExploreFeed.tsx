@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -19,6 +20,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getDatabase(app);
 
 const OWNER_HANDLE = 'fuadeditingzone';
+const ADMIN_HANDLE = 'studiomuzammil';
 const POSTS_PER_PAGE = 30; 
 
 type UserRole = 'Designer' | 'Client';
@@ -88,14 +90,12 @@ const PostItem: React.FC<{
         <motion.article 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="break-inside-avoid flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
+            className="break-inside-avoid mb-3 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[0.8rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
-            {/* Shutter Media Container */}
             <motion.div 
                 animate={{ 
                     height: isExpanded ? 0 : 'auto', 
-                    opacity: isExpanded ? 0 : 1,
-                    marginBottom: isExpanded ? 0 : 0
+                    opacity: isExpanded ? 0 : 1
                 }}
                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 className="relative overflow-hidden bg-black cursor-pointer group flex-shrink-0"
@@ -107,47 +107,49 @@ const PostItem: React.FC<{
                     <img src={post.mediaUrl} className="w-full h-auto max-h-[600px] object-cover" alt="" />
                 )}
 
-                {/* Behance-style Title Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-4 md:p-5">
-                    <h2 className="text-xs md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal">
-                        {post.title || 'Creative Masterpiece'}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
+                    <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">
+                        {post.title || 'Untitled Work'}
                     </h2>
                 </div>
 
                 {post.budget && (
-                    <div className="absolute top-3 left-3 bg-red-600 text-white font-black px-2 py-0.5 rounded-md text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md">
+                    <div className="absolute top-2 left-2 bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md">
                         ${post.budget}
                     </div>
                 )}
                 
                 <button 
                     onClick={(e) => onShare(e, post.id)} 
-                    className="absolute top-3 right-3 p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-red-600 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-red-600 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
                 >
-                    <CopyIcon className="w-3.5 h-3.5" />
+                    <CopyIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
                 </button>
             </motion.div>
 
-            <div className="p-4 md:p-5 flex flex-col flex-1 min-h-0">
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2.5 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
+            <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5 md:gap-2.5 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
                         <div className="relative">
-                            <img src={post.userAvatar} className="w-8 h-8 md:w-9 md:h-9 rounded-lg object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
-                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full"></div>
+                            <img src={post.userAvatar} className="w-6 h-6 md:w-9 md:h-9 rounded-md md:rounded-lg object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 md:w-2.5 md:h-2.5 bg-green-500 border border-black rounded-full"></div>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[10px] md:text-[11px] font-black text-white uppercase truncate tracking-tight">@{post.userName}</p>
-                            <p className="text-[7px] font-black text-red-500 uppercase tracking-widest leading-none mt-0.5">{post.userRole || 'Designer'}</p>
+                            <p className="text-[8px] md:text-[11px] font-black text-white uppercase truncate tracking-tight flex items-center gap-1">
+                                @{post.userName}
+                                {post.userName === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>}
+                                {post.userName === ADMIN_HANDLE && <i className="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>}
+                            </p>
+                            <p className="text-[6px] md:text-[7px] font-black text-red-500 uppercase tracking-widest leading-none mt-0.5">{post.userRole || 'Designer'}</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Caption logic with upward expansion */}
-                <div className="font-sans relative w-full mt-2 flex-1 min-h-0 flex flex-col">
-                    <div className={`transition-all duration-500 ease-in-out ${isExpanded ? 'max-h-[300px] overflow-y-auto no-scrollbar pr-1' : 'max-h-[3.8rem] overflow-hidden'}`}>
+                <div className="font-sans relative w-full mt-1 flex-1 min-h-0 flex flex-col">
+                    <div className={`transition-all duration-500 ease-in-out ${isExpanded ? 'max-h-[300px] overflow-y-auto no-scrollbar pr-1' : 'max-h-[2.8rem] overflow-hidden'}`}>
                         <p 
                             ref={textRef}
-                            className={`text-zinc-500 text-[10px] md:text-[11px] font-medium leading-[1.6] break-words text-left ${!isExpanded ? 'line-clamp-3' : ''}`}
+                            className={`text-zinc-500 text-[9px] md:text-[11px] font-medium leading-[1.4] md:leading-[1.6] break-words text-left ${!isExpanded ? 'line-clamp-2' : ''}`}
                         >
                             {post.caption}
                         </p>
@@ -155,51 +157,30 @@ const PostItem: React.FC<{
                     {showReadMore && (
                         <button 
                             onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} 
-                            className="text-zinc-600 font-black hover:text-red-500 transition-colors text-[9px] mt-1.5 block text-left uppercase tracking-widest relative z-10"
+                            className="text-zinc-600 font-black hover:text-red-500 transition-colors text-[8px] md:text-[9px] mt-1 block text-left uppercase tracking-widest relative z-10"
                         >
-                            {isExpanded ? '...Collapse' : '...Read More'}
+                            {isExpanded ? '...Close' : '...More'}
                         </button>
                     )}
                 </div>
 
-                {/* Persistent Title for expanded state when media is hidden */}
-                {isExpanded && post.title && (
-                    <motion.h3 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        className="text-[10px] font-black text-white uppercase mt-4 border-t border-white/5 pt-4 tracking-widest"
-                    >
-                        {post.title}
-                    </motion.h3>
-                )}
-
-                {post.tags && post.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-4">
-                        {post.tags.slice(0, 5).map((tag, i) => (
-                            <span key={i} className="text-[8px] font-bold text-zinc-500/80 lowercase tracking-widest bg-white/5 px-1.5 py-0.5 rounded-md transition-colors border border-white/5">
-                                #{tag}
-                            </span>
-                        ))}
-                    </div>
-                )}
-
-                <div className="mt-4 pt-4 flex items-center justify-between border-t border-white/5">
-                    <div className="flex items-center gap-4">
+                <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5">
+                    <div className="flex items-center gap-3 md:gap-4">
                         <button 
                             onClick={(e) => onLike(e, post, isLiked)} 
-                            className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black transition-all ${isLiked ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}
+                            className={`flex items-center gap-1 text-[8px] md:text-[10px] font-black transition-all ${isLiked ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}
                         >
-                            <i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-[14px]`}></i>
+                            <i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-[12px] md:text-[14px]`}></i>
                             {Object.keys(post.likes || {}).length}
                         </button>
-                        <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-black text-zinc-600">
-                            <i className="fa-regular fa-comment text-[14px]"></i>
+                        <div className="flex items-center gap-1 text-[8px] md:text-[10px] font-black text-zinc-600">
+                            <i className="fa-regular fa-comment text-[12px] md:text-[14px]"></i>
                             {Object.keys(post.comments || {}).length}
                         </div>
                     </div>
-                    <div className="flex gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
-                        <div className="w-1 h-1 rounded-full bg-white"></div>
-                        <div className="w-1 h-1 rounded-full bg-white"></div>
+                    <div className="flex gap-1 opacity-20 md:group-hover:opacity-100 transition-opacity">
+                        <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white"></div>
+                        <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-white"></div>
                     </div>
                 </div>
             </div>
@@ -290,7 +271,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             await push(ref(db, 'explore_posts'), postData);
             setTitle(''); setCaption(''); setBudget(''); setSelectedFile(null);
             setIsPostModalOpen(false);
-        } catch (err) { alert("Sync Error"); } finally { setIsUploading(false); }
+        } catch (err) { alert("Upload error"); } finally { setIsUploading(false); }
     };
 
     const handleLike = async (e: React.MouseEvent, post: Post, isLiked: boolean) => {
@@ -312,7 +293,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
         <div className="w-full max-w-full mx-auto px-2 md:px-4 pb-20 relative bg-black min-h-screen no-scrollbar">
             <AnimatePresence>
                 {shareToast && (
-                    <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-white text-black px-6 py-2 rounded-full font-black uppercase text-[9px] tracking-[0.2em] shadow-2xl">Signal Captured</motion.div>
+                    <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] bg-white text-black px-6 py-2 rounded-full font-black uppercase text-[9px] tracking-[0.2em] shadow-2xl">Link Copied</motion.div>
                 )}
             </AnimatePresence>
 
@@ -324,20 +305,20 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     >
                         <ArrowLeft className="w-4 h-4 group-hover:scale-110 transition-transform" />
                     </button>
-                    <h1 className="text-base md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90">Marketplace</h1>
+                    <h1 className="text-sm md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90">Marketplace</h1>
                 </div>
-                <div className="relative w-40 md:w-72">
-                    <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600 w-3.5 h-3.5" />
+                <div className="relative w-36 md:w-72">
+                    <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600 w-3 md:w-3.5 h-3 md:h-3.5" />
                     <input 
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        placeholder="Search assets..." 
-                        className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" 
+                        placeholder="Search posts..." 
+                        className="w-full bg-white/5 border border-white/10 rounded-full py-1.5 md:py-2 pl-9 md:pl-10 pr-4 text-[9px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" 
                     />
                 </div>
             </div>
 
-            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-5 gap-3 md:gap-4 space-y-4 md:space-y-6 no-scrollbar">
+            <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-6 gap-2 md:gap-4 no-scrollbar">
                 {paginatedPosts.map((post, idx) => (
                     <PostItem 
                         key={post.id} 
@@ -367,7 +348,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setIsPostModalOpen(false)} className="absolute inset-0 bg-black/80" />
                         <motion.div initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,1)] overflow-hidden">
                             <div className="p-5 border-b border-white/5 flex justify-between items-center bg-black/40">
-                                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Post Signal</h2>
+                                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Create Post</h2>
                                 <button onClick={() => setIsPostModalOpen(false)} className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 transition-colors"><CloseIcon className="w-5 h-5" /></button>
                             </div>
                             <div className="p-6 space-y-5">
@@ -377,8 +358,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                                     ))}
                                 </div>
                                 <div className="space-y-4">
-                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Signal Label..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-bold uppercase tracking-widest" />
-                                    <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Uplink details..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none resize-none h-32 focus:border-red-600/50 transition-all font-medium" />
+                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-bold uppercase tracking-widest" />
+                                    <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Description..." className="w-full bg-black border border-white/10 rounded-xl p-3 text-white text-[11px] outline-none resize-none h-32 focus:border-red-600/50 transition-all font-medium" />
                                     {userRole === 'Client' && (
                                         <div className="relative">
                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-red-600 font-black text-xs">$</span>
@@ -388,11 +369,11 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                                 </div>
                                 <div className="flex items-center justify-between border-t border-white/5 pt-6">
                                     <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedFile ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}>
-                                        <PhotoManipulationIcon className="w-4 h-4" /> {selectedFile ? 'Ready' : 'Media'}
+                                        <PhotoManipulationIcon className="w-4 h-4" /> {selectedFile ? 'Media Ready' : 'Add Media'}
                                     </button>
                                     <input type="file" hidden ref={fileInputRef} accept="image/*,video/*" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
                                     <button disabled={isUploading || !caption.trim()} onClick={handleUpload} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] transition-all flex items-center gap-2 shadow-xl active:scale-95">
-                                        {isUploading ? 'Syncing...' : 'Broadcast'} <SendIcon className="w-4 h-4" />
+                                        {isUploading ? 'Posting...' : 'Post'} <SendIcon className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>

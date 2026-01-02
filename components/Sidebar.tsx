@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   SignedIn, 
@@ -26,7 +27,6 @@ const db = getDatabase(app);
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 
-// FIX: Added missing getBadge function to show verified checkmarks for owner and admin
 const getBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm"></i> : null);
 
 interface NavProps {
@@ -82,7 +82,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
 
     return (
         <div className="relative">
-            <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500">
+            <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Friend Requests">
                 <UserGroupIcon className="w-5 h-5" />
                 {requests.some(n => !n.read) && <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full border border-black animate-pulse"></span>}
             </button>
@@ -90,12 +90,12 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                 {isOpen && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[300px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[999999]">
                         <div className="p-4 border-b border-white/5 bg-black flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Network Requests</span>
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Friend Requests</span>
                             <button onClick={() => setIsOpen(false)}><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
                         </div>
                         <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
                             {requests.length === 0 ? (
-                                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">No signals</p>
+                                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">No requests</p>
                             ) : (
                                 requests.map((n) => (
                                     <div key={n.id} onClick={() => handleAction(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent flex gap-3 items-center ${!n.read ? 'bg-red-600/5 border-red-600/10' : 'opacity-50 hover:bg-white/5'}`}>
@@ -145,7 +145,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
 
     return (
         <div className="relative">
-            <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500">
+            <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Notifications">
                 <i className="fa-solid fa-bell text-[14px]"></i>
                 {notifications.some(n => !n.read && !n.isGlobal) && <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full border border-black animate-pulse"></span>}
             </button>
@@ -153,7 +153,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                 {isOpen && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[300px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[999999]">
                         <div className="p-4 border-b border-white/5 bg-black flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Protocol Logs</span>
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Notifications</span>
                             <button onClick={() => setIsOpen(false)}><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
                         </div>
                         <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
@@ -165,7 +165,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                                         <div className="flex gap-3 items-center">
                                             {n.fromAvatar && <img src={n.fromAvatar} className="w-6 h-6 rounded-full object-cover" alt="" />}
                                             <div className="flex-1 min-w-0">
-                                                <p className={`text-[10px] ${n.type === 'daily_spotlight' ? 'text-red-500 font-black' : 'text-gray-200'}`}>{n.text || 'System signal received.'}</p>
+                                                <p className={`text-[10px] ${n.type === 'daily_spotlight' ? 'text-red-500 font-black' : 'text-gray-200'}`}>{n.text || 'Notification received.'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -194,7 +194,7 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
         </div>
         <nav className="flex items-center gap-6">
             <button onClick={() => onScrollTo('home')} className={`text-[9px] font-black uppercase tracking-[0.3em] transition-all ${activeRoute === 'home' ? 'text-white' : 'text-gray-400 hover:text-white'}`}>Home</button>
-            <button onClick={() => onScrollTo('portfolio')} className={`text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 hover:text-white transition-all`}>Work</button>
+            <button onClick={() => onScrollTo('portfolio')} className={`text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 hover:text-white transition-all`}>Portfolio</button>
             <button onClick={onNavigateMarketplace} className={`text-[9px] font-black uppercase tracking-[0.3em] transition-all ${activeRoute === 'marketplace' ? 'text-red-500' : 'text-gray-400 hover:text-white'}`}>Marketplace</button>
             <button onClick={onNavigateCommunity} className={`text-[9px] font-black uppercase tracking-[0.3em] transition-all ${activeRoute === 'community' ? 'text-red-500' : 'text-gray-400 hover:text-white'}`}>Community</button>
             <button onClick={() => onScrollTo('contact')} className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 hover:text-white transition-all border px-4 py-1.5 rounded-lg border-white/10 hover:bg-red-600 hover:text-white">Order</button>
@@ -231,7 +231,7 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
                     <NotificationHub isOpen={isNotificationsOpen} setIsOpen={(v) => { setIsNotificationsOpen(v); setIsRequestsOpen(false); }} onShowUser={onOpenProfile!} onGoToInbox={onOpenChatWithUser!} />
                     <UserButton />
                 </SignedIn>
-                <SignedOut><SignInButton mode="modal"><button className="text-[8px] font-black text-red-500 uppercase tracking-widest bg-red-600/10 px-3 py-1.5 rounded-lg border border-red-600/30">Verify</button></SignInButton></SignedOut>
+                <SignedOut><SignInButton mode="modal"><button className="text-[8px] font-black text-red-500 uppercase tracking-widest bg-red-600/10 px-3 py-1.5 rounded-lg border border-red-600/30">Log In</button></SignInButton></SignedOut>
             </div>
         </header>
     );

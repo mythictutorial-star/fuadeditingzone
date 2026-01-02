@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
@@ -67,7 +68,7 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
     if (!isSignedIn || !user || !selectedTier) return;
     
     if (selectedTier === 'custom' && !RECOMMENDED_TAGS.includes(formData.customName)) {
-        setTagWarning("Select a tag from the catalog!");
+        setTagWarning("Select a category from the list!");
         return;
     }
 
@@ -111,7 +112,7 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
           const chatPath = `messages/${[user.id, ownerId].sort().join('_')}`;
           await push(ref(db, chatPath), {
               senderId: user.id, senderName: user.fullName || user.username, senderAvatar: user.imageUrl,
-              text: `[ORDER INQUIRY] New Project\nService: ${serviceName}\nBudget: ${currency}${finalPrice}\nDeadline: ${finalDelivery} Days\nDescription: ${formData.message}`,
+              text: `[ORDER] New Project Inquiry\nService: ${serviceName}\nBudget: ${currency}${finalPrice}\nDeadline: ${finalDelivery} Days\nDescription: ${formData.message}`,
               timestamp: Date.now()
           });
       }
@@ -133,8 +134,8 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
     <section ref={intersectionRef} id="contact" className="py-20 md:py-28 bg-black relative z-10 overflow-hidden no-clip">
       <div className="container mx-auto px-6 md:px-8 max-w-7xl">
         <div className="mb-16 text-center">
-          <h2 className="text-white text-3xl md:text-6xl font-black uppercase tracking-tight font-display">Order Database</h2>
-          <p className="text-zinc-500 text-xs md:text-sm uppercase tracking-[0.3em] font-bold mt-4">Secure Terminal • Project Initiation</p>
+          <h2 className="text-white text-3xl md:text-6xl font-black uppercase tracking-tight font-display">Order Now</h2>
+          <p className="text-zinc-500 text-xs md:text-sm uppercase tracking-[0.3em] font-bold mt-4">Start your project with Fuad Editing Zone</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 md:gap-16 items-start">
@@ -163,7 +164,7 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
                 {!isSignedIn ? (
                     <div className="py-12 flex flex-col items-center justify-center text-center">
                         <SparklesIcon className="w-12 h-12 text-zinc-700 mb-6" />
-                        <h3 className="text-white text-xl font-bold uppercase tracking-widest mb-10">Secure your spot in the queue</h3>
+                        <h3 className="text-white text-xl font-bold uppercase tracking-widest mb-10">Log in to start your order</h3>
                         <SignInButton mode="modal">
                             <button className="w-full max-w-xs bg-white text-black py-6 rounded-full font-black uppercase tracking-[0.4em] text-[11px] shadow-xl hover:scale-105 transition-all active:scale-95 px-10">
                                 Log In
@@ -173,7 +174,7 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
                 ) : (
                     <>
                         <div className="space-y-6">
-                            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Project Category Catalog</p>
+                            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Select Project Category</p>
                             <div className="flex flex-wrap gap-2 justify-center">
                                 {RECOMMENDED_TAGS.map(tag => (
                                     <button key={tag} type="button" onClick={() => handleTagClick(tag)} className={`px-4 py-3 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${formData.customName === tag ? 'bg-red-600 border-red-500 text-white shadow-lg scale-105' : 'bg-[#282828] border-transparent text-zinc-500 hover:text-white'}`}>{tag}</button>
@@ -184,14 +185,14 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="flex flex-col gap-4">
-                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Budget Setup</label>
+                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Your Budget</label>
                                 <div className="relative group">
                                     <button type="button" onClick={cycleCurrency} className="absolute left-6 top-1/2 -translate-y-1/2 z-10 text-red-600 font-black text-2xl hover:scale-110 transition-transform">{currency}</button>
                                     <input required type="text" value={formData.customPrice} onChange={e => handleNumInput(e.target.value, 'customPrice')} placeholder="Min $5" className="w-full h-16 md:h-20 bg-black/40 border border-white/5 rounded-2xl py-4 pl-16 pr-6 text-xl font-bold text-white outline-none focus:border-red-600 transition-all text-center" />
                                 </div>
                             </div>
                             <div className="flex flex-col gap-4">
-                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Protocol Deadline (Days)</label>
+                                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Expected Deadline (Days)</label>
                                 <div className="relative group">
                                     <input required type="text" value={formData.customTime} onChange={e => handleNumInput(e.target.value, 'customTime')} placeholder="0" className="w-full h-16 md:h-20 bg-black/40 border border-white/5 rounded-2xl py-4 px-6 text-xl font-bold text-white outline-none focus:border-red-600 transition-all text-center" />
                                 </div>
@@ -199,13 +200,13 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
                         </div>
                         
                         <div className="flex flex-col gap-4">
-                            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Project Transmission Details</label>
-                            <textarea required rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-6 text-sm text-white focus:border-red-600 outline-none resize-none transition-all no-clip" placeholder="Describe the creative visual requirements..." />
+                            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Project Details</label>
+                            <textarea required rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-6 text-sm text-white focus:border-red-600 outline-none resize-none transition-all no-clip" placeholder="Briefly describe what you need..." />
                         </div>
                         
                         <div className="flex justify-center pt-4">
                             <button type="submit" disabled={status === 'submitting' || !selectedTier} className={`w-full max-w-sm py-6 rounded-full text-[11px] font-black uppercase tracking-[0.5em] transition-all flex items-center justify-center gap-4 ${!selectedTier ? 'bg-white/5 text-zinc-600' : 'bg-red-600 text-white shadow-xl hover:bg-red-700 hover:scale-[1.02] active:scale-95'}`}>
-                                {status === 'submitting' ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Confirm Transmission'}
+                                {status === 'submitting' ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Order Now'}
                             </button>
                         </div>
                     </>
@@ -215,8 +216,8 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
 
           <div className="bg-[#121212] border border-white/5 rounded-[2.5rem] p-8 md:p-12 shadow-inner flex flex-col h-full min-h-[600px] overflow-hidden">
                 <div className="text-center mb-10 pb-8 border-b border-white/5 flex-shrink-0">
-                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-[0.2em] font-display">Transmission Logs</h3>
-                    <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-2">Personal Project Database</p>
+                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-[0.2em] font-display">Order History</h3>
+                    <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-2">Your project activity log</p>
                 </div>
                 <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1 pr-4">
                     {userOrders.length === 0 ? (
@@ -224,7 +225,7 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
                             <div className="w-24 h-24 bg-[#1a1a1a] rounded-full flex items-center justify-center mb-8 border border-white/5">
                                 <ClockIcon className="w-12 h-12 text-white" />
                             </div>
-                            <p className="text-[10px] uppercase font-black tracking-[0.4em]">Standby • No signals detected</p>
+                            <p className="text-[10px] uppercase font-black tracking-[0.4em]">No active orders</p>
                         </div>
                     ) : (
                         userOrders.map((order, idx) => (
@@ -237,8 +238,8 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
                                     <span className={`text-[9px] font-black uppercase px-4 py-2 rounded-full border flex-shrink-0 ${order.status === 'Pending' ? 'text-yellow-500 border-yellow-500/20 bg-yellow-500/5' : order.status === 'Accepted' ? 'text-green-500 border-green-500/20 bg-green-500/5' : 'text-red-500 border-red-500/20 bg-red-500/5'}`}>{order.status}</span>
                                 </div>
                                 <div className="flex gap-4">
-                                    <div className="flex-1 bg-white/5 p-5 rounded-2xl border border-white/5 text-[10px] font-bold text-zinc-400 uppercase tracking-widest text-center">Protocol <span className="block text-white mt-1 text-sm">{order.price}</span></div>
-                                    <div className="flex-1 bg-white/5 p-5 rounded-2xl border border-white/5 text-[10px] font-bold text-zinc-400 uppercase tracking-widest text-center">ETA <span className="block text-white mt-1 text-sm">{order.delivery}</span></div>
+                                    <div className="flex-1 bg-white/5 p-5 rounded-2xl border border-white/5 text-[10px] font-bold text-zinc-400 uppercase tracking-widest text-center">Budget <span className="block text-white mt-1 text-sm">{order.price}</span></div>
+                                    <div className="flex-1 bg-white/5 p-5 rounded-2xl border border-white/5 text-[10px] font-bold text-zinc-400 uppercase tracking-widest text-center">Delivery <span className="block text-white mt-1 text-sm">{order.delivery}</span></div>
                                 </div>
                             </motion.div>
                         ))
