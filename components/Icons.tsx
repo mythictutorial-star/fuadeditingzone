@@ -176,6 +176,18 @@ export const GlobeAltIcon = ({ className }: IconProps) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9s2.015-9 4.5-9m0 0a9.015 9.015 0 018.716 2.253M12 3a9.015 9.015 0 00-8.716 2.253m0 0A9.015 9.015 0 0112 12a9.015 9.015 0 018.716-6.747M12 12a9.015 9.015 0 00-8.716 6.747M12 12c2.485 0 4.5 4.03 4.5 9m-4.5-9c-2.485 0-4.5 4.03-4.5 9"/></svg>
 );
 
+export const MarketIcon = ({ className }: IconProps) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H21.64m-19.28 0c-.81 0-1.472-.652-1.472-1.455v-5.466c0-1.025.564-1.954 1.473-2.433l6.545-3.45a3.493 3.493 0 0 1 3.236 0l6.545 3.45c.91.479 1.473 1.408 1.473 2.433v5.466c0 .803-.662 1.455-1.472 1.455" />
+    </svg>
+);
+
+export const ShoppingCartIcon = ({ className }: IconProps) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-.23 2.1-1.242 2.124-2.257L21.75 7.5H5.625M7.5 14.25L5.625 7.5m1.875 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM16.5 19.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+    </svg>
+);
+
 export const DownloadIcon = ({ className }: IconProps) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
 );

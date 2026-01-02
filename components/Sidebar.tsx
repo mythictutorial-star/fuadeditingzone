@@ -11,7 +11,7 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.
 import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
 /* Added SendIcon to the imported icons to fix the 'Cannot find name SendIcon' error on line 200 */
-import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon } from './Icons';
+import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon } from './Icons';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const firebaseConfig = {
@@ -362,7 +362,7 @@ export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNa
             <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
         </button>
         <button onClick={onNavigateMarketplace} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'marketplace' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
-            <GlobeAltIcon className="w-5 h-5" />
+            <MarketIcon className="w-5 h-5" />
             <span className="text-[8px] font-black uppercase tracking-widest">Market</span>
         </button>
         <button onClick={onNavigateCommunity} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'community' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
@@ -370,7 +370,7 @@ export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNa
             <span className="text-[8px] font-black uppercase tracking-widest">Social</span>
         </button>
         <button onClick={() => onScrollTo('contact')} className={`flex flex-col items-center gap-1 transition-all text-zinc-500`}>
-            <BriefcaseIcon className="w-5 h-5" />
+            <ShoppingCartIcon className="w-5 h-5" />
             <span className="text-[8px] font-black uppercase tracking-widest">Order</span>
         </button>
     </nav>
