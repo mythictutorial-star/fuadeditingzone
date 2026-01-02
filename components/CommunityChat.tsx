@@ -77,7 +77,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [isMobileChatOpen, setIsMobileChatOpen] = useState(true); 
+  const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -208,7 +208,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                     onClick={() => openSignal(u)} 
                     className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}
                   >
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username); }}>
                       <img src={u.avatar} className={`w-10 h-10 rounded-xl border object-cover ${u.username === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' : 'border-white/10'}`} alt="" />
                       <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border border-zinc-900 rounded-full"></div>
                     </div>
@@ -243,11 +243,11 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                  <ChevronLeftIcon className="w-5 h-5" />
               </button>
               
-              <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-600/10 flex items-center justify-center border-2 overflow-hidden flex-shrink-0 ${!isGlobal && selectedUser?.username === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : 'border-white/10'}`}>
+              <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username)} className={`w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-600/10 flex items-center justify-center border-2 overflow-hidden flex-shrink-0 cursor-pointer ${!isGlobal && selectedUser?.username === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : 'border-white/10'}`}>
                 {isGlobal ? <GlobeAltIcon className="w-6 h-6 text-red-600" /> : <img src={selectedUser?.avatar} className="w-full h-full object-cover" alt="" />}
               </div>
               
-              <div className="min-w-0">
+              <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username)}>
                 <h3 className="text-sm md:text-xl font-black text-white uppercase tracking-tighter flex items-center leading-none">
                   {isGlobal ? 'Global Chat' : selectedUser?.name}
                   {!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}
@@ -277,7 +277,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                       onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername || msg.senderId)} 
                     />
                     <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
-                      <div className={`flex items-center mb-1 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <div className={`flex items-center mb-1 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'} cursor-pointer`} onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername || msg.senderId)}>
                         <span className="text-[10px] md:text-[12px] font-black text-white uppercase tracking-tight truncate leading-none">
                             {msg.senderUsername === OWNER_HANDLE ? "FUAD EDITING ZONE" : msg.senderName}
                         </span>

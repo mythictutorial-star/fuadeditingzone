@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignIn } from '@clerk/clerk-react';
@@ -91,8 +92,6 @@ export default function App() {
         const id = path.split('/')[2];
         const postSnap = await get(ref(db, `explore_posts/${id}`));
         if (postSnap.exists()) setModalState({ items: [{ id, ...postSnap.val() }], currentIndex: 0 });
-      } else if (path.startsWith('/profile/')) {
-        setViewingProfileId(path.split('/')[2]);
       } else {
         const resolved = await resolveProfileFromUrl(path);
         if (!resolved) {
@@ -111,7 +110,10 @@ export default function App() {
       const img = item.imageUrl || item.thumbnailUrl || (item.mediaUrl && item.mediaType === 'image' ? item.mediaUrl : siteConfig.branding.profilePicUrl);
       updateSEO(title, desc, img);
     } else if (viewingProfileId) {
-      updateSEO("Profile", "View designer profile on FEZ Zone", siteConfig.branding.logoUrl);
+      get(ref(db, `users/${viewingProfileId}`)).then(snap => {
+          const data = snap.val();
+          if (data) updateSEO(`@${data.username} | Fuad Editing Zone`, data.profile?.bio || "Professional Designer Profile", data.avatar || siteConfig.branding.logoUrl);
+      });
     } else {
       if (route === 'home') updateSEO(siteConfig.seo.title, siteConfig.seo.description, siteConfig.branding.profilePicUrl);
       else if (route === 'marketplace') updateSEO("Marketplace", "Discover premium assets.", siteConfig.branding.logoUrl);
@@ -127,7 +129,6 @@ export default function App() {
   };
 
   const handleCloseModal = () => {
-    let base = route === 'home' ? '/' : `/${route}`;
     if (viewingProfileId) {
         get(ref(db, `users/${viewingProfileId}`)).then(snap => {
             const userData = snap.val();
@@ -135,6 +136,7 @@ export default function App() {
             window.history.pushState(null, '', `/@${handle}`);
         });
     } else {
+        const base = route === 'home' ? '/' : `/${route}`;
         window.history.pushState(null, '', base);
     }
     setModalState(null);
@@ -146,7 +148,7 @@ export default function App() {
       if (!path.includes('/work/') && !path.includes('/post/')) setModalState(null);
       
       const resolved = await resolveProfileFromUrl(path);
-      if (!resolved && !path.includes('/profile/')) {
+      if (!resolved && !path.includes('/post/') && !path.includes('/work/')) {
         setViewingProfileId(null);
       }
       
@@ -154,7 +156,7 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [route]);
 
   const navigateTo = (path: 'home' | 'marketplace' | 'community') => {
     setRoute(path);
@@ -163,9 +165,16 @@ export default function App() {
   };
 
   const handleOpenProfile = (userId: string, username?: string) => {
-    const handle = username || userId;
-    window.history.pushState(null, '', `/@${handle}`);
-    setViewingProfileId(userId);
+    if (username) {
+        window.history.pushState(null, '', `/@${username}`);
+        setViewingProfileId(userId);
+    } else {
+        get(ref(db, `users/${userId}`)).then(snap => {
+            const handle = snap.val()?.username || userId;
+            window.history.pushState(null, '', `/@${handle}`);
+            setViewingProfileId(userId);
+        });
+    }
   };
 
   const handleCloseProfile = () => {
