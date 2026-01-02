@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDatabase, ref, onValue, query, orderByChild, equalTo, update, set, remove, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
@@ -43,7 +42,6 @@ const PortfolioSection: React.FC<{
         }
     };
 
-    // Fix: Using `as any` for ease array to avoid type mismatch with Easing type in certain framer-motion versions
     const itemVariants = {
         hidden: { opacity: 0, scale: 0.9, y: 10 },
         visible: { 
@@ -81,7 +79,7 @@ const PortfolioSection: React.FC<{
                 variants={containerVariants}
                 initial="hidden"
                 animate={inView ? "visible" : "hidden"}
-                className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-7xl mx-auto px-2 md:px-0"
+                className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-7xl mx-auto px-2 md:px-0 overflow-visible"
             >
                 {works.map((work, index) => (
                     <motion.div 
@@ -320,7 +318,6 @@ export const Portfolio: React.FC<any> = ({
         }
     };
 
-    // Fix: Using `as any` for ease array to avoid type mismatch with Easing type in certain framer-motion versions
     const itemVariants = {
         hidden: { opacity: 0, scale: 0.95, y: 15 },
         visible: { 
@@ -330,8 +327,8 @@ export const Portfolio: React.FC<any> = ({
     };
 
     return (
-        <section id="portfolio" className="py-16 md:py-20 bg-[#050505] relative z-10 select-none overflow-hidden no-clip">
-            <div className="container mx-auto px-4 md:px-6 max-w-7xl">
+        <section id="portfolio" className="py-16 md:py-24 bg-[#050505] relative z-10 select-none overflow-visible no-clip">
+            <div className="container mx-auto px-4 md:px-6 max-w-7xl overflow-visible">
                 
                 <PortfolioSection 
                     id="photo-manipulation" 
@@ -370,12 +367,12 @@ export const Portfolio: React.FC<any> = ({
                         </div>
                     </div>
 
-                    <div className="lg:flex lg:gap-12 lg:items-start space-y-8 lg:space-y-0">
+                    <div className="lg:flex lg:gap-12 lg:items-start space-y-8 lg:space-y-0 overflow-visible">
                         <div className="flex-1 space-y-6">
                             <div className="relative aspect-video w-full rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-2xl bg-black border border-white/5">
                                 <div id="youtube-portfolio-player-inner" className="w-full h-full"></div>
                             </div>
-                            <div className="bg-[#0f0f0f] p-6 md:p-8 border border-white/5 rounded-[1.5rem] md:rounded-[2rem]">
+                            <div className="bg-[#0f0f0f] p-6 md:p-8 border border-white/5 rounded-[1.5rem] md:rounded-[2rem] shadow-xl">
                                 <h3 className="text-white font-bold text-lg md:text-2xl mb-4 truncate font-display">{currentVideoStats?.title || 'Syncing...'}</h3>
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3 md:gap-4 min-w-0">
@@ -416,7 +413,7 @@ export const Portfolio: React.FC<any> = ({
                             <h2 className="text-white text-2xl md:text-4xl font-bold uppercase tracking-tight font-display no-clip">Full VFX Mastery</h2>
                         </div>
                     </div>
-                    <motion.div variants={containerVariants} initial="hidden" animate={vfxInView ? "visible" : "hidden"} className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 max-w-7xl mx-auto px-2 md:px-0">
+                    <motion.div variants={containerVariants} initial="hidden" animate={vfxInView ? "visible" : "hidden"} className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 max-w-7xl mx-auto px-2 md:px-0 overflow-visible">
                         {vfxWorks.map((video: any) => (
                             <VfxVideoPlayer 
                                 key={video.id} 

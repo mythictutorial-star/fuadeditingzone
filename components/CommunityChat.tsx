@@ -4,6 +4,8 @@ import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onChildAdded, onValue, set, update, get, remove, query, limitToLast, orderByChild, equalTo } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon } from './Icons';
+import { SidebarSubNav } from './Sidebar';
+import { ArrowLeft } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -66,7 +68,7 @@ const getIdentity = (username: string, role?: string, hideRole = false) => {
     );
 };
 
-export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: string) => void; initialTargetUserId?: string | null }> = ({ onShowProfile, initialTargetUserId }) => {
+export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: string) => void; initialTargetUserId?: string | null; onBack?: () => void; onNavigateMarket?: () => void }> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -161,8 +163,10 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
         {/* NETWORK SIDEBAR - COMPACT */}
         <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[260px] lg:w-[300px] flex-col flex-shrink-0 min-h-0 bg-black/40 backdrop-blur-3xl border-r border-white/5 animate-fade-in`}>
           
-          <div className="p-4 flex flex-col gap-4">
-            <div className="flex items-center justify-end">
+          <div className="p-4 flex flex-col gap-2">
+            <SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} />
+            
+            <div className="flex items-center justify-end mb-2">
               {clerkUser && (
                 <button onClick={() => onShowProfile?.(clerkUser.id, clerkUser.username || undefined)} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white transition-all flex items-center justify-center">
                   <UserCircleIcon className="w-5 h-5" />
@@ -195,7 +199,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               {filteredUsers.length === 0 ? (
                   <div className="py-12 text-center opacity-20">
                       <SearchIcon className="w-8 h-8 mx-auto mb-2" />
-                      <p className="text-[8px] font-black uppercase tracking-[0.4em]">Standby</p>
+                      <p className="text-[8px] font-black uppercase tracking-widest">Signal Terminal</p>
                   </div>
               ) : (
                 filteredUsers.map(u => (
@@ -227,8 +231,15 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
         {/* CHAT AREA - COMPACT & SEAMLESS */}
         <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-transparent animate-fade-in`}>
           
-          <div className="px-4 py-3 md:px-8 md:py-4 flex items-center justify-between bg-black/40 border-b border-white/5 flex-shrink-0 backdrop-blur-xl">
+          <div className="px-4 py-3 md:px-8 md:py-4 flex items-center justify-between bg-black/40 border-b border-white/5 flex-shrink-0 backdrop-blur-xl sticky top-0 z-[50]">
             <div className="flex items-center gap-4 min-w-0">
+              <button 
+                onClick={onBack}
+                className="hidden md:flex p-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group mr-2"
+              >
+                 <ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              </button>
+              
               <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-white">
                  <ChevronLeftIcon className="w-5 h-5" />
               </button>
@@ -269,7 +280,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                     <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
                       <div className={`flex items-center mb-1 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                         <span className="text-[10px] md:text-[12px] font-black text-white uppercase tracking-tight truncate leading-none">
-                            {msg.senderName}
+                            {msg.senderUsername === OWNER_HANDLE ? "FUAD EDITING ZONE" : msg.senderName}
                         </span>
                         {getIdentity(msg.senderUsername || '', msg.senderRole)}
                       </div>

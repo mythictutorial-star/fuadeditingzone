@@ -218,12 +218,12 @@ export default function App() {
     <ParallaxProvider>
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
-          <div className="fixed top-0 left-0 right-0 z-[100]">
+          <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} />
             <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} />
           </div>
           
-          <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route === 'community' ? 'h-[calc(100dvh-80px)] md:h-[calc(100dvh-80px)] pt-20' : ''}`}>
+          <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
             {route === 'home' && (
               <div className="flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth">
                 <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
@@ -233,13 +233,13 @@ export default function App() {
               </div>
             )}
             {route === 'marketplace' && (
-              <div className="container mx-auto px-4 py-24 md:py-28 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
-                <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} />
+              <div className="w-full h-full flex flex-col min-h-0 overflow-y-auto custom-scrollbar no-scrollbar">
+                <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} onBack={() => navigateTo('home')} />
               </div>
             )}
             {route === 'community' && (
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0">
-                <CommunityChat onShowProfile={handleOpenProfile} initialTargetUserId={targetUserId} />
+                <CommunityChat onShowProfile={handleOpenProfile} initialTargetUserId={targetUserId} onBack={() => navigateTo('home')} onNavigateMarket={() => navigateTo('marketplace')} />
               </div>
             )}
           </main>

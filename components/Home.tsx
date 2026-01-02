@@ -80,11 +80,11 @@ export const Home: React.FC<HomeProps> = ({
         if (aIsPro && !bIsPro) return -1;
         if (!aIsPro && bIsPro) return 1;
         return 0;
-    }).slice(0, 5);
+    }).slice(0, 4);
 
     const headlineStyle = {
         transform: parallaxEnabled 
-            ? `perspective(1200px) rotateX(${y * -1.5}deg) rotateY(${x * 1.5}deg)` 
+            ? `perspective(1200px) rotateX(${y * -0.6}deg) rotateY(${x * 0.6}deg)` 
             : 'perspective(1200px) rotateX(0deg) rotateY(0deg)',
         transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         willChange: 'transform',
@@ -94,115 +94,114 @@ export const Home: React.FC<HomeProps> = ({
     return (
         <section 
             id="home" 
-            className="min-h-[100dvh] w-full flex flex-col items-center justify-center relative select-none overflow-hidden bg-black py-20"
+            className="min-h-[100dvh] w-full flex flex-col items-center justify-center relative select-none overflow-hidden bg-black py-8 px-6 md:px-12"
         >
             <div className="absolute inset-0 z-0 bg-black"></div>
 
             <motion.div 
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={isImageLoaded ? { opacity: 1, y: 0 } : { opacity: 0 }}
-                transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-30 w-full text-center flex flex-col items-center max-w-5xl px-6" 
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-30 w-full text-center flex flex-col items-center max-w-3xl" 
                 style={headlineStyle}
             >
-                <div className="relative flex flex-col md:flex-row items-center justify-center mb-8 md:mb-12 gap-6 md:gap-12">
+                <div className="relative flex flex-col md:flex-row items-center justify-center mb-4 md:mb-5 gap-3 md:gap-6">
                     <motion.div 
-                        initial={{ opacity: 0, scale: 0.9, rotateY: 30 }}
-                        animate={isImageLoaded ? { opacity: 1, scale: 1, rotateY: 0 } : { opacity: 0 }}
-                        transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
+                        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
                         className="relative group flex-shrink-0 z-40"
                     >
-                        <div className="absolute -inset-6 bg-red-600/10 rounded-[2.5rem] blur-3xl animate-pulse group-hover:bg-red-600/20 transition-colors duration-700"></div>
-                        <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden border-2 border-white/10 transition-all duration-1000 bg-black shadow-[0_20px_60px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+                        <div className="absolute -inset-2 bg-red-600/5 rounded-full blur-xl animate-pulse"></div>
+                        <div className="relative w-16 h-16 md:w-24 md:h-24 rounded-full overflow-hidden border border-white/10 bg-black shadow-xl ring-1 ring-white/5">
                             <motion.img 
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 src={siteConfig.branding.profilePicUrl} 
                                 alt="Fuad Ahmed" 
                                 onLoad={() => setIsImageLoaded(true)}
-                                className="w-full h-full object-cover object-top origin-top transition-all duration-700 group-hover:scale-110 group-hover:brightness-110" 
+                                className="w-full h-full object-cover object-top origin-top transition-all duration-700" 
                             />
                         </div>
-                        <div className="absolute -bottom-2 -right-2 md:-bottom-3 md:-right-3 bg-red-600 text-white py-1 px-3 md:py-2 md:px-5 rounded-full shadow-2xl flex items-center gap-1.5 border border-white/20 z-50 transform hover:scale-110 transition-transform">
-                            <CheckCircleIcon className="w-3 md:w-4 text-white" />
-                            <span className="text-[7px] md:text-[10px] font-black uppercase tracking-[0.25em]">Official</span>
+                        <div className="absolute -bottom-0.5 -right-0.5 bg-red-600 text-white p-0.5 rounded-full shadow-lg border border-white/20 z-50">
+                            <CheckCircleIcon className="w-2 md:w-3 text-white" />
                         </div>
                     </motion.div>
 
-                    <div className="flex flex-col items-center md:items-start leading-none z-10">
+                    <div className="flex flex-col items-center md:items-start leading-none z-10 min-w-0">
                         <motion.h1 
-                            initial={{ opacity: 0, x: 25 }}
+                            initial={{ opacity: 0, x: 15 }}
                             animate={isImageLoaded ? { opacity: 1, x: 0 } : { opacity: 0 }}
-                            transition={{ duration: 1.2, delay: 0.5 }}
-                            className="font-black text-white tracking-tighter uppercase m-0 p-0 font-display"
+                            transition={{ duration: 0.8, delay: 0.3 }}
+                            className="font-black text-white tracking-tighter uppercase m-0 p-0 font-display flex flex-col items-center md:items-start"
                         >
-                            <span className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl block -mb-[0.05em] relative leading-[0.8] opacity-90 whitespace-nowrap drop-shadow-[0_15px_30px_rgba(0,0,0,0.7)]">FUAD</span>
-                            <span className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl block text-red-600 relative leading-[0.8] opacity-100 whitespace-nowrap drop-shadow-[0_10px_20px_rgba(220,38,38,0.3)]">AHMED</span>
+                            <span className="text-2xl sm:text-4xl md:text-[2.8rem] block -mb-[0.02em] relative leading-[0.8] opacity-90 whitespace-nowrap">FUAD</span>
+                            <span className="text-2xl sm:text-4xl md:text-[2.8rem] block text-red-600 relative leading-[0.8] opacity-100 whitespace-nowrap">AHMED</span>
                         </motion.h1>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap justify-center items-center gap-2 md:gap-3 mb-10 md:mb-16 px-4 max-w-4xl">
+                <div className="flex flex-wrap justify-center items-center gap-1.5 mb-4 md:mb-6 px-2 max-w-2xl">
                     {sortedHeroSkills.map((skill, i) => (
                         <motion.span 
                             key={skill}
-                            initial={{ opacity: 0, y: 10 }}
+                            initial={{ opacity: 0, y: 5 }}
                             animate={isImageLoaded ? { opacity: 1, y: 0 } : { opacity: 0 }}
-                            transition={{ delay: 0.9 + (0.05 * i), duration: 0.5 }}
-                            className="flex items-center bg-white/5 border border-white/10 rounded-xl md:rounded-2xl px-4 py-2.5 md:px-7 md:py-4 text-[9px] md:text-[12px] font-bold text-zinc-300 uppercase tracking-widest transition-all duration-500 hover:text-white hover:bg-red-600/20 hover:border-red-600/50 hover:-translate-y-1 shadow-lg"
+                            transition={{ delay: 0.5 + (0.05 * i), duration: 0.3 }}
+                            className="flex items-center bg-white/5 border border-white/10 rounded-md px-2.5 py-1 text-[7px] md:text-[9px] font-bold text-zinc-300 uppercase tracking-widest hover:text-white transition-colors whitespace-nowrap"
                         >
                             {skill}
                             {proSkills.includes(skill) && (
-                                <span className="ml-2 bg-red-600 text-white text-[8px] md:text-[10px] px-1.5 py-0 rounded-sm font-black ring-1 ring-white/20">PRO</span>
+                                <span className="ml-1 md:ml-1.5 bg-red-600 text-white text-[5px] md:text-[7px] px-1 py-0 rounded-sm font-black ring-1 ring-white/10">PRO</span>
                             )}
                         </motion.span>
                     ))}
                     <motion.button 
                         initial={{ opacity: 0 }}
                         animate={isImageLoaded ? { opacity: 1 } : { opacity: 0 }}
-                        transition={{ delay: 1.3 }}
+                        transition={{ delay: 0.8 }}
                         onClick={(e) => { e.stopPropagation(); onOpenServices(); }}
-                        className="w-12 h-12 md:w-16 md:h-16 flex items-center justify-center bg-white/5 hover:bg-red-600 border border-white/10 rounded-xl md:rounded-2xl transition-all duration-300 group shadow-lg"
+                        className="w-6 h-6 md:w-8 md:h-8 flex items-center justify-center bg-white/5 hover:bg-red-600 border border-white/10 rounded-md transition-all"
                     >
-                        <ThreeDotsIcon className="w-5 h-5 md:w-7 md:h-7 text-white group-hover:rotate-90 transition-transform" />
+                        <ThreeDotsIcon className="w-3 md:w-3.5 text-white" />
                     </motion.button>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-center gap-10 md:gap-20 w-full justify-center">
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 w-full justify-center">
                     <motion.button 
-                        initial={{ opacity: 0, scale: 0.9 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
                         animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
-                        transition={{ delay: 1.4, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                        transition={{ delay: 0.9, duration: 0.6 }}
                         onClick={(e) => { e.stopPropagation(); onOrderNow(); }}
-                        className="relative overflow-hidden bg-white text-black text-sm md:text-base font-black px-14 py-6 md:px-24 md:py-8 rounded-full hover:scale-105 active:scale-95 transition-all shadow-[0_20px_50px_rgba(255,255,255,0.1)] uppercase tracking-[0.5em] flex-shrink-0 group/order"
+                        className="relative bg-white text-black text-[9px] font-black px-8 py-3 rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg uppercase tracking-[0.2em] flex-shrink-0"
                     >
-                        <span className="relative z-10">Get a Quote</span>
+                        Get a Quote
                     </motion.button>
                     
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={isImageLoaded ? { opacity: 1 } : { opacity: 0 }}
-                        transition={{ delay: 1.6, duration: 1.2 }}
-                        className="flex items-center gap-10 sm:gap-16 md:gap-20 px-2"
+                        transition={{ delay: 1.1, duration: 0.8 }}
+                        className="flex items-center gap-4 sm:gap-8 px-2"
                     >
-                        <div className="text-left cursor-pointer group/stat flex-shrink-0" onClick={onYouTubeClick}>
-                            <div className="flex items-center gap-3 md:gap-5 mb-1.5">
-                                <div className="text-4xl sm:text-5xl md:text-7xl font-black text-white leading-none group-hover:text-red-600 transition-colors font-display">
+                        <div className="text-left cursor-pointer flex-shrink-0" onClick={onYouTubeClick}>
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                                <div className="text-xl sm:text-2xl md:text-3xl font-black text-white leading-none font-display">
                                     {loading ? '---' : <StretchyCounter value={animatedSubs} />}
                                 </div>
-                                <div className="w-3 h-3 md:w-4 md:h-4 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.5)]"></div>
+                                <div className="w-1 h-1 bg-red-600 rounded-full animate-pulse"></div>
                             </div>
-                            <span className="text-[10px] md:text-[14px] text-zinc-500 font-black uppercase tracking-[0.4em] group-hover:text-red-600 transition-colors whitespace-nowrap">Followers</span>
+                            <span className="text-[7px] md:text-[8px] text-zinc-500 font-black uppercase tracking-[0.15em] whitespace-nowrap">Followers</span>
                         </div>
 
-                        <div className="text-left border-l border-white/10 pl-10 sm:pl-16 md:pl-20 cursor-pointer group/stat flex-shrink-0" onClick={onYouTubeClick}>
-                            <div className="flex items-center gap-3 md:gap-5 mb-1.5">
-                                <div className="text-4xl sm:text-5xl md:text-7xl font-black text-white leading-none group-hover:text-red-600 transition-colors font-display">
+                        <div className="text-left border-l border-white/10 pl-4 sm:pl-8 cursor-pointer flex-shrink-0" onClick={onYouTubeClick}>
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                                <div className="text-xl sm:text-2xl md:text-3xl font-black text-white leading-none font-display">
                                     {loading ? '---' : <StretchyCounter value={animatedViews} />}
                                 </div>
-                                <YouTubeIcon className="w-6 h-6 md:w-10 md:h-10 text-red-600 opacity-70 group-hover:opacity-100 transition-all" />
+                                <YouTubeIcon className="w-3 md:w-4 text-red-600 opacity-60" />
                             </div>
-                            <span className="text-[10px] md:text-[14px] text-zinc-500 font-black uppercase tracking-[0.4em] group-hover:text-red-600 transition-colors whitespace-nowrap">Views</span>
+                            <span className="text-[7px] md:text-[8px] text-zinc-500 font-black uppercase tracking-[0.15em] whitespace-nowrap">Reach</span>
                         </div>
                     </motion.div>
                 </div>

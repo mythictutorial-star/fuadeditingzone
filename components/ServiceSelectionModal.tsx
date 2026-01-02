@@ -11,7 +11,6 @@ interface ServiceSelectionModalProps {
 export const ServiceSelectionModal: React.FC<ServiceSelectionModalProps> = ({ platform, onClose }) => {
     const [selectedServices, setSelectedServices] = useState<string[]>([]);
     const allServices = siteConfig.content.services.all;
-    const proServices = ['VFX', 'YouTube Thumbnails', 'Photo Manipulation/Social Media', 'Banner Designs', 'AMV EDIT'];
 
     // Filter services and append an "Other" option to each category
     const graphicServices = useMemo(() => {
@@ -50,7 +49,6 @@ export const ServiceSelectionModal: React.FC<ServiceSelectionModalProps> = ({ pl
 
     const ServiceButton: React.FC<{ service: Service }> = ({ service }) => {
         const isSelected = selectedServices.includes(service.name);
-        const isPro = proServices.includes(service.name);
         return (
             <button
                 onClick={() => toggleService(service.name)}
@@ -65,7 +63,7 @@ export const ServiceSelectionModal: React.FC<ServiceSelectionModalProps> = ({ pl
                         <span className="font-bold text-xs md:text-sm leading-snug uppercase tracking-normal truncate">
                             {service.name}
                         </span>
-                        {isPro && (
+                        {service.hasBadge && (
                             <span className="bg-red-600 text-white text-[7px] md:text-[8px] px-1 py-0 rounded-sm font-black ring-1 ring-white/20 flex-shrink-0">PRO</span>
                         )}
                     </div>

@@ -10,8 +10,6 @@ interface ServicesListPopupProps {
 const ServiceItem: React.FC<{ service: Service }> = ({ service }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const Icon = service.icon;
-    const proServices = ['VFX', 'YouTube Thumbnails', 'Photo Manipulation/Social Media', 'Banner Designs', 'AMV EDIT', 'Graphic Design'];
-    const isPro = proServices.includes(service.name);
     
     return (
         <div 
@@ -29,7 +27,7 @@ const ServiceItem: React.FC<{ service: Service }> = ({ service }) => {
                         <h4 className="font-bold text-white text-sm md:text-base leading-snug uppercase tracking-wide">
                             {service.name}
                         </h4>
-                        {isPro && (
+                        {service.hasBadge && (
                             <span className="bg-red-600 text-white text-[7px] md:text-[9px] px-1 py-0 rounded-sm font-black ring-1 ring-white/20">PRO</span>
                         )}
                     </div>
@@ -56,7 +54,7 @@ export const ServicesListPopup: React.FC<ServicesListPopupProps> = ({ onClose })
             if (e.key === 'Escape') onClose();
         };
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', onClose);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onClose]);
 
     const graphicServices = useMemo(() => 
