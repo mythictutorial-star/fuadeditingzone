@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   SignedIn, 
@@ -59,52 +58,142 @@ export const SidebarSubNav: React.FC<{ active: 'marketplace' | 'community', onSw
 
 const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; onShowUser: (id: string) => void }> = ({ isOpen, setIsOpen, onShowUser }) => {
     const { user } = useUser();
-    const [requests, setRequests] = useState<any[]>([]);
+    const [tab, setTab] = useState<'received' | 'sent'>('received');
+    const [receivedRequests, setReceivedRequests] = useState<any[]>([]);
+    const [sentRequests, setSentRequests] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!user) return;
-        const notifyRef = ref(db, `notifications/${user.id}`);
-        onValue(notifyRef, (snap) => {
+        
+        const recRef = ref(db, `social/${user.id}/requests/received`);
+        const sentRef = ref(db, `social/${user.id}/requests/sent`);
+
+        const unsubRec = onValue(recRef, async (snap) => {
             const data = snap.val() || {};
-            const list = Object.entries(data)
-                .map(([id, info]: [string, any]) => ({ id, ...info }))
-                .filter(n => n.type === 'friend_request')
-                .sort((a, b) => b.timestamp - a.timestamp);
-            setRequests(list);
+            const ids = Object.keys(data);
+            const list = await Promise.all(ids.map(async (id) => {
+                const uSnap = await get(ref(db, `users/${id}`));
+                return { id, ...uSnap.val(), timestamp: data[id].timestamp };
+            }));
+            setReceivedRequests(list.sort((a, b) => b.timestamp - a.timestamp));
         });
+
+        const unsubSent = onValue(sentRef, async (snap) => {
+            const data = snap.val() || {};
+            const ids = Object.keys(data);
+            const list = await Promise.all(ids.map(async (id) => {
+                const uSnap = await get(ref(db, `users/${id}`));
+                return { id, ...uSnap.val(), timestamp: data[id].timestamp };
+            }));
+            setSentRequests(list.sort((a, b) => b.timestamp - a.timestamp));
+        });
+
+        return () => { unsubRec(); unsubSent(); };
     }, [user]);
 
-    const handleAction = async (n: any) => {
-        await update(ref(db, `notifications/${user?.id}/${n.id}`), { read: true });
-        onShowUser(n.fromId);
-        setIsOpen(false);
+    const handleAccept = async (targetId: string) => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            await remove(ref(db, `social/${user.id}/requests/received/${targetId}`));
+            await remove(ref(db, `social/${targetId}/requests/sent/${user.id}`));
+            await set(ref(db, `social/${user.id}/friends/${targetId}`), true);
+            await set(ref(db, `social/${targetId}/friends/${user.id}`), true);
+            await push(ref(db, `notifications/${targetId}`), {
+                type: 'friend_accepted',
+                fromId: user.id,
+                fromName: user.username || user.fullName,
+                fromAvatar: user.imageUrl,
+                text: `@${user.username || user.fullName} accepted your friend request!`,
+                timestamp: Date.now(),
+                read: false
+            });
+        } catch (e) { console.error(e); }
+        setLoading(false);
+    };
+
+    const handleReject = async (targetId: string) => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            await remove(ref(db, `social/${user.id}/requests/received/${targetId}`));
+            await remove(ref(db, `social/${targetId}/requests/sent/${user.id}`));
+        } catch (e) { console.error(e); }
+        setLoading(false);
+    };
+
+    const handleCancel = async (targetId: string) => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            await remove(ref(db, `social/${user.id}/requests/sent/${targetId}`));
+            await remove(ref(db, `social/${targetId}/requests/received/${user.id}`));
+        } catch (e) { console.error(e); }
+        setLoading(false);
     };
 
     return (
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Friend Requests">
                 <UserGroupIcon className="w-5 h-5" />
-                {requests.some(n => !n.read) && <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full border border-black animate-pulse"></span>}
+                {receivedRequests.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[9px] font-black flex items-center justify-center rounded-full border border-black shadow-lg">
+                        {receivedRequests.length}
+                    </span>
+                )}
             </button>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[300px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[999999]">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[320px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[999999]">
                         <div className="p-4 border-b border-white/5 bg-black flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Friend Requests</span>
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Social Network</span>
                             <button onClick={() => setIsOpen(false)}><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
                         </div>
-                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
-                            {requests.length === 0 ? (
-                                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">No requests</p>
-                            ) : (
-                                requests.map((n) => (
-                                    <div key={n.id} onClick={() => handleAction(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent flex gap-3 items-center ${!n.read ? 'bg-red-600/5 border-red-600/10' : 'opacity-50 hover:bg-white/5'}`}>
-                                        <img src={n.fromAvatar} className="w-7 h-7 rounded-full object-cover border border-white/10" alt="" />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] text-gray-200 truncate"><span className="font-black text-red-500">@{n.fromName}</span> sent a request.</p>
+                        
+                        <div className="flex border-b border-white/5 bg-black/40">
+                            <button onClick={() => setTab('received')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest transition-all ${tab === 'received' ? 'text-red-500 border-b-2 border-red-600' : 'text-zinc-600'}`}>Received ({receivedRequests.length})</button>
+                            <button onClick={() => setTab('sent')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest transition-all ${tab === 'sent' ? 'text-red-500 border-b-2 border-red-600' : 'text-zinc-600'}`}>Sent ({sentRequests.length})</button>
+                        </div>
+
+                        <div className="max-h-[360px] overflow-y-auto custom-scrollbar p-3 space-y-3">
+                            {tab === 'received' ? (
+                                receivedRequests.length === 0 ? (
+                                    <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-10 opacity-30">No pending requests</p>
+                                ) : (
+                                    receivedRequests.map((req) => (
+                                        <div key={req.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-3">
+                                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
+                                                <img src={req.avatar} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
+                                                    <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">{req.profile?.profession || 'Designer'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50">Accept</button>
+                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Delete</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    ))
+                                )
+                            ) : (
+                                sentRequests.length === 0 ? (
+                                    <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-10 opacity-30">No active outgoing requests</p>
+                                ) : (
+                                    sentRequests.map((req) => (
+                                        <div key={req.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-3">
+                                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
+                                                <img src={req.avatar} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
+                                                    <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Request Sent</p>
+                                                </div>
+                                            </div>
+                                            <button disabled={loading} onClick={() => handleCancel(req.id)} className="w-full bg-white/5 hover:bg-red-600/20 hover:text-red-500 text-zinc-400 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Cancel Request</button>
+                                        </div>
+                                    ))
+                                )
                             )}
                         </div>
                     </motion.div>
