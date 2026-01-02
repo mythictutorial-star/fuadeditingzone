@@ -27,7 +27,12 @@ const db = getDatabase(app);
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 
-const getBadge = (u: string) => (u === OWNER_HANDLE ? <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i> : u === ADMIN_HANDLE ? <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i> : null);
+const getBadge = (u: string) => {
+  const low = u?.toLowerCase();
+  if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
+  if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>;
+  return null;
+};
 
 interface NavProps {
   onScrollTo: (section: string) => void;
@@ -105,9 +110,9 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
             await push(ref(db, `notifications/${targetId}`), {
                 type: 'friend_accepted',
                 fromId: user.id,
-                fromName: user.username || user.fullName,
+                fromName: (user.username || user.fullName || '').toLowerCase(),
                 fromAvatar: user.imageUrl,
-                text: `@${user.username || user.fullName} accepted your friend request!`,
+                text: `@${(user.username || user.fullName || '').toLowerCase()} accepted your friend request!`,
                 timestamp: Date.now(),
                 read: false
             });
@@ -121,16 +126,6 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
         try {
             await remove(ref(db, `social/${user.id}/requests/received/${targetId}`));
             await remove(ref(db, `social/${targetId}/requests/sent/${user.id}`));
-        } catch (e) { console.error(e); }
-        setLoading(false);
-    };
-
-    const handleCancel = async (targetId: string) => {
-        if (!user) return;
-        setLoading(true);
-        try {
-            await remove(ref(db, `social/${user.id}/requests/sent/${targetId}`));
-            await remove(ref(db, `social/${targetId}/requests/received/${user.id}`));
         } catch (e) { console.error(e); }
         setLoading(false);
     };
@@ -156,12 +151,10 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                         <div className="flex bg-black/20 border-b border-white/5">
                             <button onClick={() => setTab('received')} className={`flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all relative ${tab === 'received' ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
                                 Received
-                                {receivedRequests.length > 0 && <span className="ml-2 px-1.5 py-0.5 bg-red-600 text-white rounded-full text-[8px]">{receivedRequests.length}</span>}
                                 {tab === 'received' && <motion.div layoutId="request-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
                             </button>
                             <button onClick={() => setTab('sent')} className={`flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all relative ${tab === 'sent' ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
                                 Sent
-                                {sentRequests.length > 0 && <span className="ml-2 px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded-full text-[8px]">{sentRequests.length}</span>}
                                 {tab === 'sent' && <motion.div layoutId="request-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
                             </button>
                         </div>
@@ -169,61 +162,47 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                         <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-4 space-y-4">
                             {tab === 'received' ? (
                                 receivedRequests.length === 0 ? (
-                                    <div className="py-16 text-center opacity-20">
-                                        <UserPlusIcon className="w-12 h-12 mx-auto mb-4" />
-                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No pending requests</p>
-                                    </div>
+                                    <div className="py-16 text-center opacity-20"><UserPlusIcon className="w-12 h-12 mx-auto mb-4" /><p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No pending requests</p></div>
                                 ) : (
                                     receivedRequests.map((req) => (
                                         <div key={req.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.06] transition-all">
                                             <div className="flex items-center gap-4 cursor-pointer group/user" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
-                                                <div className="relative">
-                                                    <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10 group-hover/user:border-red-600/50 transition-all shadow-xl" alt="" />
-                                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-black rounded-full"></div>
-                                                </div>
+                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
-                                                        <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
+                                                        <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
                                                         {getBadge(req.username)}
                                                     </div>
                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 truncate">{req.profile?.profession || 'Designer'}</p>
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(220,38,38,0.3)] active:scale-95 disabled:opacity-50">Confirm</button>
-                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-zinc-300 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 active:scale-95 disabled:opacity-50">Delete</button>
+                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Confirm</button>
+                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-zinc-300 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10">Delete</button>
                                             </div>
                                         </div>
                                     ))
                                 )
                             ) : (
                                 sentRequests.length === 0 ? (
-                                    <div className="py-16 text-center opacity-20">
-                                        <UserPlusIcon className="w-12 h-12 mx-auto mb-4" />
-                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No active requests</p>
-                                    </div>
+                                    <div className="py-16 text-center opacity-20"><UserPlusIcon className="w-12 h-12 mx-auto mb-4" /><p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No active requests</p></div>
                                 ) : (
                                     sentRequests.map((req) => (
                                         <div key={req.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.06] transition-all">
                                             <div className="flex items-center gap-4 cursor-pointer group/user" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
-                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10 group-hover/user:border-red-600/50 transition-all shadow-xl" alt="" />
+                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
-                                                        <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
+                                                        <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
                                                         {getBadge(req.username)}
                                                     </div>
                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 italic">Requested</p>
                                                 </div>
                                             </div>
-                                            <button disabled={loading} onClick={() => handleCancel(req.id)} className="w-full bg-zinc-800/50 hover:bg-red-600/20 hover:text-red-500 text-zinc-500 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Cancel Request</button>
                                         </div>
                                     ))
                                 )
                             )}
-                        </div>
-                        
-                        <div className="p-4 bg-black/40 border-t border-white/5 text-center">
-                            <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.4em]">Community</p>
                         </div>
                     </motion.div>
                 )}
@@ -270,26 +249,33 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Notifications">
                 <i className="fa-solid fa-bell text-[14px]"></i>
-                {notifications.some(n => !n.read && !n.isGlobal) && <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full border border-black animate-pulse"></span>}
+                {notifications.some(n => !n.read && !n.isGlobal) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
             </button>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[300px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[999999]">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[320px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[999999]">
                         <div className="p-4 border-b border-white/5 bg-black flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Notifications</span>
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Activity</span>
                             <button onClick={() => setIsOpen(false)}><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
                         </div>
-                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                        <div className="max-h-[360px] overflow-y-auto custom-scrollbar p-2 space-y-1">
                             {notifications.length === 0 ? (
-                                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">Empty</p>
+                                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">No Activity Yet</p>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent ${!n.read && !n.isGlobal ? 'fez-verified-badge bg-red-600/5 border-red-600/10' : 'opacity-50 hover:bg-white/5'}`}>
+                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent hover:bg-white/[0.03] ${!n.read && !n.isGlobal ? 'bg-red-600/5' : 'opacity-60'}`}>
                                         <div className="flex gap-3 items-center">
-                                            {n.fromAvatar && <img src={n.fromAvatar} className="w-6 h-6 rounded-full object-cover" alt="" />}
-                                            <div className="flex-1 min-w-0">
-                                                <p className={`text-[10px] ${n.type === 'daily_spotlight' ? 'text-red-500 font-black' : 'text-gray-200'}`}>{n.text || 'Notification received.'}</p>
+                                            <div className="relative flex-shrink-0">
+                                                {n.fromAvatar && <img src={n.fromAvatar} className="w-8 h-8 rounded-full object-cover border border-white/10" alt="" />}
+                                                {!n.read && !n.isGlobal && <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-600 rounded-full border border-black"></div>}
                                             </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] leading-tight text-gray-200">
+                                                    <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.type === 'post_like' ? 'liked your post.' : n.type === 'post_comment' ? 'commented on your post.' : n.type === 'comment_reply' ? 'replied to your comment.' : n.text}
+                                                </p>
+                                                <p className="text-[7px] text-zinc-600 font-bold uppercase mt-1">Just Now</p>
+                                            </div>
+                                            {!n.read && !n.isGlobal && <div className="w-1.5 h-1.5 bg-red-600 rounded-full flex-shrink-0"></div>}
                                         </div>
                                     </div>
                                 ))
@@ -310,18 +296,18 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
   const handleLogoClick = async () => {
     onScrollTo('home');
     await logoControls.start({
-      rotate: 360,
-      transition: { duration: 0.6, ease: "easeInOut" }
+        rotate: 360,
+        transition: { duration: 0.6, ease: "easeInOut" }
     });
     logoControls.set({ rotate: 0 });
   };
   
   return (
     <header className="hidden md:flex items-center justify-between h-20 px-10 bg-transparent">
-        <div onClick={handleLogoClick} className="cursor-pointer flex items-center gap-4">
+        <div onClick={handleLogoClick} className="cursor-pointer flex items-center gap-4 group">
             <motion.img animate={logoControls} src={siteConfig.branding.logoUrl} alt="Logo" className="h-9 w-9" />
             <div className="flex items-center gap-1">
-                <span className="font-black text-white text-sm uppercase tracking-[0.2em] font-display">{siteConfig.branding.name}</span>
+                <span className="font-black text-white text-sm uppercase tracking-[0.2em] font-display transition-colors">{siteConfig.branding.name}</span>
                 {getBadge(OWNER_HANDLE)}
             </div>
         </div>
@@ -354,8 +340,8 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
     const handleLogoClick = async () => {
       onScrollTo('home');
       await logoControls.start({
-        rotate: 360,
-        transition: { duration: 0.6, ease: "easeInOut" }
+          rotate: 360,
+          transition: { duration: 0.6, ease: "easeInOut" }
       });
       logoControls.set({ rotate: 0 });
     };
