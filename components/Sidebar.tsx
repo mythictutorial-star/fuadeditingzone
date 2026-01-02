@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   SignedIn, 
@@ -9,7 +10,8 @@ import {
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserGroupIcon } from './Icons';
+/* Added SendIcon to the imported icons to fix the 'Cannot find name SendIcon' error on line 200 */
+import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon } from './Icons';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const firebaseConfig = {
@@ -136,7 +138,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
     return (
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Friend Requests">
-                <UserGroupIcon className="w-5 h-5" />
+                <UserPlusIcon className="w-5 h-5" />
                 {receivedRequests.length > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[9px] font-black flex items-center justify-center rounded-full border border-black shadow-lg">
                         {receivedRequests.length}
@@ -145,56 +147,83 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
             </button>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[320px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden z-[999999]">
-                        <div className="p-4 border-b border-white/5 bg-black flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Social Network</span>
-                            <button onClick={() => setIsOpen(false)}><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[340px] bg-[#0c0c0c] border border-white/10 rounded-2xl shadow-[0_30px_70px_rgba(0,0,0,0.9)] overflow-hidden z-[999999]">
+                        <div className="p-5 border-b border-white/5 bg-black/40 backdrop-blur-xl flex justify-between items-center">
+                            <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Friend Requests</span>
+                            <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/5 rounded-full transition-colors"><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
                         </div>
                         
-                        <div className="flex border-b border-white/5 bg-black/40">
-                            <button onClick={() => setTab('received')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest transition-all ${tab === 'received' ? 'text-red-500 border-b-2 border-red-600' : 'text-zinc-600'}`}>Received ({receivedRequests.length})</button>
-                            <button onClick={() => setTab('sent')} className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest transition-all ${tab === 'sent' ? 'text-red-500 border-b-2 border-red-600' : 'text-zinc-600'}`}>Sent ({sentRequests.length})</button>
+                        <div className="flex bg-black/20 border-b border-white/5">
+                            <button onClick={() => setTab('received')} className={`flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all relative ${tab === 'received' ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                                Received
+                                {receivedRequests.length > 0 && <span className="ml-2 px-1.5 py-0.5 bg-red-600 text-white rounded-full text-[8px]">{receivedRequests.length}</span>}
+                                {tab === 'received' && <motion.div layoutId="request-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
+                            </button>
+                            <button onClick={() => setTab('sent')} className={`flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all relative ${tab === 'sent' ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
+                                Sent
+                                {sentRequests.length > 0 && <span className="ml-2 px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded-full text-[8px]">{sentRequests.length}</span>}
+                                {tab === 'sent' && <motion.div layoutId="request-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
+                            </button>
                         </div>
 
-                        <div className="max-h-[360px] overflow-y-auto custom-scrollbar p-3 space-y-3">
+                        <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-4 space-y-4">
                             {tab === 'received' ? (
                                 receivedRequests.length === 0 ? (
-                                    <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-10 opacity-30">No pending requests</p>
+                                    <div className="py-16 text-center opacity-20">
+                                        <UserPlusIcon className="w-12 h-12 mx-auto mb-4" />
+                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No pending requests</p>
+                                    </div>
                                 ) : (
                                     receivedRequests.map((req) => (
-                                        <div key={req.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-3">
-                                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
-                                                <img src={req.avatar} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
+                                        <div key={req.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.06] transition-all">
+                                            <div className="flex items-center gap-4 cursor-pointer group/user" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
+                                                <div className="relative">
+                                                    <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10 group-hover/user:border-red-600/50 transition-all shadow-xl" alt="" />
+                                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-black rounded-full"></div>
+                                                </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
-                                                    <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">{req.profile?.profession || 'Designer'}</p>
+                                                    <div className="flex items-center gap-1">
+                                                        <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
+                                                        {getBadge(req.username)}
+                                                    </div>
+                                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 truncate">{req.profile?.profession || 'Visual Artist'}</p>
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50">Accept</button>
-                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Delete</button>
+                                                <button disabled={loading} onClick={() => handleAccept(req.id)} className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_10px_20px_rgba(220,38,38,0.3)] active:scale-95 disabled:opacity-50">Confirm</button>
+                                                <button disabled={loading} onClick={() => handleReject(req.id)} className="flex-1 bg-white/5 hover:bg-white/10 text-zinc-300 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 active:scale-95 disabled:opacity-50">Delete</button>
                                             </div>
                                         </div>
                                     ))
                                 )
                             ) : (
                                 sentRequests.length === 0 ? (
-                                    <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-10 opacity-30">No active outgoing requests</p>
+                                    <div className="py-16 text-center opacity-20">
+                                        <SendIcon className="w-12 h-12 mx-auto mb-4" />
+                                        <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No active outgoing requests</p>
+                                    </div>
                                 ) : (
                                     sentRequests.map((req) => (
-                                        <div key={req.id} className="p-3 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-3">
-                                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
-                                                <img src={req.avatar} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
+                                        <div key={req.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-2xl flex flex-col gap-4 hover:bg-white/[0.06] transition-all">
+                                            <div className="flex items-center gap-4 cursor-pointer group/user" onClick={() => { onShowUser(req.id); setIsOpen(false); }}>
+                                                <img src={req.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10 group-hover/user:border-red-600/50 transition-all shadow-xl" alt="" />
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
-                                                    <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Request Sent</p>
+                                                    <div className="flex items-center gap-1">
+                                                        <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{req.username || 'Anonymous'}</p>
+                                                        {getBadge(req.username)}
+                                                    </div>
+                                                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 italic">Requesting Access...</p>
                                                 </div>
                                             </div>
-                                            <button disabled={loading} onClick={() => handleCancel(req.id)} className="w-full bg-white/5 hover:bg-red-600/20 hover:text-red-500 text-zinc-400 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Cancel Request</button>
+                                            <button disabled={loading} onClick={() => handleCancel(req.id)} className="w-full bg-zinc-800/50 hover:bg-red-600/20 hover:text-red-500 text-zinc-500 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 active:scale-95 disabled:opacity-50">Cancel Request</button>
                                         </div>
                                     ))
                                 )
                             )}
+                        </div>
+                        
+                        <div className="p-4 bg-black/40 border-t border-white/5 text-center">
+                            <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.4em]">Protocol Social v2.4</p>
                         </div>
                     </motion.div>
                 )}

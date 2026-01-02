@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -176,7 +175,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 }
             } else if (socialState.friendStatus === 'pending') {
                 await remove(ref(db, `social/${clerkUser.id}/requests/received/${viewingUserId}`));
-                await remove(ref(db, `social/${viewingUserId}/requests/sent/${clerkUser.id}`));
+                await remove(ref(db, `social/${targetUser.id}/requests/sent/${clerkUser.id}`));
                 await set(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`), true);
                 await set(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`), true);
                 await push(ref(db, `notifications/${viewingUserId}`), { 
@@ -207,7 +206,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const handleCopyProfileLink = () => {
         const username = targetUser?.username || clerkUser?.username || currentProfileId;
         const url = `${window.location.origin}/@${username}`;
-        // Requirements: Copy username and link
         const textToCopy = `@${username} | ${url}`;
         navigator.clipboard.writeText(textToCopy);
         setShowCopyToast(true);
@@ -264,7 +262,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                         <div key={u.id} onClick={() => handleSwitchToOtherProfile(u.id, u.username)} className="flex items-center justify-between p-4 bg-white/10 border border-white/5 rounded-2xl cursor-pointer hover:bg-white/20 transition-all group">
                                             <div className="flex items-center gap-4">
                                                 <img src={u.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
-                                                <div><p className="text-sm font-black text-white uppercase tracking-tight flex items-center gap-1">@{u.username} {getVerifiedBadge(u.username)}</p><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{u.profile?.profession || 'Designer'}</p></div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1">
+                                                        <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{u.username}</p>
+                                                        {getVerifiedBadge(u.username)}
+                                                    </div>
+                                                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Designer'}</p>
+                                                </div>
                                             </div>
                                             <ChevronLeftIcon className="w-5 h-5 text-zinc-600 rotate-180 group-hover:text-red-500 transition-all" />
                                         </div>
@@ -279,7 +283,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                     </div>
                                     <div className="flex-1 text-center md:text-left">
                                         <div className="flex flex-col md:flex-row items-center gap-5 mb-5">
-                                            <h3 className="text-2xl md:text-4xl font-black text-white tracking-tighter">@{targetUser?.username || clerkUser.username}</h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-2xl md:text-4xl font-black text-white tracking-tighter">@{targetUser?.username || clerkUser.username}</h3>
+                                                {getVerifiedBadge(targetUser?.username || clerkUser.username)}
+                                            </div>
                                             <div className="flex gap-3">
                                                 {isViewingOther ? (
                                                     <><button onClick={() => handleAction('follow')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${socialState.isFollowing ? 'bg-white/10 text-white border border-white/10 hover:text-red-500' : 'bg-red-600 text-white shadow-xl hover:bg-red-700'}`}>{socialState.isFollowing ? 'Following' : 'Follow'}</button>
@@ -342,30 +349,45 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                     </div>
                                 </div>
 
-                                <div className="space-y-8 pt-12 border-t border-white/10">
+                                <div className="space-y-10 pt-12 border-t border-white/10">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-[0.4em] font-display">Recent Posts</h4>
+                                        <div className="flex items-center gap-4">
+                                            <GalleryIcon className="w-6 h-6 text-zinc-600" />
+                                            <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-[0.4em] font-display">Gallery</h4>
+                                        </div>
                                         <div className="h-px bg-white/5 flex-1 mx-8 hidden md:block"></div>
                                         <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Items</span>
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1 md:gap-2">
                                         {userPosts.map((post, i) => (
-                                            <div key={i} onClick={() => onOpenModal?.(userPosts, i)} className="aspect-square bg-white/5 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden group relative cursor-pointer border border-white/10 shadow-2xl transition-all hover:scale-[1.02] duration-500">
-                                                {post.mediaType === 'video' ? <video src={post.mediaUrl} className="w-full h-full object-cover" /> : <img src={post.mediaUrl} className="w-full h-full object-cover" alt="" />}
-                                                <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center backdrop-blur-sm">
-                                                    <div className="flex gap-6 text-sm font-black text-white uppercase tracking-widest scale-90 group-hover:scale-100 transition-transform">
-                                                        <span className="flex items-center gap-2 text-red-500"><i className="fa-solid fa-heart"></i> {Object.keys(post.likes || {}).length}</span>
-                                                        <span className="flex items-center gap-2"><i className="fa-solid fa-comment"></i> {Object.keys(post.comments || {}).length}</span>
+                                            <div key={i} onClick={() => onOpenModal?.(userPosts, i)} className="aspect-square bg-white/[0.03] rounded-lg md:rounded-xl overflow-hidden group relative cursor-pointer border border-white/5 shadow-2xl transition-all duration-500">
+                                                {post.mediaType === 'video' ? (
+                                                    <video src={post.mediaUrl} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <img src={post.mediaUrl} className="w-full h-full object-cover" alt="" />
+                                                )}
+                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px]">
+                                                    <div className="flex gap-8 text-sm font-black text-white uppercase tracking-widest scale-90 group-hover:scale-100 transition-all">
+                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]"></i> {Object.keys(post.likes || {}).length}</span>
+                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-comment text-white/50"></i> {Object.keys(post.comments || {}).length}</span>
                                                     </div>
-                                                    <div className="mt-4 p-2 bg-white/10 rounded-full"><EyeIcon className="w-6 h-6 text-white" /></div>
                                                 </div>
                                             </div>
                                         ))}
-                                        {userPosts.length === 0 && <div className="col-span-2 md:col-span-3 py-32 text-center opacity-20"><GalleryIcon className="w-16 h-16 mx-auto mb-6" /><p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No posts found</p></div>}
+                                        {userPosts.length === 0 && (
+                                            <div className="col-span-2 md:col-span-3 py-32 text-center opacity-20">
+                                                <GalleryIcon className="w-16 h-16 mx-auto mb-6" />
+                                                <p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No signals archived</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         )}
+                    </div>
+                    
+                    <div className="p-4 bg-black/80 border-t border-white/5 flex items-center justify-center md:hidden flex-shrink-0">
+                         <p className="text-[8px] font-black text-zinc-700 uppercase tracking-[0.5em]">Identity Profile V2.0</p>
                     </div>
                 </motion.div>
             </div>

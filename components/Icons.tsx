@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 // Common Icon Props interface
@@ -32,6 +33,12 @@ export const CopyIcon = ({ className }: IconProps) => (
 export const UserGroupIcon = ({ className }: IconProps) => (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-2.533-4.653 12.62 12.62 0 00-4.355-.712m-2.433 3.018a3 3 0 100-6h-.025a3 3 0 000 6h.025zm-11.442 3.018a9.38 9.38 0 012.625.372 9.337 9.337 0 014.121-.952 4.125 4.125 0 01-2.533-4.653 12.62 12.62 0 01-4.355-.712m2.433 3.018a3 3 0 110-6h.025a3 3 0 010 6h-.025z" />
+    </svg>
+);
+
+export const UserPlusIcon = ({ className }: IconProps) => (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.375 21 12.317 12.317 0 013 19.235z" />
     </svg>
 );
 
