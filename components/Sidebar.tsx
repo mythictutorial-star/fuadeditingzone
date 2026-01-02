@@ -11,7 +11,7 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.
 import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
 import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon } from './Icons';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -199,7 +199,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                             ) : (
                                 sentRequests.length === 0 ? (
                                     <div className="py-16 text-center opacity-20">
-                                        <SendIcon className="w-12 h-12 mx-auto mb-4" />
+                                        <UserPlusIcon className="w-12 h-12 mx-auto mb-4" />
                                         <p className="text-[10px] uppercase font-black tracking-widest text-zinc-400">No active requests</p>
                                     </div>
                                 ) : (
@@ -305,11 +305,21 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
 export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, activeRoute, onOpenPost }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
+  const logoControls = useAnimation();
+
+  const handleLogoClick = async () => {
+    onScrollTo('home');
+    await logoControls.start({
+      rotate: 360,
+      transition: { duration: 0.6, ease: "easeInOut" }
+    });
+    logoControls.set({ rotate: 0 });
+  };
   
   return (
     <header className="hidden md:flex items-center justify-between h-20 px-10 bg-transparent">
-        <div onClick={() => onScrollTo('home')} className="cursor-pointer flex items-center gap-4">
-            <img src={siteConfig.branding.logoUrl} alt="Logo" className="h-9 w-9" />
+        <div onClick={handleLogoClick} className="cursor-pointer flex items-center gap-4">
+            <motion.img animate={logoControls} src={siteConfig.branding.logoUrl} alt="Logo" className="h-9 w-9" />
             <div className="flex items-center gap-1">
                 <span className="font-black text-white text-sm uppercase tracking-[0.2em] font-display">{siteConfig.branding.name}</span>
                 {getBadge(OWNER_HANDLE)}
@@ -339,10 +349,21 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
 export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, onOpenPost }) => {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isRequestsOpen, setIsRequestsOpen] = useState(false);
+    const logoControls = useAnimation();
+
+    const handleLogoClick = async () => {
+      onScrollTo('home');
+      await logoControls.start({
+        rotate: 360,
+        transition: { duration: 0.6, ease: "easeInOut" }
+      });
+      logoControls.set({ rotate: 0 });
+    };
+
     return (
         <header className="md:hidden flex items-center justify-between h-20 px-6 bg-transparent">
-            <div onClick={() => onScrollTo('home')} className="flex items-center gap-3">
-                <img src={siteConfig.branding.logoUrl} alt="Logo" className="h-8 w-8" />
+            <div onClick={handleLogoClick} className="flex items-center gap-3">
+                <motion.img animate={logoControls} src={siteConfig.branding.logoUrl} alt="Logo" className="h-8 w-8" />
                 <div className="flex items-center gap-1">
                     <span className="font-bold text-white tracking-widest text-[8px] uppercase font-display">FUAD EDITING ZONE</span>
                     {getBadge(OWNER_HANDLE)}

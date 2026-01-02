@@ -83,6 +83,9 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Simulation for "active" count to feel alive
+  const activeCount = useMemo(() => users.length + 128, [users.length]);
+
   useEffect(() => {
     onValue(ref(db, 'users'), (snapshot) => {
       const data = snapshot.val();
@@ -175,10 +178,28 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   };
 
   const filteredUsers = useMemo(() => {
-    let list = users;
+    // If not signed in and no search, show recommendations
+    if (!isSignedIn && !sidebarSearchQuery) {
+        return users.filter(u => u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE);
+    }
     
+    // If not signed in and has search, filter all users
+    if (!isSignedIn && sidebarSearchQuery) {
+        return users.filter(u => 
+            u.name?.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) || 
+            u.username?.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
+        ).slice(0, 50);
+    }
+
+    // Standard logic for signed-in users
+    let list = users;
     if (showFriendsOnly) {
         list = list.filter(u => friendsList.includes(u.id));
+    } else if (!sidebarSearchQuery) {
+        // Only show users I have messages with if signed in and not searching
+        const messagedIds = Object.keys(unreadCounts);
+        if (messagedIds.length === 0) return [];
+        list = list.filter(u => messagedIds.includes(u.id));
     }
 
     return list
@@ -186,7 +207,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
         u.name?.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) || 
         u.username?.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
       ).slice(0, 50);
-  }, [users, sidebarSearchQuery, clerkUser, showFriendsOnly, friendsList]);
+  }, [users, sidebarSearchQuery, clerkUser, showFriendsOnly, friendsList, isSignedIn, unreadCounts]);
 
   const openChat = (user: ChatUser | null) => {
       if (user === null) {
@@ -255,18 +276,24 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               />
             </div>
 
-            <button 
-              onClick={() => openChat(null)} 
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}
-            >
-              <GlobeAltIcon className="w-5 h-5" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Chat</span>
-            </button>
+            <div className="flex flex-col gap-1">
+                <button 
+                onClick={() => openChat(null)} 
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}
+                >
+                <i className="fa-solid fa-earth-americas text-base"></i>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Chat</span>
+                </button>
+                <div className="px-4 py-1 flex items-center gap-1.5 opacity-60">
+                    <div className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-[7px] font-black text-zinc-400 uppercase tracking-widest">{activeCount} ACTIVE PEOPLE</span>
+                </div>
+            </div>
           </div>
 
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-5 mb-3">
-                {showFriendsOnly ? 'Friends List' : 'Messages'}
+                {!isSignedIn && !sidebarSearchQuery ? 'Recommended' : (showFriendsOnly ? 'Friends List' : 'Messages')}
             </h4>
             <div className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1.5">
               {filteredUsers.length === 0 ? (
@@ -275,7 +302,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                           {showFriendsOnly ? <UserGroupIcon className="w-6 h-6" /> : <SearchIcon className="w-6 h-6" />}
                       </div>
                       <p className="text-[8px] font-black uppercase tracking-widest">
-                          {showFriendsOnly ? 'No friends found' : 'No users found'}
+                          {showFriendsOnly ? 'No friends found' : 'Empty'}
                       </p>
                   </div>
               ) : (
@@ -324,7 +351,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               </button>
               
               <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username)} className={`w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-600/10 flex items-center justify-center border-2 overflow-hidden flex-shrink-0 cursor-pointer ${!isGlobal && selectedUser?.username === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : 'border-white/10'}`}>
-                {isGlobal ? <GlobeAltIcon className="w-6 h-6 text-red-600" /> : <img src={selectedUser?.avatar} className="w-full h-full object-cover" alt="" />}
+                {isGlobal ? <i className="fa-solid fa-earth-americas text-red-600 text-xl"></i> : <img src={selectedUser?.avatar} className="w-full h-full object-cover" alt="" />}
               </div>
               
               <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username)}>
@@ -340,7 +367,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 lg:p-10 flex flex-col gap-5 md:gap-8">
             {messages.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center opacity-10">
-                <GlobeAltIcon className="w-12 h-12 text-white mb-6" />
+                <i className="fa-solid fa-earth-americas text-4xl mb-6"></i>
                 <p className="text-[12px] font-black uppercase tracking-[0.5em]">Connecting...</p>
               </div>
             ) : (
