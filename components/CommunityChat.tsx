@@ -212,7 +212,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                       <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
                           <span className="text-[11px] font-black text-white uppercase truncate leading-none">{u.name}</span>
                           {(u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE) && (
-                            <i className={`fa-solid fa-circle-check ${u.username === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] flex-shrink-0`}></i>
+                            <i className={`fa-solid fa-circle-check ${u.username === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] flex-shrink-0 drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]`}></i>
                           )}
                       </div>
                       <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">Status: Stable</span>
@@ -257,7 +257,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               messages.map(msg => {
                 const isMe = msg.senderId === clerkUser?.id;
                 const isOwner = msg.senderUsername === OWNER_HANDLE;
-                const isAdmin = msg.senderUsername === ADMIN_HANDLE;
 
                 return (
                   <div key={msg.id} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group`}>

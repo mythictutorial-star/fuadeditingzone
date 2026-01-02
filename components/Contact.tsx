@@ -200,7 +200,7 @@ export const Contact: React.FC<{ onStartOrder: (platform: 'whatsapp' | 'email') 
                         
                         <div className="flex flex-col gap-4">
                             <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest text-center">Project Transmission Details</label>
-                            <textarea required rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="w-full bg-black/40 border border-white/5 rounded-2xl px-6 py-6 text-sm text-white focus:border-red-600 outline-none resize-none transition-all no-clip" placeholder="Describe the creative visual requirements..." />
+                            <textarea required rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-6 text-sm text-white focus:border-red-600 outline-none resize-none transition-all no-clip" placeholder="Describe the creative visual requirements..." />
                         </div>
                         
                         <div className="flex justify-center pt-4">
