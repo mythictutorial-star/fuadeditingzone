@@ -89,7 +89,7 @@ const CommentItem: React.FC<{
 
     return (
         <div ref={itemRef} className={`group flex flex-col gap-3 ${isHighlighted ? 'bg-red-600/5 ring-1 ring-red-600/20 rounded-xl p-3 -mx-3' : ''} transition-all`}>
-            <div className="flex gap-4">
+            <div className="flex gap-3">
                 <img src={comment.userAvatar} className="w-8 h-8 rounded-lg object-cover border border-white/10 flex-shrink-0" alt="" />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -97,7 +97,7 @@ const CommentItem: React.FC<{
                         <span className="text-[7px] text-zinc-700 font-bold uppercase">{new Date(comment.timestamp).toLocaleDateString()}</span>
                         {comment.userId === postOwnerId && <span className="text-[6px] bg-red-600/20 text-red-500 px-1 rounded font-black border border-red-600/30">AUTHOR</span>}
                     </div>
-                    <p className="text-zinc-400 text-xs leading-relaxed break-words poppins-font">{comment.text}</p>
+                    <p className="text-zinc-300 text-xs leading-relaxed break-words font-sans">{comment.text}</p>
                     <div className="mt-2 flex items-center gap-4">
                         {!isReply && (
                             <button onClick={() => setIsReplying(!isReplying)} className="text-[8px] font-black text-zinc-600 hover:text-white uppercase tracking-widest transition-colors">Reply</button>
@@ -117,7 +117,7 @@ const CommentItem: React.FC<{
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         onSubmit={handlePostReply}
-                        className="ml-12 relative"
+                        className="ml-11 relative"
                     >
                         <input 
                             autoFocus
@@ -132,9 +132,9 @@ const CommentItem: React.FC<{
             </AnimatePresence>
 
             {replies.length > 0 && (
-                <div className="ml-12 space-y-4 pt-2">
+                <div className="ml-11 space-y-4 pt-2">
                     <button onClick={() => setShowReplies(!showReplies)} className="flex items-center gap-2 text-[8px] font-black text-zinc-600 hover:text-zinc-400 uppercase tracking-widest group">
-                        <span className="w-8 h-[1px] bg-zinc-800 group-hover:bg-zinc-600 transition-colors"></span>
+                        <span className="w-6 h-[1px] bg-zinc-800 group-hover:bg-zinc-600 transition-colors"></span>
                         {showReplies ? 'Hide replies' : `View ${replies.length} replies`}
                     </button>
                     <AnimatePresence>
@@ -234,6 +234,10 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
     const handleScrollToComments = () => {
         if (commentsSectionRef.current) {
             commentsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (scrollContainerRef.current) {
+            // For desktop sidebar
+            const topPos = commentsSectionRef.current?.offsetTop || 0;
+            scrollContainerRef.current.scrollTo({ top: topPos, behavior: 'smooth' });
         }
     };
 
@@ -287,17 +291,21 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
         }
 
         setNewComment('');
-        setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        setTimeout(() => {
+            if (commentsEndRef.current) {
+                commentsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+        }, 100);
     };
 
     return (
         <div className="fixed inset-0 bg-black z-[9999] flex flex-col md:flex-row animate-fade-in overflow-hidden">
-            <div className="absolute inset-0 bg-cover bg-center filter blur-2xl brightness-[0.1] opacity-60 scale-110 pointer-events-none" 
+            <div className="absolute inset-0 bg-cover bg-center filter blur-3xl brightness-[0.1] opacity-40 scale-110 pointer-events-none" 
                  style={{ backgroundImage: `url(${getImageUrl() || siteConfig.branding.profilePicUrl})` }} />
 
-            <div className="relative flex-1 flex flex-col min-w-0 bg-black/40 overflow-hidden">
-                {/* Unified Header for both Mobile and Desktop */}
-                <div className="relative z-[100] flex justify-between items-center p-4 md:p-6 bg-gradient-to-b from-black/80 to-transparent flex-shrink-0">
+            <div className="relative flex-1 flex flex-col min-w-0 bg-black/60 overflow-hidden h-full">
+                {/* Mobile/Desktop Header */}
+                <div className="relative z-[100] flex justify-between items-center p-4 md:p-6 bg-gradient-to-b from-black/90 to-transparent flex-shrink-0">
                     <div className="flex items-center gap-3">
                         <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-white/20 object-cover" alt="" />
                         <div className="flex flex-col">
@@ -310,78 +318,141 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </button>
                 </div>
 
-                <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-                    <div className="relative w-full h-full flex items-center justify-center p-2 md:p-4" onClick={onClose}>
-                        <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
-                            {isImage(currentItem) ? (
-                                <img src={getImageUrl()} className="max-w-full max-h-full object-contain shadow-2xl animate-fade-in pointer-events-none" alt="" />
-                            ) : isVideo(currentItem) ? (
-                                <div className="w-full h-full flex items-center justify-center">
-                                    <div className="w-full h-full max-w-5xl aspect-video bg-black rounded-xl shadow-2xl overflow-hidden border border-white/5 flex items-center justify-center">
-                                        {getVideoUrl() ? (
-                                            <video src={getVideoUrl()} controls autoPlay className="max-w-full max-h-full object-contain" />
-                                        ) : (
-                                            <iframe src={`https://www.youtube.com/embed/${(currentItem as any).videoId}?autoplay=1`} className="w-full h-full border-0" allowFullScreen></iframe>
-                                        )}
+                {/* Main Content Area */}
+                <div className="flex-1 relative overflow-y-auto no-scrollbar md:flex md:items-center md:justify-center">
+                    <div className="w-full min-h-full flex flex-col md:items-center md:justify-center p-0 md:p-6" onClick={onClose}>
+                        <div className="relative w-full flex flex-col md:items-center md:justify-center" onClick={e => e.stopPropagation()}>
+                            
+                            {/* Media Player Container */}
+                            <div className="relative w-full max-h-[65vh] md:max-h-full flex items-center justify-center bg-black/40">
+                                {isImage(currentItem) ? (
+                                    <img src={getImageUrl()} className="max-w-full max-h-[65vh] md:max-h-[85vh] object-contain shadow-2xl animate-fade-in pointer-events-none" alt="" />
+                                ) : isVideo(currentItem) ? (
+                                    <div className="w-full max-h-[65vh] md:max-h-[85vh] flex items-center justify-center">
+                                        <div className="w-full aspect-video md:max-w-5xl bg-black rounded-none md:rounded-2xl shadow-2xl overflow-hidden border-y md:border border-white/10 flex items-center justify-center">
+                                            {getVideoUrl() ? (
+                                                <video src={getVideoUrl()} controls autoPlay className="max-w-full max-h-full object-contain" />
+                                            ) : (
+                                                <iframe src={`https://www.youtube.com/embed/${(currentItem as any).videoId}?autoplay=1`} className="w-full h-full border-0" allowFullScreen></iframe>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {/* Navigation Arrows */}
+                                <button onClick={(e) => { e.stopPropagation(); onPrev((currentIndex - 1 + items.length) % items.length); }} className="absolute left-2 md:-left-16 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-2 md:p-4 transition-all">
+                                    <ChevronLeftIcon className="w-8 h-8 md:w-12 md:h-12" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); onNext((currentIndex + 1) % items.length); }} className="absolute right-2 md:-right-16 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-2 md:p-4 transition-all">
+                                    <ChevronRightIcon className="w-8 h-8 md:w-12 md:h-12" />
+                                </button>
+                            </div>
+
+                            {/* Mobile-Only Info Flow (Instagram Style) */}
+                            <div className="md:hidden flex flex-col bg-[#050505] p-5 pb-32 w-full">
+                                <div className="flex items-center justify-between mb-5">
+                                    <div className="flex items-center gap-7">
+                                        <button onClick={handleLike} className={`transition-all ${isLiked ? 'text-red-500 scale-125' : 'text-white/80 hover:text-white'}`}>
+                                            <i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-2xl`}></i>
+                                        </button>
+                                        <button onClick={handleScrollToComments} className="text-white/80 hover:text-white">
+                                            <ChatBubbleIcon className="w-7 h-7" />
+                                        </button>
+                                        <button onClick={handleShare} className="text-white/80 hover:text-white">
+                                            <i className="fa-solid fa-share-nodes text-2xl"></i>
+                                        </button>
                                     </div>
                                 </div>
-                            ) : null}
 
-                            <button onClick={(e) => { e.stopPropagation(); onPrev((currentIndex - 1 + items.length) % items.length); }} className="absolute left-0 md:-left-16 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-2 md:p-4 transition-all">
-                                <ChevronLeftIcon className="w-8 h-8 md:w-12 md:h-12" />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); onNext((currentIndex + 1) % items.length); }} className="absolute right-0 md:-right-16 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-2 md:p-4 transition-all">
-                                <ChevronRightIcon className="w-8 h-8 md:w-12 md:h-12" />
-                            </button>
+                                <div className="space-y-3 mb-8">
+                                    <p className="text-[12px] font-black text-white uppercase tracking-wider">
+                                        {Object.keys(likes).length} Likes
+                                    </p>
+                                    <h3 className="text-white font-black text-sm uppercase tracking-tight">{(currentItem as any).title || 'Portfolio Work'}</h3>
+                                    <p className="text-zinc-400 text-xs leading-relaxed font-sans">{(currentItem as any).caption || (currentItem as any).description || 'No details available.'}</p>
+                                    {isDynamicPost && (currentItem as any).tags && (
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {(currentItem as any).tags.map((tag: string, i: number) => (
+                                                <span key={i} className="text-[9px] font-black text-red-600/60 uppercase">#{tag}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Mobile Comments Section Container */}
+                                <div ref={commentsSectionRef} className="pt-6 border-t border-white/5 space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                                            Comments ({comments.length})
+                                        </h4>
+                                    </div>
+                                    
+                                    {comments.length === 0 ? (
+                                        <div className="py-10 text-center opacity-20">
+                                            <ChatBubbleIcon className="w-10 h-10 mx-auto mb-3" />
+                                            <p className="text-[8px] font-black uppercase tracking-widest">No comments yet</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            {comments.map((cm) => (
+                                                <CommentItem 
+                                                    key={cm.id}
+                                                    comment={cm}
+                                                    postId={(currentItem as any).id}
+                                                    postOwnerId={(currentItem as any).userId}
+                                                    user={user}
+                                                    db={db}
+                                                />
+                                            ))}
+                                            <div ref={commentsEndRef} />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                {/* Mobile Caption Bar - Simplified for Insta-style */}
-                <div className="md:hidden px-4 py-3 bg-black/80 border-t border-white/5 backdrop-blur-xl flex-shrink-0">
-                    <h3 className="text-white font-black text-sm uppercase truncate">{(currentItem as any).title || 'Masterwork'}</h3>
-                    <p className="text-zinc-500 text-[10px] mt-1 line-clamp-1 italic">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
-                </div>
             </div>
 
-            <div className="w-full md:w-[400px] lg:w-[450px] bg-[#080808] border-l border-white/5 flex flex-col flex-shrink-0 z-[110] h-full overflow-hidden">
-                <div className="hidden md:flex p-6 border-b border-white/5 items-center justify-between">
+            {/* Desktop Sidebar (Captions & Comments) */}
+            <div className="hidden md:flex w-[420px] lg:w-[480px] bg-[#080808] border-l border-white/10 flex-col flex-shrink-0 z-[110] h-full overflow-hidden shadow-2xl">
+                <div className="flex p-6 border-b border-white/5 items-center justify-between bg-black/20 backdrop-blur-xl">
                     <div className="flex items-center gap-3">
-                        <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-9 h-9 rounded-xl object-cover border border-white/10" alt="" />
+                        <img src={(currentItem as any).userAvatar || siteConfig.branding.logoUrl} className="w-10 h-10 rounded-xl object-cover border border-white/10" alt="" />
                         <div>
                             <p className="text-white font-black text-xs uppercase tracking-tight">@{(currentItem as any).userName || 'selectedlegend'}</p>
                             <p className="text-red-500 font-black text-[8px] uppercase tracking-widest">{(currentItem as any).userRole || 'Visual Artist'}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><CloseIcon className="w-6 h-6" /></button>
+                    <button onClick={onClose} className="p-2.5 rounded-xl hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><CloseIcon className="w-6 h-6" /></button>
                 </div>
 
-                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8 no-scrollbar">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10 no-scrollbar bg-black/40">
                     <div className="space-y-4">
-                        <h3 className="text-white font-black text-xl lg:text-2xl uppercase tracking-tighter">{(currentItem as any).title || 'Masterwork'}</h3>
-                        <p className="text-zinc-400 text-sm leading-relaxed poppins-font">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
+                        <h3 className="text-white font-black text-xl lg:text-2xl uppercase tracking-tighter leading-tight">{(currentItem as any).title || 'Masterwork'}</h3>
+                        <p className="text-zinc-400 text-sm leading-relaxed font-sans">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
                         {isDynamicPost && (currentItem as any).tags && (
                             <div className="flex flex-wrap gap-2">
                                 {(currentItem as any).tags.map((tag: string, i: number) => (
-                                    <span key={i} className="px-2 py-0.5 bg-white/5 border border-white/5 rounded text-[8px] font-black text-zinc-500 uppercase tracking-widest">#{tag}</span>
+                                    <span key={i} className="px-2.5 py-1 bg-white/5 border border-white/5 rounded text-[8px] font-black text-zinc-500 uppercase tracking-widest">#{tag}</span>
                                 ))}
                             </div>
                         )}
                     </div>
 
-                    <div ref={commentsSectionRef} className="pt-8 border-t border-white/5 space-y-6">
+                    <div className="pt-8 border-t border-white/5 space-y-8">
                         <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Comments</h4>
-                            <span className="text-[10px] font-black text-zinc-700 uppercase">{comments.length} Signals</span>
+                            <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Communication Feed</h4>
+                            <span className="text-[10px] font-black text-zinc-700 uppercase">{comments.length} Comments</span>
                         </div>
                         
                         {comments.length === 0 ? (
-                            <div className="py-20 text-center opacity-20">
+                            <div className="py-24 text-center opacity-20">
                                 <ChatBubbleIcon className="w-12 h-12 mx-auto mb-4" />
-                                <p className="text-[9px] font-black uppercase tracking-[0.4em]">No comments yet</p>
+                                <p className="text-[9px] font-black uppercase tracking-[0.4em]">Quiet here...</p>
                             </div>
                         ) : (
-                            <div className="space-y-8">
+                            <div className="space-y-8 pb-10">
                                 {comments.map((cm) => (
                                     <CommentItem 
                                         key={cm.id}
@@ -399,20 +470,21 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     </div>
                 </div>
 
-                <div className="p-6 bg-black/40 border-t border-white/5 space-y-6 backdrop-blur-3xl flex-shrink-0">
+                {/* Desktop Action Bar */}
+                <div className="p-6 bg-black/60 border-t border-white/5 space-y-6 backdrop-blur-3xl flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-6">
-                            <button onClick={handleLike} className={`flex items-center gap-2 transition-all ${isLiked ? 'text-red-500 scale-110' : 'text-zinc-600 hover:text-white'}`}>
-                                <i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-xl`}></i>
+                        <div className="flex items-center gap-8">
+                            <button onClick={handleLike} className={`flex items-center gap-2.5 transition-all ${isLiked ? 'text-red-500 scale-110' : 'text-white/60 hover:text-white'}`}>
+                                <i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-2xl`}></i>
                                 <span className="text-xs font-black uppercase tracking-widest">{Object.keys(likes).length}</span>
                             </button>
-                            <button onClick={handleScrollToComments} className="flex items-center gap-2 text-zinc-600 hover:text-white transition-colors">
-                                <ChatBubbleIcon className="w-5 h-5" />
+                            <button onClick={handleScrollToComments} className="flex items-center gap-2.5 text-white/60 hover:text-white transition-colors">
+                                <ChatBubbleIcon className="w-6 h-6" />
                                 <span className="text-xs font-black uppercase tracking-widest">{comments.length}</span>
                             </button>
                         </div>
-                        <button onClick={handleShare} className="text-zinc-500 hover:text-red-500 transition-colors">
-                            <i className="fa-solid fa-share-nodes text-xl"></i>
+                        <button onClick={handleShare} className="text-white/40 hover:text-red-500 transition-colors">
+                            <i className="fa-solid fa-share-nodes text-2xl"></i>
                         </button>
                     </div>
 
@@ -423,23 +495,49 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                                 onChange={(e) => setNewComment(e.target.value)}
                                 placeholder={isSignedIn ? "Add a comment..." : "Log in to comment"}
                                 disabled={!isSignedIn}
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-5 pr-12 text-xs text-white outline-none focus:border-red-600/50 transition-all font-medium placeholder-zinc-700" 
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-6 pr-14 text-xs text-white outline-none focus:border-red-600/50 transition-all font-medium placeholder-zinc-800" 
                             />
                             <button 
                                 type="submit"
                                 disabled={!newComment.trim()}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-red-600 rounded-xl text-white shadow-lg disabled:opacity-0 transition-opacity"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-red-600 rounded-xl text-white shadow-xl disabled:opacity-0 transition-opacity active:scale-90"
                             >
-                                <SendIcon className="w-4 h-4" />
+                                <SendIcon className="w-5 h-5" />
                             </button>
                         </form>
                     )}
                 </div>
             </div>
 
+            {/* Mobile Sticky Comment Input */}
+            <div className="md:hidden fixed bottom-2 bg-black/95 border-t border-white/10 p-4 z-[120] backdrop-blur-3xl w-[calc(100%-24px)] mx-3 rounded-[1.8rem] shadow-2xl">
+                {isDynamicPost ? (
+                    <form onSubmit={handlePostComment} className="relative w-full">
+                        <input 
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder={isSignedIn ? "Add a comment..." : "Log in to comment"}
+                            disabled={!isSignedIn}
+                            className="w-full bg-white/5 border border-white/10 rounded-full py-3.5 pl-6 pr-14 text-xs text-white outline-none focus:border-red-600/50 transition-all font-medium" 
+                        />
+                        <button 
+                            type="submit"
+                            disabled={!newComment.trim()}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 bg-red-600 rounded-full text-white shadow-lg disabled:opacity-0 transition-opacity"
+                        >
+                            <SendIcon className="w-4 h-4" />
+                        </button>
+                    </form>
+                ) : (
+                    <div className="text-center py-2">
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Viewing Portfolio Item</p>
+                    </div>
+                )}
+            </div>
+
             <AnimatePresence>
                 {showShareToast && (
-                    <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl z-[200]">Link Copied</motion.div>
+                    <motion.div initial={{opacity:0, y: 20}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-32 left-1/2 -translate-x-1/2 bg-white text-black px-8 py-3 rounded-full font-black uppercase text-[10px] tracking-widest shadow-2xl z-[200]">Link Copied</motion.div>
                 )}
             </AnimatePresence>
         </div>
