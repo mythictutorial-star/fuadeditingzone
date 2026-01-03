@@ -234,7 +234,7 @@ export default function App() {
   const navigateTo = (path: 'home' | 'marketplace' | 'community') => {
     setRoute(path);
     window.history.pushState(null, '', path === 'home' ? '/' : `/${path}`);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (path === 'home') window.scrollTo({ top: 0, behavior: 'smooth' });
     setIsMessageThreadActive(false);
   };
 
@@ -313,27 +313,26 @@ export default function App() {
     <ParallaxProvider>
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
+          
           <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} onOpenPost={handleOpenPost} />
             <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} onOpenPost={handleOpenPost} onOpenMobileSearch={handleOpenMobileSearch} />
           </div>
           
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
-            {route === 'home' && (
-              <div className="flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth">
+            {/* Background Pre-Rendering logic: keep components mounted and toggle display */}
+            <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth ${route !== 'home' ? 'hidden' : 'block'}`}>
                 <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
                 <Portfolio openModal={handleSetModal} isYouTubeApiReady={isYouTubeApiReady} playingVfxVideo={playingVfxVideo} setPlayingVfxVideo={setPlayingVfxVideo} pipVideo={pipVideo} setPipVideo={setPipVideo} activeYouTubeId={activeYouTubeId} setActiveYouTubeId={setActiveYouTubeId} isYtPlaying={isYtPlaying} setIsYtPlaying={setIsYtPlaying} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />
                 <Contact onStartOrder={() => {}} />
                 <AboutAndFooter />
-              </div>
-            )}
-            {route === 'marketplace' && (
-              <div className="w-full h-full flex flex-col min-h-0 overflow-y-auto custom-scrollbar no-scrollbar">
+            </div>
+
+            <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto custom-scrollbar no-scrollbar ${route !== 'marketplace' ? 'hidden' : 'block'}`}>
                 <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} onBack={() => navigateTo('home')} />
-              </div>
-            )}
-            {route === 'community' && (
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0">
+            </div>
+
+            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0 ${route !== 'community' ? 'hidden' : 'flex'}`}>
                 <CommunityChat 
                   onShowProfile={handleOpenProfile} 
                   initialTargetUserId={targetUserId} 
@@ -343,8 +342,7 @@ export default function App() {
                   onSearchTabConsumed={() => setMobileSearchTriggered(false)}
                   onThreadStateChange={(active) => setIsMessageThreadActive(active)}
                 />
-              </div>
-            )}
+            </div>
           </main>
 
           <ProfileModal 

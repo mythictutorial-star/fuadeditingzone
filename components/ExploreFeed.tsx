@@ -94,36 +94,37 @@ const PostItem: React.FC<{
 
     return (
         <motion.article 
-            initial={{ scale: 0.96, opacity: 0, y: 15 }} 
-            animate={{ scale: 1, opacity: 1, y: 0 }} 
-            transition={{ type: 'spring', damping: 28, stiffness: 150, delay: (idx % 8) * 0.04 }}
-            className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
+            initial={{ opacity: 0, y: 15 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.4, delay: (idx % 10) * 0.05 }}
+            className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#0d0d0d] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:border-white/10 transition-all duration-300"
         >
-            <div className="relative overflow-hidden bg-transparent cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
+            <div className="relative overflow-hidden bg-[#161616] cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
                 {hasMedia ? (
-                    <>
-                        <div className="hidden pointer-events-none opacity-0">
-                            {post.mediaType === 'video' ? (
-                                <video src={post.mediaUrl} onLoadedData={() => setTimeout(() => setIsMediaLoaded(true), 50)} muted playsInline preload="auto" />
-                            ) : (
-                                <img src={post.mediaUrl} onLoad={() => setTimeout(() => setIsMediaLoaded(true), 50)} alt="" loading="eager" />
-                            )}
+                    <div className="w-full relative overflow-hidden bg-[#161616]">
+                        {post.mediaType === 'video' ? (
+                            <video 
+                              src={post.mediaUrl} 
+                              className={`w-full h-auto object-cover transition-opacity duration-500 ${isMediaLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                              muted 
+                              loop 
+                              autoPlay 
+                              playsInline 
+                              onLoadedData={() => setIsMediaLoaded(true)}
+                            />
+                        ) : (
+                            <img 
+                              src={post.mediaUrl} 
+                              className={`w-full h-auto object-cover transition-opacity duration-500 ${isMediaLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                              alt="" 
+                              onLoad={() => setIsMediaLoaded(true)}
+                              loading={idx < 10 ? "eager" : "lazy"}
+                            />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 md:p-5">
+                            <h2 className="text-[10px] md:text-xs font-black text-white uppercase tracking-tight leading-tight line-clamp-2">{post.title || 'Masterwork'}</h2>
                         </div>
-                        <AnimatePresence>
-                            {isMediaLoaded && (
-                                <motion.div initial={{ y: 60, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ type: "spring", damping: 24, stiffness: 110, delay: (idx % 4) * 0.08 }} className="w-full relative">
-                                    {post.mediaType === 'video' ? (
-                                        <video src={post.mediaUrl} className="w-full h-auto max-h-[500px] object-cover" muted loop autoPlay playsInline />
-                                    ) : (
-                                        <img src={post.mediaUrl} className="w-full h-auto max-h-[600px] object-cover" alt="" />
-                                    )}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/20 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
-                                        <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </>
+                    </div>
                 ) : (
                     <div className="w-full aspect-square bg-[#111] flex flex-col items-center justify-center p-6 border-b border-white/5 relative">
                          <div className="absolute top-4 right-4 bg-white/5 p-1.5 rounded-full"><ExternalLink className="w-3 h-3 text-red-600" /></div>
@@ -131,7 +132,6 @@ const PostItem: React.FC<{
                             <GlobeAltIcon className="w-6 h-6 text-red-600" />
                          </div>
                          <h2 className="text-xs md:text-sm font-black text-white uppercase tracking-tight leading-tight text-center line-clamp-3">{post.title || 'Inquiry Post'}</h2>
-                         <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.3em] mt-3">Links Attached</p>
                     </div>
                 )}
 
@@ -139,33 +139,28 @@ const PostItem: React.FC<{
                     <div className="absolute top-2 left-2 bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md z-10">${post.budget}</div>
                 )}
             </div>
-            <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0">
+            <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0 bg-[#0d0d0d]">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 md:gap-3 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
                         <div className="relative">
-                            <img src={post.userAvatar} className="w-6 h-6 md:w-9 md:h-9 rounded-md md:rounded-lg object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
-                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 md:w-2.5 md:h-2.5 bg-green-500 border border-black rounded-full"></div>
+                            <img src={post.userAvatar} className="w-6 h-6 md:w-8 md:h-8 rounded-full object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 border border-black rounded-full"></div>
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[8px] md:text-[11px] font-black text-white uppercase truncate tracking-tight flex items-center gap-1">
+                            <p className="text-[8px] md:text-[10px] font-black text-white uppercase truncate tracking-tight flex items-center gap-1">
                                 @{ (post.userName || '').toLowerCase() }
-                                {post.userName?.toLowerCase() === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>}
-                                {post.userName?.toLowerCase() === ADMIN_HANDLE && <i className="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>}
+                                {post.userName?.toLowerCase() === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[9px]"></i>}
                             </p>
-                            <p className="text-[6px] md:text-[7px] font-black text-red-500 uppercase tracking-widest mt-0.5">{post.userRole || 'Designer'}</p>
                         </div>
                     </div>
                 </div>
                 <div className="font-sans relative w-full mt-1 flex-1 min-h-0 flex flex-col">
-                    <div className={`h-auto transition-all duration-300 ${isExpanded ? 'max-h-[300px] overflow-y-auto custom-scrollbar pr-1' : 'max-h-[2.8rem] overflow-hidden'}`}>
-                        <p ref={textRef} className={`text-zinc-500 text-[9px] md:text-[11px] font-medium leading-[1.4] break-words text-left ${!isExpanded ? 'line-clamp-2' : ''}`}>{post.caption}</p>
-                    </div>
-                    {showReadMore && (<button onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} className="text-zinc-600 font-black hover:text-red-500 transition-colors text-[8px] md:text-[9px] mt-1 block text-left uppercase tracking-widest relative z-10">{isExpanded ? '...Hide' : '...More'}</button>)}
+                    <p ref={textRef} className={`text-zinc-500 text-[9px] md:text-[10px] font-medium leading-[1.4] break-words text-left line-clamp-2`}>{post.caption}</p>
                 </div>
                 <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5 relative">
                     <div className="flex items-center gap-3 md:gap-4">
-                        <button onClick={(e) => onLike(e, post, isLiked)} className={`flex items-center gap-1 text-[8px] md:text-[10px] font-black transition-all ${isLiked ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}><i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-[12px] md:text-[14px]`}></i>{Object.keys(post.likes || {}).length}</button>
-                        <button onClick={() => onOpenModal?.(posts, idx)} className="flex items-center gap-1 text-[8px] md:text-[10px] font-black text-zinc-600 hover:text-white transition-colors"><i className="fa-regular fa-comment text-[12px] md:text-[14px]"></i>{Object.keys(post.comments || {}).length}</button>
+                        <button onClick={(e) => onLike(e, post, isLiked)} className={`flex items-center gap-1 text-[8px] md:text-[10px] font-black transition-all ${isLiked ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}><i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-[10px] md:text-[12px]`}></i>{Object.keys(post.likes || {}).length}</button>
+                        <button onClick={() => onOpenModal?.(posts, idx)} className="flex items-center gap-1 text-[8px] md:text-[10px] font-black text-zinc-600 hover:text-white transition-colors"><i className="fa-regular fa-comment text-[10px] md:text-[12px]"></i>{Object.keys(post.comments || {}).length}</button>
                     </div>
                 </div>
             </div>
@@ -264,23 +259,24 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                 </div>
             </nav>
 
-            {/* Main Centered Marketplace Flow */}
-            <div className="flex-1 flex flex-col items-center lg:ml-20 overflow-y-auto custom-scrollbar no-scrollbar w-full relative px-4 md:px-0">
-                <div className="w-full max-w-5xl flex flex-col pb-48">
+            {/* Main Centered Masonry Flow */}
+            <div className="flex-1 flex flex-col lg:ml-20 overflow-y-auto custom-scrollbar no-scrollbar w-full relative px-4 md:px-8">
+                <div className="w-full flex flex-col pb-48 max-w-[1400px] mx-auto">
                     
-                    {/* Aligned Header Block with gap-3 */}
-                    <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8 px-4 md:px-0">
+                    {/* Aligned Header Block centered with the content */}
+                    <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8 px-2 md:px-0">
                         <div className="flex items-center gap-3">
                             <button onClick={onBack} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
                             <h1 className="text-sm md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90">Marketplace</h1>
                         </div>
-                        <div className="relative w-40 md:w-80">
+                        <div className="relative w-40 md:w-80 lg:w-[450px]">
                             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4" />
-                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-11 pr-5 text-[10px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
+                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search creative works..." className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-11 pr-5 text-[10px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
                         </div>
                     </div>
                     
-                    <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 md:gap-6 px-4 md:px-0">
+                    {/* Masonry Effect: 5 columns on large desktop, 3 on tablet, 2 on mobile */}
+                    <div className="columns-2 sm:columns-3 lg:columns-5 gap-4 md:gap-6 px-2 md:px-0 w-full">
                         {filteredPosts.map((post, idx) => (
                             <PostItem 
                                 key={post.id} 

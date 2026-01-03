@@ -169,15 +169,25 @@ export const Home: React.FC<HomeProps> = ({
                 </div>
 
                 <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10 w-full justify-center">
-                    <motion.button 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
-                        transition={{ delay: 0.9, duration: 0.6 }}
-                        onClick={(e) => { e.stopPropagation(); onOrderNow(); }}
-                        className="relative bg-white text-black text-[10px] md:text-[11px] font-black px-10 py-4 rounded-full hover:scale-105 active:scale-95 transition-all shadow-xl uppercase tracking-[0.25em] flex-shrink-0"
-                    >
-                        Order Now
-                    </motion.button>
+                    <div className="flex flex-col items-center gap-2">
+                      <motion.button 
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
+                          transition={{ delay: 0.9, duration: 0.6 }}
+                          onClick={(e) => { e.stopPropagation(); onOrderNow(); }}
+                          className="relative bg-white text-black text-[10px] md:text-[11px] font-black px-10 py-4 rounded-full hover:scale-105 active:scale-95 transition-all shadow-xl uppercase tracking-[0.25em] flex-shrink-0"
+                      >
+                          Order Now
+                      </motion.button>
+                      <motion.p 
+                        initial={{ opacity: 0 }}
+                        animate={isImageLoaded ? { opacity: 0.4 } : { opacity: 0 }}
+                        transition={{ delay: 1.2 }}
+                        className="text-[7px] md:text-[8px] font-black uppercase tracking-[0.4em] text-white"
+                      >
+                        Soon: Work in Progress
+                      </motion.p>
+                    </div>
                     
                     <motion.div 
                         initial={{ opacity: 0 }}
