@@ -8,6 +8,7 @@ import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, Us
 import { SidebarSubNav } from './Sidebar';
 import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass } from 'lucide-react';
 import { siteConfig } from '../config';
+import { CreatePostModal } from './CreatePostModal';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -113,6 +114,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const [friendsList, setFriendsList] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -253,7 +255,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 <button onClick={() => { setIsGlobal(true); setSidebarTab('messages'); setSelectedUser(null); }} className={`transition-all ${isGlobal ? 'text-red-600 scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Global Stream"><GlobeAltIcon className="w-7 h-7" /></button>
                 <button onClick={onNavigateMarket} className="text-white opacity-40 hover:opacity-100 transition-all" title="Marketplace"><MarketIcon className="w-7 h-7" /></button>
                 <button className="text-white hover:opacity-70 transition-all"><Heart className="w-7 h-7" /></button>
-                <button className="text-white hover:opacity-70 transition-all"><PlusSquare className="w-7 h-7" /></button>
+                <button onClick={() => setIsCreatePostOpen(true)} className="text-white hover:opacity-70 transition-all"><PlusSquare className="w-7 h-7" /></button>
             </div>
             <div className="mt-auto">
                 {clerkUser && (
@@ -442,6 +444,8 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           )}
         </main>
       </div>
+
+      <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
     </div>
   );
 };

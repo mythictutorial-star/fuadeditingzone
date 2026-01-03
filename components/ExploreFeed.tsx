@@ -7,6 +7,7 @@ import { getDatabase, ref, push, onValue, query, limitToLast, set, update, get, 
 import { siteConfig } from '../config';
 import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, TwoDotsIcon } from './Icons';
 import { ArrowLeft } from 'lucide-react';
+import { CreatePostModal } from './CreatePostModal';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -21,8 +22,6 @@ const db = getDatabase(app);
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
-const POSTS_PER_PAGE = 30; 
-const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
 
 type UserRole = 'Designer' | 'Client';
 
@@ -54,6 +53,7 @@ export interface Post {
     budget?: string;
     likes?: Record<string, boolean>;
     comments?: Record<string, Comment>;
+    privacy?: 'public' | 'friends' | 'private';
 }
 
 const PostItem: React.FC<{ 
@@ -96,7 +96,6 @@ const PostItem: React.FC<{
             className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
             <div className="relative overflow-hidden bg-transparent cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
-                {/* Silent Preloader - Forces background fetching */}
                 <div className="hidden pointer-events-none opacity-0">
                     {post.mediaType === 'video' ? (
                         <video 
@@ -125,7 +124,6 @@ const PostItem: React.FC<{
                                 type: "spring",
                                 damping: 24,
                                 stiffness: 110,
-                                // Sequential stagger effect: adds a tiny bit of separation based on grid index
                                 delay: (idx % 4) * 0.08 
                             }}
                             className="w-full relative"
@@ -191,17 +189,8 @@ const PostItem: React.FC<{
 export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: string) => void; onOpenModal?: (items: any[], index: number) => void; onBack?: () => void }> = ({ onOpenProfile, onOpenModal, onBack }) => {
     const { user, isSignedIn } = useUser();
     const [posts, setPosts] = useState<Post[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
     const [isPostModalOpen, setIsPostModalOpen] = useState(false);
-    const [editingPost, setEditingPost] = useState<Post | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [userRole, setUserRole] = useState<UserRole>('Designer');
-    const [title, setTitle] = useState('');
-    const [caption, setCaption] = useState('');
-    const [budget, setBudget] = useState('');
-    const [tags, setTags] = useState<string>('');
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const postsRef = query(ref(db, 'explore_posts'), limitToLast(500));
@@ -209,7 +198,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             const data = snap.val();
             if (data) {
                 const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
-                    .sort((a: any, b: any) => b.timestamp - a.timestamp);
+                    .sort((a: any, b: any) => b.timestamp - a.timestamp)
+                    .filter((p: any) => p.privacy === 'public' || !p.privacy); // Default to public if not set
                 setPosts(list as Post[]);
             }
         });
@@ -230,42 +220,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
         return list;
     }, [posts, searchQuery]);
 
-    const handleUpload = async () => {
-        if (!user || !caption.trim()) return;
-        setIsUploading(true);
-        let mediaUrl = editingPost?.mediaUrl || "";
-        let mediaType: 'image' | 'video' | 'text' = editingPost?.mediaType || 'text';
-        try {
-            if (selectedFile) {
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('folder', 'Marketplace');
-                const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
-                const result = await res.json();
-                mediaUrl = result.url;
-                mediaType = selectedFile.type.startsWith('video') ? 'video' : 'image';
-            }
-            const postData: any = {
-                userId: user.id,
-                userName: (user.username || user.fullName || '').toLowerCase(),
-                userAvatar: user.imageUrl,
-                userRole,
-                mediaUrl,
-                mediaType,
-                title: title.trim(),
-                caption: caption.trim(),
-                tags: tags.split(',').map(t => t.trim()).filter(t => t !== "").slice(0, 5),
-                budget,
-                timestamp: editingPost ? editingPost.timestamp : Date.now(),
-                targetSection: editingPost?.targetSection || 'Marketplace Only'
-            };
-            if (editingPost) await update(ref(db, `explore_posts/${editingPost.id}`), postData);
-            else await push(ref(db, 'explore_posts'), postData);
-            setTitle(''); setCaption(''); setBudget(''); setTags(''); setSelectedFile(null);
-            setIsPostModalOpen(false);
-        } catch (err) { alert("Action failed"); } finally { setIsUploading(false); }
-    };
-
     return (
         <div className="w-full max-w-full mx-auto px-5 md:px-8 pb-48 relative bg-black min-h-screen no-scrollbar">
             <div className="sticky top-0 z-[200] py-4 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-4 border-b border-white/10 mb-8 -mx-5 md:-mx-8 px-5 md:px-10">
@@ -280,27 +234,9 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     <PostItem key={post.id} post={post} idx={idx} user={user} onOpenProfile={(id) => onOpenProfile?.(id)} onOpenModal={onOpenModal} onShare={() => {}} onLike={() => {}} onEdit={() => {}} onDelete={() => {}} posts={posts} />
                 ))}
             </div>
-            <AnimatePresence>
-                {isPostModalOpen && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 backdrop-blur-sm">
-                        <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setIsPostModalOpen(false)} className="absolute inset-0 bg-black/80" />
-                        <motion.div initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} className="relative w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
-                            <div className="p-5 border-b border-white/5 flex justify-between items-center bg-black/40"><h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{editingPost ? 'Edit Post' : 'Create New Post'}</h2><button onClick={() => setIsPostModalOpen(false)} className="p-1.5 rounded-full hover:bg-white/5 text-zinc-500 transition-colors"><CloseIcon className="w-5 h-5" /></button></div>
-                            <div className="p-6 space-y-6">
-                                <div className="space-y-4">
-                                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="w-full bg-black border border-white/10 rounded-xl p-4 text-white text-[11px] outline-none focus:border-red-600/50 transition-all font-black uppercase tracking-widest" />
-                                    <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="What's on your mind?..." className="w-full bg-black border border-white/10 rounded-xl p-4 text-white text-[11px] outline-none resize-none h-36 focus:border-red-600/50 transition-all font-medium" />
-                                </div>
-                                <div className="flex items-center justify-between border-t border-white/5 pt-6">
-                                    <button onClick={() => fileInputRef.current?.click()} className={`flex items-center gap-3 px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedFile ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><PhotoManipulationIcon className="w-5 h-5" /> {selectedFile ? 'Ready' : 'Add Media'}</button>
-                                    <input type="file" hidden ref={fileInputRef} accept="image/*,video/*" onChange={e => setSelectedFile(e.target.files?.[0] || null)} />
-                                    <button disabled={isUploading || !caption.trim()} onClick={handleUpload} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-10 py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] transition-all flex items-center gap-3 shadow-xl active:scale-95">{isUploading ? 'Uploading...' : 'Share'} <SendIcon className="w-5 h-5" /></button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+            
+            <CreatePostModal isOpen={isPostModalOpen} onClose={() => setIsPostModalOpen(false)} isMarketplaceContext={true} />
+
             {isSignedIn && (<motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPostModalOpen(true)} className="fixed bottom-32 right-6 md:bottom-12 md:right-12 z-[110] w-16 h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/20 group"><span className="text-4xl font-light transition-transform">+</span></motion.button>)}
         </div>
     );
