@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon } from './Icons';
+import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Edit } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -60,7 +60,7 @@ const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClic
     return (
         <div 
             onClick={onClick}
-            className={`${className} rounded-xl border border-white/5 flex-shrink-0 overflow-hidden relative group cursor-pointer ${user.avatar ? '' : bgClass + ' flex items-center justify-center'}`}
+            className={`${className} rounded-full border border-white/5 flex-shrink-0 overflow-hidden relative group cursor-pointer ${user.avatar ? '' : bgClass + ' flex items-center justify-center'}`}
         >
             {user.avatar ? (
                 <img src={user.avatar} className="w-full h-full object-cover" alt="" />
@@ -104,7 +104,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
-  const [isGlobal, setIsGlobal] = useState(true);
+  const [isGlobal, setIsGlobal] = useState(false); // Default to no chat open
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -114,11 +114,11 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasResolvedInitial = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const activeCount = useMemo(() => Math.floor(Math.random() * 20) + 142, []);
 
   useEffect(() => {
-    // Fetch all registered community users for global discovery
     const usersRef = ref(db, 'users');
     const unsubUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
@@ -215,14 +215,12 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             list = list.filter(u => friendsList.includes(u.id));
         } else if (isSignedIn) {
             const messagedIds = Object.keys(unreadCounts);
-            // Show owner and people you've messaged
             list = list.filter(u => messagedIds.includes(u.id) || u.username?.toLowerCase() === OWNER_HANDLE);
         } else {
             list = list.filter(u => u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE);
         }
     } else {
         const q = sidebarSearchQuery.toLowerCase();
-        // search all community members, INCLUDING self
         list = users.filter(u => 
             u.name?.toLowerCase().includes(q) || 
             u.username?.toLowerCase().includes(q)
@@ -234,8 +232,14 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const openChat = (user: ChatUser | null) => {
       setMessages([]);
       if (user === null) { 
-          setIsGlobal(true); 
-          setSelectedUser(null); 
+          // Toggle logic: if already global, deselect everything
+          if (isGlobal) {
+              setIsGlobal(false);
+              setSelectedUser(null);
+          } else {
+              setIsGlobal(true); 
+              setSelectedUser(null); 
+          }
       } else { 
           setIsGlobal(false); 
           setSelectedUser(user); 
@@ -245,67 +249,93 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
 
   const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
     if (!count || count <= 0) return null;
-    return <div className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[8px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-black px-1 shadow-lg z-10">{count}</div>;
+    return <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-black min-w-[16px] h-[16px] flex items-center justify-center rounded-full border border-black px-1 shadow-lg z-10">{count}</div>;
+  };
+
+  const handleStartNewMessage = () => {
+    searchInputRef.current?.focus();
   };
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden relative">
+    <div className="flex flex-col h-full w-full overflow-hidden relative bg-black font-sans">
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
-        <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[260px] lg:w-[320px] flex-col flex-shrink-0 min-h-0 bg-black/40 backdrop-blur-3xl border-r border-white/5 animate-fade-in`}>
-          <div className="p-4 flex flex-col gap-3">
+        {/* Sidebar Container */}
+        <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[320px] lg:w-[380px] flex-col flex-shrink-0 min-h-0 bg-black border-r border-white/10 animate-fade-in`}>
+          
+          {/* Sidebar Header */}
+          <div className="p-4 flex flex-col gap-5">
+            <div className="flex items-center justify-between px-2 pt-2">
+                <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-black text-white lowercase tracking-tight">{(clerkUser?.username || OWNER_HANDLE).toLowerCase()}</h2>
+                    <i className="fa-solid fa-chevron-down text-[10px] text-zinc-500"></i>
+                </div>
+                <button onClick={handleStartNewMessage} className="text-white hover:opacity-70 transition-opacity">
+                    <Edit className="w-5 h-5" />
+                </button>
+            </div>
+
             <SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} />
             
-            <div className="flex items-center gap-2">
-              {clerkUser && (
-                <>
-                  <button onClick={() => setShowFriendsOnly(!showFriendsOnly)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border transition-all ${showFriendsOnly ? 'bg-white/10 border-white/20 text-white shadow-lg' : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white'}`}><UserGroupIcon className="w-4 h-4" /><span className="text-[10px] font-black uppercase tracking-widest">Friends</span></button>
-                  <button onClick={() => onShowProfile?.(clerkUser.id, (clerkUser.username || '').toLowerCase())} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white transition-all flex items-center justify-center flex-shrink-0" title="Your Profile"><UserCircleIcon className="w-5 h-5" /></button>
-                </>
-              )}
-            </div>
-
+            {/* Search Input */}
             <div className="relative group">
-              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 group-focus-within:text-white transition-colors" />
-              <input value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Find Community users..." className="w-full bg-black/60 border border-white/10 rounded-xl py-3 pl-11 pr-3 text-white text-[10px] outline-none focus:border-white/30 transition-all font-bold placeholder-zinc-800 shadow-inner" />
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 group-focus-within:text-zinc-400 transition-colors" />
+              <input 
+                ref={searchInputRef}
+                value={sidebarSearchQuery} 
+                onChange={e => setSidebarSearchQuery(e.target.value)} 
+                placeholder="Search" 
+                className="w-full bg-[#262626] border-none rounded-lg py-2.5 pl-11 pr-3 text-white text-sm outline-none transition-all placeholder-zinc-500" 
+              />
             </div>
 
+            {/* Top Row Tabs */}
+            <div className="flex items-center justify-between px-2">
+                <h4 className="text-sm font-bold text-white tracking-tight">Messages</h4>
+                <button className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Requests</button>
+            </div>
+            
             <div className="flex flex-col gap-1.5">
-                <button onClick={() => openChat(null)} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all ${isGlobal ? 'bg-white/10 border-white/20 text-white shadow-xl' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}><i className="fa-solid fa-earth-americas text-xl"></i><span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Feed</span></button>
+                <button 
+                  onClick={() => openChat(null)} 
+                  onDoubleClick={() => { setIsGlobal(false); setSelectedUser(null); }}
+                  className={`flex items-center gap-4 px-4 py-3 rounded-lg transition-all ${isGlobal ? 'bg-white/5 text-white' : 'bg-transparent text-zinc-400 hover:bg-white/5 hover:text-white'}`}
+                >
+                    <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/30 flex-shrink-0">
+                        <i className="fa-solid fa-earth-americas text-lg text-red-600"></i>
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                        <span className="text-sm font-bold block">Global Feed</span>
+                        <span className="text-xs text-zinc-500 truncate">Public community broadcast</span>
+                    </div>
+                </button>
             </div>
           </div>
 
+          {/* User List */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex items-center justify-between px-5 mb-4">
-                <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">
-                    {sidebarSearchQuery ? 'Community Members' : (showFriendsOnly ? 'Friends' : 'Inbox')}
-                </h4>
-                <div className="flex items-center gap-1.5 opacity-60"><div className="w-1 h-1 rounded-full bg-green-500"></div><span className="text-[7px] font-black text-zinc-500 uppercase">{activeCount} online</span></div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1.5">
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-1">
               {filteredUsers.length === 0 ? (
                   <div className="py-20 text-center opacity-30 flex flex-col items-center">
-                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-5"><SearchIcon className="w-8 h-8" /></div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em]">{sidebarSearchQuery ? 'No members found' : 'No messages yet'}</p>
+                    <p className="text-sm font-bold uppercase tracking-widest text-zinc-500">{sidebarSearchQuery ? 'No members found' : 'No messages yet'}</p>
                   </div>
               ) : (
                 filteredUsers.map(u => {
                   const isMe = u.id === clerkUser?.id;
+                  const isSelected = selectedUser?.id === u.id && !isGlobal;
                   return (
-                    <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group relative ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/10 border-white/10' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
+                    <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all text-left group relative ${isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'}`}>
                       <div className="relative shrink-0">
-                        <UserAvatar user={u} onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }} />
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-zinc-900 rounded-full shadow-lg"></div>
+                        <UserAvatar user={u} className="w-14 h-14" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }} />
                         <UnreadBadge count={unreadCounts[u.id] || 0} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
-                          <span className={`text-[11px] font-black uppercase truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-400 group-hover:text-white'}`}>{u.name} {isMe && '(You)'}</span>
+                          <span className={`text-sm font-medium truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white font-black' : 'text-zinc-200'}`}>{u.name} {isMe && '(You)'}</span>
                           {(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && (
                             <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] fez-verified-badge`}></i>
                           )}
                         </div>
-                        <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">@{ (u.username || '').toLowerCase() }</span>
+                        <p className="text-xs text-zinc-500 truncate">@{ (u.username || '').toLowerCase() } • Active</p>
                       </div>
                     </button>
                   );
@@ -315,80 +345,124 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           </div>
         </aside>
 
-        <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black/20 animate-fade-in`}>
-          <div className="px-5 py-4 md:px-10 md:py-6 flex items-center justify-between bg-black/60 border-b border-white/5 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50]">
-            <div className="flex items-center gap-5 min-w-0">
-              <button onClick={onBack} className="hidden md:flex p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all group mr-2"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
-              <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2.5 rounded-xl bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
-              
-              <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className="relative cursor-pointer">
-                {isGlobal ? (
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-white/10 flex items-center justify-center border-2 border-white/20">
-                        <i className="fa-solid fa-earth-americas text-white text-2xl"></i>
+        {/* Main Content Area */}
+        <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black animate-fade-in`}>
+          
+          {!isGlobal && !selectedUser ? (
+            /* "Your Messages" Placeholder View */
+            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-fade-in">
+              <div className="w-24 h-24 rounded-full border-2 border-white flex items-center justify-center mb-6">
+                <i className="fa-regular fa-paper-plane text-4xl text-white"></i>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Your messages</h2>
+              <p className="text-sm text-zinc-500 mb-6">Send a message to start a chat.</p>
+              <button 
+                onClick={handleStartNewMessage}
+                className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors active:scale-95"
+              >
+                Send message
+              </button>
+            </div>
+          ) : (
+            /* Active Chat View */
+            <>
+              <div className="px-5 py-3 md:px-8 md:py-4 flex items-center justify-between border-b border-white/10 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50] bg-black/60">
+                <div className="flex items-center gap-4 min-w-0">
+                  <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 rounded-lg bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
+                  
+                  <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className="relative cursor-pointer">
+                    {isGlobal ? (
+                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-white/10">
+                            <i className="fa-solid fa-earth-americas text-white text-xl"></i>
+                        </div>
+                    ) : (
+                        <UserAvatar user={selectedUser!} className={`w-10 h-10 md:w-12 md:h-12 border ${selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600' : 'border-white/10'}`} />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())}>
+                    <h3 className="text-sm md:text-base font-black text-white uppercase tracking-tight flex items-center leading-none">
+                        {isGlobal ? 'Global Stream' : selectedUser?.name}
+                        {!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}
+                    </h3>
+                    <p className="text-[10px] text-zinc-500 font-bold tracking-widest mt-1 leading-none">
+                        {isGlobal ? 'Public Broadcast' : `@${(selectedUser?.username || '').toLowerCase()}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-zinc-400">
+                    <button className="hover:text-white transition-colors"><i className="fa-solid fa-phone text-lg"></i></button>
+                    <button className="hover:text-white transition-colors"><i className="fa-solid fa-video text-lg"></i></button>
+                    <button className="hover:text-white transition-colors"><i className="fa-solid fa-circle-info text-xl"></i></button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-10 flex flex-col gap-4 md:gap-6">
+                {messages.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse">
+                        <i className="fa-solid fa-shield-halved text-5xl mb-6"></i>
+                        <p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting...' : 'Secure Connection'}</p>
                     </div>
                 ) : (
-                    <UserAvatar user={selectedUser!} className={`w-12 h-12 md:w-14 md:h-14 border-2 ${selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600' : 'border-white/20'}`} />
+                  messages.map((msg, i) => {
+                    const isMe = msg.senderId === clerkUser?.id;
+                    const low = msg.senderUsername?.toLowerCase();
+                    const isOwner = low === OWNER_HANDLE;
+                    return (
+                      <div key={msg.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group animate-fade-in`}>
+                        <UserAvatar 
+                            user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} 
+                            className={`w-7 h-7 md:w-8 md:h-8 border shadow-lg group-hover:scale-105 transition-transform ${isOwner ? 'border-red-600' : 'border-white/10'}`}
+                            onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}
+                        />
+                        <div className={`max-w-[75%] md:max-w-[65%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
+                          {!isMe && (
+                              <div className="flex items-center mb-1 px-1 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}>
+                                <span className="text-[10px] font-black text-white uppercase tracking-tight truncate leading-none">{msg.senderName}</span>
+                              </div>
+                          )}
+                          <div className={`px-4 py-2.5 rounded-2xl text-[13px] md:text-sm border font-medium leading-relaxed ${isMe ? 'bg-[#3797f0] border-[#3797f0] text-white rounded-br-none' : (isOwner ? 'bg-[#262626] border-red-600/40 text-white rounded-bl-none' : 'bg-[#262626] border-white/5 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Message Input Container */}
+              <div className="p-4 md:p-6 bg-black border-t border-white/10 flex-shrink-0">
+                {isSignedIn ? (
+                  <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-zinc-500">
+                    <button type="button" className="p-2 text-white hover:opacity-70"><i className="fa-regular fa-face-smile text-xl"></i></button>
+                    <input 
+                      value={inputValue} 
+                      onChange={e => setInputValue(e.target.value)} 
+                      placeholder="Message..." 
+                      className="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-500" 
+                    />
+                    {inputValue.trim() ? (
+                        <button type="submit" className="text-[#0095f6] hover:text-white font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>
+                    ) : (
+                        <div className="flex items-center gap-3 pr-2 text-white">
+                            <button type="button" className="hover:opacity-70 transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button>
+                            <button type="button" className="hover:opacity-70 transition-opacity"><i className="fa-regular fa-image text-lg"></i></button>
+                            <button type="button" className="hover:opacity-70 transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button>
+                        </div>
+                    )}
+                  </form>
+                ) : (
+                  <div className="py-4 text-center">
+                    <SignInButton mode="modal">
+                        <button className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold py-3 px-12 rounded-lg text-sm transition-all active:scale-95 shadow-xl">
+                            Log In to Chat
+                        </button>
+                    </SignInButton>
+                  </div>
                 )}
               </div>
-
-              <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())}>
-                <h3 className="text-base md:text-2xl font-black text-white uppercase tracking-tighter flex items-center leading-none">{isGlobal ? 'Global Stream' : selectedUser?.name}{!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}</h3>
-                <p className="text-[9px] md:text-[11px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1.5 leading-none">{isGlobal ? 'Public Feed' : `@${(selectedUser?.username || '').toLowerCase()}`}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-12 flex flex-col gap-6 md:gap-10">
-            {messages.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse">
-                    <i className="fa-solid fa-shield-halved text-5xl mb-6"></i>
-                    <p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Opening Stream...' : 'Private Connection Secure'}</p>
-                </div>
-            ) : (
-              messages.map((msg, i) => {
-                const isMe = msg.senderId === clerkUser?.id;
-                const low = msg.senderUsername?.toLowerCase();
-                const isOwner = low === OWNER_HANDLE;
-                return (
-                  <div key={msg.id || i} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group animate-fade-in`}>
-                    <UserAvatar 
-                        user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} 
-                        className={`w-8 h-8 md:w-12 md:h-12 border shadow-lg group-hover:scale-105 transition-transform ${isOwner ? 'border-red-600' : 'border-white/10'}`}
-                        onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}
-                    />
-                    <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
-                      <div className={`flex items-center mb-1.5 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'} cursor-pointer opacity-70 group-hover:opacity-100`} onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}>
-                        <span className="text-[10px] md:text-[13px] font-black text-white uppercase tracking-tight truncate leading-none">{low === OWNER_HANDLE ? "FUAD EDITING ZONE" : msg.senderName}</span>
-                        {getIdentity(msg.senderUsername || '', msg.senderRole)}
-                      </div>
-                      <div className={`p-4 md:p-5 rounded-2xl md:rounded-[2.2rem] text-[13px] md:text-[15px] border font-medium leading-relaxed shadow-xl ${isMe ? 'bg-white/10 border-white/20 text-white rounded-br-none' : (isOwner ? 'bg-zinc-900 border-red-600/40 text-white rounded-bl-none' : 'bg-white/5 border-white/10 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
-                      <span className="text-[7px] md:text-[8px] text-zinc-700 font-bold uppercase mt-2 tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <div className="p-5 md:p-10 bg-black/60 border-t border-white/5 flex-shrink-0 backdrop-blur-3xl">
-            {isSignedIn ? (
-              <form onSubmit={handleSendMessage} className="max-w-5xl mx-auto flex gap-4 md:gap-6 p-2 bg-[#050505] border border-white/10 rounded-2xl md:rounded-[3rem] shadow-2xl focus-within:border-white/20 transition-all">
-                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder={isGlobal ? "Broadcast a message..." : "Send private message..."} className="flex-1 bg-transparent px-6 md:px-10 py-3 md:py-5 text-sm md:text-base font-medium text-white outline-none min-w-0 placeholder-zinc-800" />
-                <button type="submit" disabled={!inputValue.trim()} className="bg-white text-black hover:bg-zinc-200 w-12 h-12 md:w-16 md:h-16 flex items-center justify-center rounded-xl md:rounded-[2.5rem] transition-all shadow-xl disabled:opacity-20 flex-shrink-0 active:scale-90"><SendIcon className="w-6 h-6 md:w-7 md:h-7" /></button>
-              </form>
-            ) : (
-              <div className="py-8 text-center space-y-5">
-                <p className="text-xs md:text-sm text-zinc-600 font-black uppercase tracking-[0.5em]">Authorization Required</p>
-                <SignInButton mode="modal"><button className="bg-red-600 hover:bg-red-700 text-white font-black py-4 md:py-5 px-12 md:px-24 rounded-2xl md:rounded-[3rem] uppercase text-[10px] md:text-xs tracking-[0.5em] transition-all active:scale-95 border border-white/10 shadow-2xl">Log In Now</button></SignInButton>
-              </div>
-            )}
-            {!isGlobal && isSignedIn && (
-                <p className="text-center text-[8px] text-zinc-700 font-black uppercase tracking-[0.4em] mt-5 flex items-center justify-center gap-2">
-                    <i className="fa-solid fa-lock text-[10px] text-zinc-800"></i> Encrypted Direct Environment
-                </p>
-            )}
-          </div>
+            </>
+          )}
         </main>
       </div>
     </div>
