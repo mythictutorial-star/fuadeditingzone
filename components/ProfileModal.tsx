@@ -285,6 +285,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             if (hours) {
                 const expiry = Date.now() + (parseInt(hours) * 3600000);
                 await update(ref(db, `users/${currentProfileId}`), { lockedUntil: expiry });
+                await push(ref(db, `notifications/${currentProfileId}`), {
+                    type: 'security_alert',
+                    text: `CRITICAL: Your account has been locked for ${hours} hours by the moderation team.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    fromName: 'Security Hub'
+                });
                 alert("Account locked.");
             }
         } else if (action === '2') {
@@ -293,10 +300,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 await update(ref(db, `users/${currentProfileId}`), { 
                     warning: { message: msg, timestamp: Date.now() } 
                 });
+                await push(ref(db, `notifications/${currentProfileId}`), {
+                    type: 'security_warning',
+                    text: `WARNING: You have received a formal warning: "${msg}". Please follow community guidelines.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    fromName: 'Moderation'
+                });
                 alert("Warning added.");
             }
         } else if (action === '3') {
             await update(ref(db, `users/${currentProfileId}`), { lockedUntil: null, warning: null });
+            await push(ref(db, `notifications/${currentProfileId}`), {
+                type: 'security_info',
+                text: `NOTICE: All restrictions on your account have been lifted.`,
+                timestamp: Date.now(),
+                read: false,
+                fromName: 'System'
+            });
             alert("Statuses cleared.");
         }
     };
