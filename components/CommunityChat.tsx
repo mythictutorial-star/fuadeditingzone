@@ -104,7 +104,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
-  const [isGlobal, setIsGlobal] = useState(false); // Default to no chat open
+  const [isGlobal, setIsGlobal] = useState(false); 
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -232,7 +232,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const openChat = (user: ChatUser | null) => {
       setMessages([]);
       if (user === null) { 
-          // Toggle logic: if already global, deselect everything
           if (isGlobal) {
               setIsGlobal(false);
               setSelectedUser(null);
@@ -265,7 +264,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           {/* Sidebar Header */}
           <div className="p-4 flex flex-col gap-5">
             <div className="flex items-center justify-between px-2 pt-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => clerkUser && onShowProfile?.(clerkUser.id, clerkUser.username || '')}>
                     <h2 className="text-xl font-black text-white lowercase tracking-tight">{(clerkUser?.username || OWNER_HANDLE).toLowerCase()}</h2>
                     <i className="fa-solid fa-chevron-down text-[10px] text-zinc-500"></i>
                 </div>
@@ -323,21 +322,36 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                   const isMe = u.id === clerkUser?.id;
                   const isSelected = selectedUser?.id === u.id && !isGlobal;
                   return (
-                    <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all text-left group relative ${isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'}`}>
+                    <div 
+                      key={u.id} 
+                      onClick={() => openChat(u)} 
+                      className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all text-left group relative cursor-pointer ${isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'}`}
+                    >
                       <div className="relative shrink-0">
-                        <UserAvatar user={u} className="w-14 h-14" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }} />
+                        {/* Avatar Area - Opens Profile */}
+                        <UserAvatar 
+                            user={u} 
+                            className="w-14 h-14" 
+                            onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }} 
+                        />
                         <UnreadBadge count={unreadCounts[u.id] || 0} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
-                          <span className={`text-sm font-medium truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white font-black' : 'text-zinc-200'}`}>{u.name} {isMe && '(You)'}</span>
-                          {(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && (
-                            <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] fez-verified-badge`}></i>
-                          )}
+                        {/* Text Area - Opens Profile */}
+                        <div 
+                            className="inline-block max-w-full cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }}
+                        >
+                            <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
+                                <span className={`text-sm font-medium truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white font-black' : 'text-zinc-200'}`}>{u.name} {isMe && '(You)'}</span>
+                                {(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && (
+                                    <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] fez-verified-badge`}></i>
+                                )}
+                            </div>
+                            <p className="text-xs text-zinc-500 truncate">@{ (u.username || '').toLowerCase() } • Active</p>
                         </div>
-                        <p className="text-xs text-zinc-500 truncate">@{ (u.username || '').toLowerCase() } • Active</p>
                       </div>
-                    </button>
+                    </div>
                   );
                 })
               )}
