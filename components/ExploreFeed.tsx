@@ -22,6 +22,7 @@ const db = getDatabase(app);
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
+const RESTRICTED_HANDLE = 'jiya';
 
 type UserRole = 'Designer' | 'Client';
 
@@ -183,14 +184,20 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
         const unsubscribe = onValue(postsRef, (snap) => {
             const data = snap.val();
             if (data) {
-                const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
+                let list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
                     .sort((a: any, b: any) => b.timestamp - a.timestamp)
                     .filter((p: any) => p.privacy === 'public' || !p.privacy); // Default to public if not set
+                
+                // Restriction: Only OWNER can see RESTRICTED posts
+                if (user?.username?.toLowerCase() !== OWNER_HANDLE) {
+                   list = list.filter(p => (p.userName || '').toLowerCase() !== RESTRICTED_HANDLE);
+                }
+
                 setPosts(list as Post[]);
             }
         });
         return () => unsubscribe();
-    }, []);
+    }, [user]);
 
     const filteredPosts = useMemo(() => {
         let list = posts;

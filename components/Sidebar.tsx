@@ -217,6 +217,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
 const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; onShowUser: (id: string) => void; onGoToInbox: (id: string) => void; onOpenPost?: (postId: string, commentId?: string) => void }> = ({ isOpen, setIsOpen, onShowUser, onGoToInbox, onOpenPost }) => {
     const { user } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
+    const [hasPendingMsgRequests, setHasPendingMsgRequests] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -233,6 +234,18 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
               const gData = gSnap.val() || {};
               const gList = Object.entries(gData).map(([id, info]: [string, any]) => ({ id, ...info, isGlobal: true }));
               setNotifications([...list, ...gList].sort((a, b) => b.timestamp - a.timestamp));
+            });
+        });
+
+        // Check for pending message requests logic
+        const unreadRef = ref(db, `users/${user.id}/unread`);
+        const friendsRef = ref(db, `social/${user.id}/friends`);
+        onValue(unreadRef, (snap) => {
+            const unreads = snap.val() || {};
+            get(friendsRef).then(fSnap => {
+                const friends = fSnap.exists() ? Object.keys(fSnap.val()) : [];
+                const requestIds = Object.keys(unreads).filter(id => unreads[id] > 0 && !friends.includes(id) && id !== OWNER_HANDLE);
+                setHasPendingMsgRequests(requestIds.length > 0);
             });
         });
     }, [user]);
@@ -252,7 +265,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Notifications">
                 <i className="fa-solid fa-bell text-[14px]"></i>
-                {notifications.some(n => !n.read && !n.isGlobal) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
+                {(notifications.some(n => !n.read && !n.isGlobal) || hasPendingMsgRequests) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
             </button>
             <AnimatePresence>
                 {isOpen && (
@@ -265,7 +278,22 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                             <button onClick={() => setIsOpen(false)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-20 max-w-4xl mx-auto w-full space-y-4">
-                            {notifications.length === 0 ? (
+                            {hasPendingMsgRequests && (
+                                <div onClick={() => { setIsOpen(false); onGoToInbox(''); }} className="p-6 rounded-[2rem] cursor-pointer transition-all border bg-red-600/10 border-red-600/30 group animate-pulse">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-red-600 text-white rounded-2xl flex items-center justify-center"><ChatBubbleIcon className="w-6 h-6" /></div>
+                                            <div>
+                                                <p className="text-sm md:text-lg font-black text-white uppercase tracking-tight">New Message Requests</p>
+                                                <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Non-friends are trying to reach you</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRightIcon className="w-5 h-5 text-red-600" />
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {notifications.length === 0 && !hasPendingMsgRequests ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-20">
                                      <i className="fa-solid fa-bell-slash text-6xl mb-8"></i>
                                      <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em] text-zinc-600">No Activity Yet</p>

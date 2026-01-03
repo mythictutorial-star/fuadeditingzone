@@ -3,10 +3,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon } from './Icons';
+import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell } from 'lucide-react';
+import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck } from 'lucide-react';
 import { siteConfig } from '../config';
 import { CreatePostModal } from './CreatePostModal';
 
@@ -23,6 +23,7 @@ const db = getDatabase();
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
+const RESTRICTED_HANDLE = 'jiya';
 
 interface ChatUser {
   id: string;
@@ -115,20 +116,24 @@ export const CommunityChat: React.FC<{
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [isGlobal, setIsGlobal] = useState(false); 
   const [sidebarTab, setSidebarTab] = useState<'messages' | 'search'>('messages');
+  const [inboxView, setInboxView] = useState<'primary' | 'requests'>('primary');
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const [friendsList, setFriendsList] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [mutedUsers, setMutedUsers] = useState<Record<string, boolean>>({});
+  const [blockedByMe, setBlockedByMe] = useState<Record<string, boolean>>({});
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [isChatInfoOpen, setIsChatInfoOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (forceSearchTab) {
       setSidebarTab('search');
-      setIsMobileChatOpen(false); // Make sure inbox/search is visible
+      setIsMobileChatOpen(false); 
       setTimeout(() => searchInputRef.current?.focus(), 100);
       onSearchTabConsumed?.();
     }
@@ -145,6 +150,9 @@ export const CommunityChat: React.FC<{
           if(initialTargetUserId) {
               const target = list.find(u => u.id === initialTargetUserId || u.username?.toLowerCase() === initialTargetUserId?.toLowerCase());
               if(target) {
+                  if (target.username?.toLowerCase() === RESTRICTED_HANDLE && clerkUser?.username?.toLowerCase() !== OWNER_HANDLE) {
+                      return;
+                  }
                   setIsGlobal(false);
                   setSelectedUser(target);
                   setIsMobileChatOpen(true);
@@ -160,6 +168,12 @@ export const CommunityChat: React.FC<{
         });
         onValue(ref(db, `users/${clerkUser.id}/unread`), (snap) => {
             setUnreadCounts(snap.val() || {});
+        });
+        onValue(ref(db, `users/${clerkUser.id}/muted`), (snap) => {
+            setMutedUsers(snap.val() || {});
+        });
+        onValue(ref(db, `users/${clerkUser.id}/blocked`), (snap) => {
+            setBlockedByMe(snap.val() || {});
         });
     }
 
@@ -200,6 +214,12 @@ export const CommunityChat: React.FC<{
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSignedIn || !inputValue.trim() || !chatPath || !clerkUser) return;
+    
+    // 3-message limit check for non-friends
+    const isFriend = selectedUser ? (friendsList.includes(selectedUser.id) || selectedUser.username?.toLowerCase() === OWNER_HANDLE) : true;
+    const mySentMessages = messages.filter(m => m.senderId === clerkUser.id);
+    if (!isFriend && mySentMessages.length >= 3) return;
+
     const myProfile = users.find(u => u.id === clerkUser.id);
     const newMessage = { 
       senderId: clerkUser.id, 
@@ -218,32 +238,95 @@ export const CommunityChat: React.FC<{
     }
   };
 
+  const { primaryUsers, requestUsers, requestCount } = useMemo(() => {
+    let baseList = users.filter(u => !blockedByMe[u.id]);
+    if (clerkUser?.username?.toLowerCase() !== OWNER_HANDLE) {
+        baseList = baseList.filter(u => (u.username || '').toLowerCase() !== RESTRICTED_HANDLE);
+    }
+
+    const messagedIds = Object.keys(unreadCounts);
+    const primary: ChatUser[] = [];
+    const requests: ChatUser[] = [];
+
+    baseList.forEach(u => {
+        const isMessaged = messagedIds.includes(u.id) || u.username?.toLowerCase() === OWNER_HANDLE;
+        if (!isMessaged && u.id !== clerkUser?.id) return;
+        
+        const isFriend = friendsList.includes(u.id) || u.username?.toLowerCase() === OWNER_HANDLE || u.id === clerkUser?.id;
+        
+        if (isFriend) {
+            primary.push(u);
+        } else {
+            requests.push(u);
+        }
+    });
+
+    return { primaryUsers: primary, requestUsers: requests, requestCount: requests.length };
+  }, [users, clerkUser, unreadCounts, friendsList, blockedByMe]);
+
   const filteredUsers = useMemo(() => {
-    let list = users;
     if (sidebarTab === 'search') {
         if (!sidebarSearchQuery.trim()) return [];
         const q = sidebarSearchQuery.toLowerCase();
-        list = users.filter(u => u.name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q));
-    } else {
-        if (isSignedIn) {
-            const messagedIds = Object.keys(unreadCounts);
-            list = list.filter(u => messagedIds.includes(u.id) || u.username?.toLowerCase() === OWNER_HANDLE);
-        } else {
-            list = list.filter(u => u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE);
-        }
+        return users.filter(u => !blockedByMe[u.id] && (u.name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q)));
     }
-    return list.slice(0, 100);
-  }, [users, sidebarSearchQuery, sidebarTab, isSignedIn, unreadCounts]);
+    return inboxView === 'primary' ? primaryUsers : requestUsers;
+  }, [sidebarTab, sidebarSearchQuery, inboxView, primaryUsers, requestUsers, users, blockedByMe]);
 
   const openChat = (user: ChatUser | null) => {
       setMessages([]);
       if (user === null) { 
           if (isGlobal) { setIsGlobal(false); setSelectedUser(null); } else { setIsGlobal(true); setSelectedUser(null); }
       } else { 
+          if (user.username?.toLowerCase() === RESTRICTED_HANDLE && clerkUser?.username?.toLowerCase() !== OWNER_HANDLE) {
+              return;
+          }
           setIsGlobal(false); 
           setSelectedUser(user); 
       }
       setIsMobileChatOpen(true);
+  };
+
+  const handleAcceptRequest = async () => {
+    if (!clerkUser || !selectedUser) return;
+    await set(ref(db, `social/${clerkUser.id}/friends/${selectedUser.id}`), true);
+    await set(ref(db, `social/${selectedUser.id}/friends/${clerkUser.id}`), true);
+    setInboxView('primary');
+  };
+
+  const handleDeleteRequest = async () => {
+    if (!clerkUser || !selectedUser || !chatPath) return;
+    if (window.confirm(`Delete chat request from @${selectedUser.username}?`)) {
+        await remove(ref(db, chatPath));
+        await update(ref(db, `users/${clerkUser.id}/unread`), { [selectedUser.id]: 0 });
+        setSelectedUser(null);
+        setIsMobileChatOpen(false);
+    }
+  };
+
+  const handleToggleMute = async () => {
+      if (!clerkUser || !selectedUser) return;
+      const path = `users/${clerkUser.id}/muted/${selectedUser.id}`;
+      if (mutedUsers[selectedUser.id]) {
+          await remove(ref(db, path));
+      } else {
+          await set(ref(db, path), true);
+      }
+  };
+
+  const handleBlockUser = async () => {
+      if (!clerkUser || !selectedUser) return;
+      const low = selectedUser.username?.toLowerCase();
+      if (low === OWNER_HANDLE || low === ADMIN_HANDLE) {
+          alert("You cannot block an Admin or the Owner.");
+          return;
+      }
+      if (window.confirm(`Block @${selectedUser.username}? You will no longer see their messages or posts.`)) {
+          await set(ref(db, `users/${clerkUser.id}/blocked/${selectedUser.id}`), true);
+          setSelectedUser(null);
+          setIsChatInfoOpen(false);
+          setIsMobileChatOpen(false);
+      }
   };
 
   const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
@@ -256,14 +339,9 @@ export const CommunityChat: React.FC<{
     setTimeout(() => searchInputRef.current?.focus(), 100);
   };
 
-  const openGlobalNotifications = () => {
-     // This would ideally trigger the same NotificationModal from Sidebar
-     // Since that state is in App/Sidebar, we use a custom event or rely on Sidebar's desktop header.
-     // For now, we'll just log it or expect the user to use the Bell in the header.
-     // However, let's assume the user wants this rail icon to be functional.
-     const btn = document.querySelector('[title="Notifications"]') as HTMLButtonElement;
-     if(btn) btn.click();
-  };
+  const isCurrentChatAFriend = selectedUser ? (friendsList.includes(selectedUser.id) || selectedUser.username?.toLowerCase() === OWNER_HANDLE) : true;
+  const mySentMessagesCount = messages.filter(m => m.senderId === clerkUser?.id).length;
+  const isInputLocked = !isGlobal && !isCurrentChatAFriend && mySentMessagesCount >= 3;
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative bg-black font-sans">
@@ -275,10 +353,10 @@ export const CommunityChat: React.FC<{
                 <img src={siteConfig.branding.logoUrl} className="w-7 h-7" alt="" />
             </button>
             <div className="flex flex-col gap-8">
-                <button onClick={() => { setSidebarTab('messages'); setIsGlobal(false); setSelectedUser(null); }} className={`transition-all ${sidebarTab === 'messages' && !isGlobal && !selectedUser ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Messages"><HomeIcon className="w-7 h-7" /></button>
+                <button onClick={() => { setSidebarTab('messages'); setIsGlobal(false); setSelectedUser(null); setInboxView('primary'); }} className={`transition-all ${sidebarTab === 'messages' && !isGlobal && !selectedUser ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Messages"><HomeIcon className="w-7 h-7" /></button>
                 <button onClick={() => { setSidebarTab('search'); }} className={`transition-all ${sidebarTab === 'search' ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Search"><SearchIcon className="w-7 h-7" /></button>
                 <button onClick={onNavigateMarket} className="text-white opacity-40 hover:opacity-100 transition-all" title="Marketplace"><MarketIcon className="w-7 h-7" /></button>
-                <button onClick={openGlobalNotifications} className="text-white hover:opacity-70 transition-all" title="Activity"><Bell className="w-7 h-7" /></button>
+                <button onClick={() => { const btn = document.querySelector('[title="Notifications"]') as HTMLButtonElement; if(btn) btn.click(); }} className="text-white hover:opacity-70 transition-all" title="Activity"><Bell className="w-7 h-7" /></button>
                 <button onClick={() => setIsCreatePostOpen(true)} className="text-white hover:opacity-70 transition-all"><PlusSquare className="w-7 h-7" /></button>
             </div>
             <div className="mt-auto">
@@ -297,7 +375,6 @@ export const CommunityChat: React.FC<{
         {/* Sidebar Container */}
         <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[320px] lg:w-[380px] flex-col flex-shrink-0 min-h-0 bg-black border-r border-white/10 animate-fade-in`}>
           {sidebarTab === 'search' ? (
-            /* Search Tab View */
             <div className="flex flex-col h-full animate-fade-in">
                 <div className="p-8 pb-4">
                     <div className="flex items-center gap-4 mb-8">
@@ -345,7 +422,6 @@ export const CommunityChat: React.FC<{
                 </div>
             </div>
           ) : (
-            /* Inbox Tab View */
             <div className="flex flex-col h-full animate-fade-in">
                 <div className="p-4 flex flex-col gap-5">
                     <div className="flex items-center justify-between px-2 pt-2">
@@ -353,15 +429,29 @@ export const CommunityChat: React.FC<{
                             <h2 className="text-xl font-black text-white lowercase tracking-tight">{(clerkUser?.username || OWNER_HANDLE).toLowerCase()}</h2>
                             <i className="fa-solid fa-chevron-down text-[10px] text-zinc-500"></i>
                         </div>
-                        <button onClick={handleStartNewMessage} className="md:hidden text-white hover:opacity-70 transition-opacity">
-                            <SearchIcon className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button onClick={handleStartNewMessage} className="text-white hover:opacity-70 transition-opacity">
+                                <SearchIcon className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
+                    
                     <div className="lg:hidden"><SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} /></div>
+                    
                     <div className="flex items-center justify-between px-2">
-                        <h4 className="text-sm font-bold text-white tracking-tight">Messages</h4>
-                        <button className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Requests</button>
+                        <div className="flex items-center gap-6">
+                            <button onClick={() => setInboxView('primary')} className={`text-sm font-black tracking-tight transition-all relative ${inboxView === 'primary' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                                Primary
+                                {inboxView === 'primary' && <motion.div layoutId="inboxTab" className="absolute -bottom-1 left-0 right-0 h-0.5 bg-white" />}
+                            </button>
+                            <button onClick={() => setInboxView('requests')} className={`text-sm font-black tracking-tight transition-all relative ${inboxView === 'requests' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                                Requests
+                                {requestCount > 0 && <span className="ml-2 px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded-full animate-pulse">{requestCount}</span>}
+                                {inboxView === 'requests' && <motion.div layoutId="inboxTab" className="absolute -bottom-1 left-0 right-0 h-0.5 bg-white" />}
+                            </button>
+                        </div>
                     </div>
+
                     <div className="flex flex-col gap-1.5">
                         <button onClick={() => openChat(null)} className={`flex items-center gap-4 px-4 py-3 rounded-lg transition-all ${isGlobal ? 'bg-white/5 text-white' : 'bg-transparent text-zinc-400 hover:bg-white/5 hover:text-white'}`}>
                             <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/30 flex-shrink-0">
@@ -377,27 +467,29 @@ export const CommunityChat: React.FC<{
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-1 mt-2">
                     {filteredUsers.length === 0 ? (
                         <div className="py-20 text-center opacity-30">
-                            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500">No active messages</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500">{inboxView === 'primary' ? 'No active messages' : 'No message requests'}</p>
                         </div>
                     ) : (
                         filteredUsers.map(u => {
                             const isMe = u.id === clerkUser?.id;
                             const isSelected = selectedUser?.id === u.id && !isGlobal;
+                            const isMuted = mutedUsers[u.id];
                             return (
                                 <div key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all text-left group relative cursor-pointer ${isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'}`}>
                                     <div className="relative shrink-0">
-                                        <UserAvatar user={u} className="w-14 h-14" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, (u.username || '').toLowerCase()); }} />
+                                        <UserAvatar user={u} className="w-14 h-14" />
                                         <UnreadBadge count={unreadCounts[u.id] || 0} />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <div className="inline-block max-w-full cursor-pointer hover:opacity-80 transition-opacity" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, (u.username || '').toLowerCase()); }}>
+                                        <div className="flex flex-col">
                                             <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
-                                                <span className={`text-sm font-medium truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white font-black' : 'text-zinc-200'}`}>{u.name} {isMe && '(You)'}</span>
+                                                <span className={`text-sm font-black truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-200'}`}>{u.name}</span>
                                                 {(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && (
                                                     <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] fez-verified-badge`}></i>
                                                 )}
+                                                {isMuted && <VolumeX size={10} className="text-zinc-600 ml-1" />}
                                             </div>
-                                            <p className="text-xs text-zinc-500 truncate">@{ (u.username || '').toLowerCase() } • Active</p>
+                                            <p className="text-[10px] text-zinc-500 truncate font-bold uppercase tracking-widest mt-1">@{ (u.username || '').toLowerCase() }</p>
                                         </div>
                                     </div>
                                 </div>
@@ -415,7 +507,7 @@ export const CommunityChat: React.FC<{
             <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-fade-in">
               <div className="w-24 h-24 rounded-full border-2 border-white flex items-center justify-center mb-6"><i className="fa-regular fa-paper-plane text-4xl text-white"></i></div>
               <h2 className="text-xl font-bold text-white mb-2">Your messages</h2>
-              <p className="text-sm text-zinc-500 mb-6">Send a message to start a chat.</p>
+              <p className="text-sm text-zinc-500 mb-6">Send a private message to a member.</p>
               <button onClick={handleStartNewMessage} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors active:scale-95 shadow-lg shadow-red-600/20">Send message</button>
             </div>
           ) : (
@@ -432,9 +524,24 @@ export const CommunityChat: React.FC<{
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-zinc-400">
-                    <button className="hover:text-white transition-colors"><i className="fa-solid fa-circle-info text-xl"></i></button>
+                    {!isGlobal && <button onClick={() => setIsChatInfoOpen(true)} className="hover:text-white transition-colors p-2 bg-white/5 rounded-full"><Info size={20} /></button>}
                 </div>
               </div>
+
+              {/* Accept Request Bar */}
+              {!isGlobal && !isCurrentChatAFriend && (
+                <div className="bg-[#111] border-b border-white/10 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-center sm:text-left">
+                    <p className="text-xs font-black text-white uppercase tracking-widest">Message Request</p>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-tight mt-1">Accept this request to continue the conversation.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={handleAcceptRequest} className="bg-white text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 hover:bg-zinc-200 active:scale-95 transition-all shadow-lg"><Check size={14}/> Accept</button>
+                    <button onClick={handleDeleteRequest} className="bg-red-600/10 border border-red-600/20 text-red-500 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 hover:bg-red-600 hover:text-white active:scale-95 transition-all"><Trash2 size={14}/> Delete</button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-10 flex flex-col gap-4 md:gap-6">
                 {messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse"><i className="fa-solid fa-shield-halved text-5xl mb-6"></i><p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting...' : 'Secure Connection'}</p></div>
@@ -454,13 +561,29 @@ export const CommunityChat: React.FC<{
                 )}
                 <div ref={messagesEndRef} />
               </div>
+
               <div className="p-4 md:p-6 bg-black border-t border-white/10 flex-shrink-0">
                 {isSignedIn ? (
-                  <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-red-600/50">
-                    <button type="button" className="p-2 text-white hover:text-red-500 transition-colors"><i className="fa-regular fa-face-smile text-xl"></i></button>
-                    <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-500" />
-                    {inputValue.trim() ? (<button type="submit" className="text-red-600 hover:text-red-500 font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>) : (<div className="flex items-center gap-3 pr-2 text-white"><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-image text-lg"></i></button><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button></div>)}
-                  </form>
+                  <div className="max-w-4xl mx-auto flex flex-col gap-3">
+                    {isInputLocked ? (
+                      <div className="bg-red-600/5 border border-red-600/20 rounded-2xl p-4 text-center">
+                        <p className="text-[10px] md:text-xs font-black text-red-500 uppercase tracking-widest">Waiting for @{selectedUser?.username} to accept your request.</p>
+                        <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-red-600/50">
+                        <button type="button" className="p-2 text-white hover:text-red-500 transition-colors"><i className="fa-regular fa-face-smile text-xl"></i></button>
+                        <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-500" />
+                        {inputValue.trim() ? (<button type="submit" className="text-red-600 hover:text-red-500 font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>) : (<div className="flex items-center gap-3 pr-2 text-white"><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-image text-lg"></i></button><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button></div>)}
+                      </form>
+                    )}
+                    
+                    {!isGlobal && !isCurrentChatAFriend && !isInputLocked && (
+                      <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.2em] text-center">
+                        {3 - mySentMessagesCount} messages left until acceptance required
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <div className="py-4 text-center">
                     <SignInButton mode="modal"><button className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-12 rounded-lg text-sm transition-all active:scale-95 shadow-xl shadow-red-600/20">Log In to Chat</button></SignInButton>
@@ -471,6 +594,83 @@ export const CommunityChat: React.FC<{
           )}
         </main>
       </div>
+
+      <AnimatePresence>
+        {isChatInfoOpen && selectedUser && (
+            <motion.div 
+                initial={{ opacity: 0, x: '100%' }} 
+                animate={{ opacity: 1, x: 0 }} 
+                exit={{ opacity: 0, x: '100%' }} 
+                className="fixed inset-0 z-[1000] bg-black flex flex-col md:max-w-md md:left-auto border-l border-white/10"
+            >
+                <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl">
+                    <button onClick={() => setIsChatInfoOpen(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
+                    <h2 className="text-sm font-black text-white uppercase tracking-widest">Details</h2>
+                    <div className="w-10"></div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10">
+                    <div className="flex flex-col items-center text-center">
+                        <UserAvatar user={selectedUser} className="w-24 h-24 mb-4 ring-4 ring-white/5" />
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-1.5">{selectedUser.name}{getIdentity(selectedUser.username, selectedUser.role)}</h3>
+                        <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">@{selectedUser.username.toLowerCase()}</p>
+                        
+                        <div className="mt-8 flex gap-4">
+                            <button onClick={() => { setIsChatInfoOpen(false); onShowProfile?.(selectedUser.id, selectedUser.username); }} className="px-6 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all active:scale-95">View Profile</button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Chat Settings</h4>
+                        
+                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                            <div className="flex items-center gap-3">
+                                {mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}
+                                <span className="text-sm font-bold text-white">Mute Messages</span>
+                            </div>
+                            <button 
+                                onClick={handleToggleMute}
+                                className={`w-12 h-6 rounded-full transition-all relative ${mutedUsers[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}
+                            >
+                                <motion.div 
+                                    animate={{ x: mutedUsers[selectedUser.id] ? 26 : 2 }} 
+                                    className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-lg" 
+                                />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-white/5">
+                        <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Privacy & Safety</h4>
+                        
+                        <button 
+                            onClick={handleBlockUser}
+                            className="w-full flex items-center justify-between p-4 bg-red-600/10 hover:bg-red-600/20 rounded-2xl border border-red-600/20 transition-all group"
+                        >
+                            <div className="flex items-center gap-3 text-red-500">
+                                <UserMinus size={20} />
+                                <span className="text-sm font-black uppercase tracking-widest">Block Member</span>
+                            </div>
+                            <ShieldAlert size={16} className="text-red-600 opacity-50 group-hover:opacity-100" />
+                        </button>
+
+                        <button className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all group">
+                            <div className="flex items-center gap-3 text-zinc-300">
+                                <ShieldCheck size={20} />
+                                <span className="text-sm font-bold">Report Account</span>
+                            </div>
+                            <ChevronRightIcon className="w-4 h-4 text-zinc-600" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-10 text-center opacity-30">
+                    <img src={siteConfig.branding.logoUrl} className="h-8 mx-auto grayscale invert mb-4" alt="" />
+                    <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Encrypted Interaction</p>
+                </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
 
       <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
     </div>

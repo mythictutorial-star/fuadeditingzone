@@ -38,6 +38,9 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getDatabase(app);
 
+const OWNER_HANDLE = 'fuadeditingzone';
+const RESTRICTED_HANDLE = 'jiya';
+
 const updateSEO = (title: string, desc: string, image?: string) => {
   if ((window as any).updatePortalMetadata) {
     const absoluteImg = image ? (image.startsWith('http') ? image : window.location.origin + image) : undefined;
@@ -96,11 +99,17 @@ export default function App() {
 
   const resolveProfileFromUrl = async (path: string) => {
     if (path.startsWith('/@')) {
-      const handle = path.substring(2);
+      const handle = path.substring(2).toLowerCase();
+      
+      // Restriction: Only Owner can resolve Jiya
+      if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
+          return false;
+      }
+
       const usersSnap = await get(ref(db, 'users'));
       const usersData = usersSnap.val();
       if (usersData) {
-          const userEntry = Object.entries(usersData).find(([id, data]: [string, any]) => data.username === handle || id === handle);
+          const userEntry = Object.entries(usersData).find(([id, data]: [string, any]) => data.username?.toLowerCase() === handle || id === handle);
           if (userEntry) {
             setViewingProfileId(userEntry[0]);
             return true;
@@ -113,7 +122,12 @@ export default function App() {
   const handleOpenPost = async (postId: string, commentId?: string) => {
       const postSnap = await get(ref(db, `explore_posts/${postId}`));
       if (postSnap.exists()) {
-          setModalState({ items: [{ id: postId, ...postSnap.val() }], currentIndex: 0 });
+          const postData = postSnap.val();
+          // Restriction: Only Owner can see Jiya's posts
+          if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
+              return;
+          }
+          setModalState({ items: [{ id: postId, ...postData }], currentIndex: 0 });
           setHighlightCommentId(commentId || null);
           window.history.pushState(null, '', `/post/${postId}${commentId ? `?commentId=${commentId}` : ''}`);
       }
@@ -134,7 +148,13 @@ export default function App() {
         const id = path.split('/')[2];
         const postSnap = await get(ref(db, `explore_posts/${id}`));
         if (postSnap.exists()) {
-            setModalState({ items: [{ id, ...postSnap.val() }], currentIndex: 0 });
+            const postData = postSnap.val();
+            // Restriction check
+            if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
+               setRoute('home');
+               return;
+            }
+            setModalState({ items: [{ id, ...postData }], currentIndex: 0 });
             if (commentId) setHighlightCommentId(commentId);
         }
       } else {
@@ -145,7 +165,7 @@ export default function App() {
       }
     };
     handleInitialLink();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (modalState) {
@@ -168,6 +188,9 @@ export default function App() {
 
   const handleSetModal = (items: ModalItem[], index: number) => {
     const item = items[index] as any;
+    // Restriction: Only owner can see jiya's items in modal
+    if (item.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
+
     const path = item.userId ? `/post/${item.id}` : `/work/${item.id}`;
     window.history.pushState(null, '', path);
     setModalState({ items, currentIndex: index });
@@ -203,7 +226,7 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [route]);
+  }, [route, user]);
 
   const navigateTo = (path: 'home' | 'marketplace' | 'community') => {
     setRoute(path);
@@ -211,17 +234,18 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOpenProfile = (userId: string, username?: string) => {
-    if (username) {
-        window.history.pushState(null, '', `/@${username}`);
-        setViewingProfileId(userId);
-    } else {
-        get(ref(db, `users/${userId}`)).then(snap => {
-            const handle = snap.val()?.username || userId;
-            window.history.pushState(null, '', `/@${handle}`);
-            setViewingProfileId(userId);
-        });
+  const handleOpenProfile = async (userId: string, username?: string) => {
+    let handle = username?.toLowerCase();
+    if (!handle) {
+        const snap = await get(ref(db, `users/${userId}`));
+        handle = snap.val()?.username?.toLowerCase() || userId;
     }
+    
+    // Restriction
+    if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
+
+    window.history.pushState(null, '', `/@${handle}`);
+    setViewingProfileId(userId);
   };
 
   const handleCloseProfile = () => {
@@ -230,7 +254,13 @@ export default function App() {
     setViewingProfileId(null);
   };
 
-  const handleOpenChatWithUser = (userId: string) => {
+  const handleOpenChatWithUser = async (userId: string) => {
+    const snap = await get(ref(db, `users/${userId}`));
+    const handle = snap.val()?.username?.toLowerCase();
+    
+    // Restriction: Only owner can message jiya
+    if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
+
     setTargetUserId(userId);
     setViewingProfileId(null);
     navigateTo('community');

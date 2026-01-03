@@ -10,6 +10,7 @@ import {
   ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon
 } from './Icons';
 import { siteConfig } from '../config';
+import { Lock } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -24,6 +25,7 @@ const db = getDatabase(app);
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
+const RESTRICTED_HANDLE = 'jiya';
 
 const NETWORK_CONFIGS: Record<string, { icon: any; baseUrl: string }> = {
     'Facebook': { icon: FacebookIcon, baseUrl: 'https://facebook.com/' },
@@ -63,6 +65,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const isMyOwnProfile = clerkUser?.id === currentProfileId;
     const isViewingOther = !!viewingUserId && !isMyOwnProfile;
 
+    const isJiya = targetUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
+    const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
+    const hasAccessToJiya = isOwner;
+
     useEffect(() => {
         if (isOpen && currentProfileId) {
             const userRef = ref(db, `users/${currentProfileId}`);
@@ -86,28 +92,33 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 if (!isEditing) setEditData(initializedData);
             });
 
-            const unsubFollowers = onValue(ref(db, `social/${currentProfileId}/followers`), (snap) => {
-              setSocialState(prev => ({ ...prev, followers: snap.exists() ? Object.keys(snap.val()) : [] }));
-            });
-            const unsubFollowing = onValue(ref(db, `social/${currentProfileId}/following`), (snap) => {
-              setSocialState(prev => ({ ...prev, following: snap.exists() ? Object.keys(snap.val()) : [] }));
-            });
+            // Only fetch social info if not Jiya or if owner
+            if (!isJiya || hasAccessToJiya) {
+                const unsubFollowers = onValue(ref(db, `social/${currentProfileId}/followers`), (snap) => {
+                  setSocialState(prev => ({ ...prev, followers: snap.exists() ? Object.keys(snap.val()) : [] }));
+                });
+                const unsubFollowing = onValue(ref(db, `social/${currentProfileId}/following`), (snap) => {
+                  setSocialState(prev => ({ ...prev, following: snap.exists() ? Object.keys(snap.val()) : [] }));
+                });
 
-            const postsQuery = query(ref(db, 'explore_posts'), orderByChild('userId'), equalTo(currentProfileId));
-            const unsubPosts = onValue(postsQuery, (snap) => {
-                const data = snap.val();
-                if (data) {
-                    const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
-                        .sort((a, b) => b.timestamp - a.timestamp);
-                    setUserPosts(list);
-                } else {
-                    setUserPosts([]);
-                }
-            });
+                const postsQuery = query(ref(db, 'explore_posts'), orderByChild('userId'), equalTo(currentProfileId));
+                const unsubPosts = onValue(postsQuery, (snap) => {
+                    const data = snap.val();
+                    if (data) {
+                        const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
+                            .sort((a, b) => a.timestamp - b.timestamp);
+                        setUserPosts(list);
+                    } else {
+                        setUserPosts([]);
+                    }
+                });
 
-            return () => { unsubUser(); unsubFollowers(); unsubFollowing(); unsubPosts(); };
+                return () => { unsubUser(); unsubFollowers(); unsubFollowing(); unsubPosts(); };
+            }
+
+            return () => { unsubUser(); };
         }
-    }, [isOpen, currentProfileId, isEditing]);
+    }, [isOpen, currentProfileId, isEditing, isJiya, hasAccessToJiya]);
 
     useEffect(() => {
         if (userListMode && isOpen) {
@@ -125,7 +136,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     useEffect(() => {
         if (!isViewingOther || !clerkUser || !viewingUserId) return;
-        
+        if (isJiya && !hasAccessToJiya) return;
+
         const unsubFol = onValue(ref(db, `social/${clerkUser.id}/following/${viewingUserId}`), (snap) => {
             setSocialState(prev => ({ ...prev, isFollowing: snap.exists() }));
         });
@@ -155,7 +167,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         });
 
         return () => { unsubFol(); unsubFriends(); };
-    }, [isViewingOther, clerkUser, viewingUserId]);
+    }, [isViewingOther, clerkUser, viewingUserId, isJiya, hasAccessToJiya]);
 
     const handleAction = async (type: 'follow' | 'friend') => {
         if (!clerkUser || !viewingUserId) return;
@@ -232,6 +244,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     };
 
     if (!isLoaded || !clerkUser || !isOpen) return null;
+
+    // Restriction UI: If viewer is not owner and account is jiya
+    if (isJiya && !hasAccessToJiya) {
+        return (
+            <AnimatePresence>
+                <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/98 backdrop-blur-3xl" />
+                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full h-full bg-[#050505] flex flex-col items-center justify-center p-10 text-center">
+                        <button onClick={onClose} className="absolute top-8 right-8 p-3 bg-white/5 rounded-full text-white hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6" /></button>
+                        <div className="w-32 h-32 md:w-48 md:h-48 rounded-[3rem] border-4 border-white/5 p-1 mb-8">
+                            <img src={targetUser?.avatar} className="w-full h-full object-cover rounded-[2.8rem] opacity-30 grayscale" alt="" />
+                        </div>
+                        <div className="flex items-center gap-2 mb-4">
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">@{targetUser?.username?.toLowerCase()}</h2>
+                        </div>
+                        <div className="bg-red-600/10 border border-red-600/30 p-8 rounded-[2.5rem] max-w-sm w-full">
+                            <Lock className="w-10 h-10 text-red-600 mx-auto mb-4" />
+                            <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Private Account</h3>
+                            <p className="text-zinc-500 text-xs leading-relaxed">Only @fuadeditingzone has authorization to view this profile and its content.</p>
+                        </div>
+                    </motion.div>
+                </div>
+            </AnimatePresence>
+        );
+    }
 
     return (
         <AnimatePresence>
@@ -339,7 +376,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                   </div>
 
                                                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-2">
-                                                      <SparklesIcon className="w-4 h-4 text-red-600 opacity-60 mr-1" />
+                                                      <span className="text-red-600 mr-1"><SparklesIcon className="w-4 h-4" /></span>
                                                       {(targetUser?.profile?.skills || []).map((s: string, i: number) => (
                                                           <span key={i} className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.1em] px-2 py-0.5 border border-white/5 rounded-md bg-white/[0.02]">{s}</span>
                                                       ))}
