@@ -178,7 +178,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Upload Content</label>
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className={`relative aspect-square md:aspect-video w-full rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer group overflow-hidden ${previewUrl ? 'border-red-600/50 bg-black' : 'border-white/10 hover:border-red-600/40 bg-white/5'}`}
+                    className={`relative w-full h-40 md:h-80 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer group overflow-hidden ${previewUrl ? 'border-red-600/50 bg-black' : 'border-white/10 hover:border-red-600/40 bg-white/5'}`}
                   >
                     {previewUrl ? (
                       selectedFile?.type.startsWith('video') ? (
@@ -188,7 +188,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                       )
                     ) : (
                       <>
-                        <i className="fa-solid fa-cloud-arrow-up text-4xl text-zinc-700 group-hover:text-red-600 transition-colors mb-4"></i>
+                        <i className="fa-solid fa-cloud-arrow-up text-3xl md:text-4xl text-zinc-700 group-hover:text-red-600 transition-colors mb-3 md:mb-4"></i>
                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300">Tap to choose work</p>
                       </>
                     )}

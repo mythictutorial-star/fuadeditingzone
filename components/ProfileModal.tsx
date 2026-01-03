@@ -7,10 +7,10 @@ import { getDatabase, ref, update, onValue, set, remove, push, query, orderByChi
 import { 
   CloseIcon, GlobeAltIcon, ChevronLeftIcon, InstagramIcon, FacebookIcon, 
   YouTubeIcon, TikTokIcon, BehanceIcon, GalleryIcon, CopyIcon,
-  ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon
+  ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon, LockIcon
 } from './Icons';
 import { siteConfig } from '../config';
-import { Lock } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -53,6 +53,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const [userListMode, setUserListMode] = useState<'followers' | 'following' | null>(null);
     const [resolvedUserList, setResolvedUserList] = useState<any[]>([]);
     const [showCopyToast, setShowCopyToast] = useState(false);
+    const [showSecurity, setShowSecurity] = useState(false);
     
     const [socialState, setSocialState] = useState({ 
       isFollowing: false, 
@@ -92,7 +93,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 if (!isEditing) setEditData(initializedData);
             });
 
-            // Only fetch social info if not Jiya or if owner
             if (!isJiya || hasAccessToJiya) {
                 const unsubFollowers = onValue(ref(db, `social/${currentProfileId}/followers`), (snap) => {
                   setSocialState(prev => ({ ...prev, followers: snap.exists() ? Object.keys(snap.val()) : [] }));
@@ -235,6 +235,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         setUserListMode(null);
     };
 
+    const handleResetPasscode = async () => {
+        if (!clerkUser) return;
+        const current = targetUser?.chat_passcode;
+        if (current) {
+            const old = prompt("Enter previous 4-digit passcode:");
+            if (old !== current) { alert("Incorrect previous passcode."); return; }
+        }
+        const next = prompt("Enter new 4-digit passcode:");
+        if (next && next.length === 4 && /^\d+$/.test(next)) {
+            await set(ref(db, `users/${clerkUser.id}/chat_passcode`), next);
+            alert("Passcode updated successfully.");
+        } else {
+            alert("Invalid passcode. Must be 4 digits.");
+        }
+    };
+
     const getVerifiedBadge = (u: string) => {
         const low = u?.toLowerCase();
         const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
@@ -245,7 +261,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     if (!isLoaded || !clerkUser || !isOpen) return null;
 
-    // Restriction UI: If viewer is not owner and account is jiya
     if (isJiya && !hasAccessToJiya) {
         return (
             <AnimatePresence>
@@ -278,30 +293,58 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     
                     <div className="p-5 md:p-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => userListMode ? setUserListMode(null) : onClose()} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
+                            <button onClick={() => { if (userListMode) setUserListMode(null); else if (showSecurity) setShowSecurity(false); else onClose(); }} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
                             <div className="flex items-center">
-                                <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">{(targetUser?.username || clerkUser.username || '').toLowerCase()}</h2>
-                                {getVerifiedBadge(targetUser?.username || clerkUser.username)}
-                                <button onClick={handleCopyProfileLink} className="ml-4 flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-red-600/20 rounded-xl text-zinc-500 hover:text-red-500 transition-all border border-white/5" title="Copy Profile Link">
-                                    <CopyIcon className="w-4 h-4" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">Copy Link</span>
-                                </button>
+                                <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">
+                                    {showSecurity ? 'Privacy & Security' : (targetUser?.username || clerkUser.username || '').toLowerCase()}
+                                </h2>
+                                {!showSecurity && getVerifiedBadge(targetUser?.username || clerkUser.username)}
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            {isMyOwnProfile && <button onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isEditing ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'}`}>{isEditing ? 'Save Profile' : 'Edit Profile'}</button>}
+                            {!showSecurity && isMyOwnProfile && (
+                                <button onClick={() => setShowSecurity(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-all"><ShieldCheck size={20} /></button>
+                            )}
+                            {isMyOwnProfile && !showSecurity && <button onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isEditing ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'}`}>{isEditing ? 'Save Profile' : 'Edit Profile'}</button>}
                             <button onClick={onClose} className="p-2.5 bg-red-600 rounded-full text-white shadow-lg hover:scale-110 active:scale-95 transition-all"><CloseIcon className="w-6 h-6" /></button>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-                        <AnimatePresence>
-                            {showCopyToast && (
-                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-6 left-1/2 -translate-x-1/2 z-[100] bg-white text-black px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-[0.3em] shadow-2xl">Link Copied</motion.div>
-                            )}
-                        </AnimatePresence>
+                        {showSecurity ? (
+                            <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-10">
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Passcode Protection</h4>
+                                    <button 
+                                        onClick={handleResetPasscode}
+                                        className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20">
+                                                <KeyRound size={24} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-sm font-black text-white uppercase tracking-widest">Chat Passcode</p>
+                                                <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">{targetUser?.chat_passcode ? 'Passcode is Active' : 'Not Set'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[9px] font-black text-red-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Change</span>
+                                            <ArrowRight size={16} className="text-zinc-600" />
+                                        </div>
+                                    </button>
+                                </div>
 
-                        {userListMode ? (
+                                <div className="space-y-4 pt-10 border-t border-white/5">
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">System Security</h4>
+                                    <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
+                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">
+                                            "PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen. A secure verification signal will be broadcast to your Activity hub."
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : userListMode ? (
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-6">
                                 <h3 className="text-2xl font-black text-white uppercase tracking-[0.2em] mb-10">{userListMode === 'followers' ? 'Followers' : 'Following'}</h3>
                                 {resolvedUserList.length === 0 ? (

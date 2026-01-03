@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon } from './Icons';
+import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon, LockIcon, UnlockIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck, KeyRound, Fingerprint, Lock, Unlock } from 'lucide-react';
 import { siteConfig } from '../config';
 import { CreatePostModal } from './CreatePostModal';
 
@@ -55,6 +55,19 @@ const getAvatarStyles = (username: string) => {
     return colors[index];
 };
 
+const getIdentity = (username: string, role?: string) => {
+    if (!username) return null;
+    const low = username.toLowerCase();
+    const delay = (username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
+    
+    return (
+        <>
+            {low === OWNER_HANDLE && <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>}
+            {low === ADMIN_HANDLE && <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>}
+        </>
+    );
+};
+
 const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ user, className = "w-10 h-10", onClick }) => {
     const username = user.username || 'user';
     const firstLetter = username.charAt(0).toUpperCase();
@@ -74,32 +87,116 @@ const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClic
     );
 };
 
-const getIdentity = (username: string, role?: string, hideRole = false) => {
-    const low = username?.toLowerCase();
-    const isOwner = low === OWNER_HANDLE;
-    const isAdmin = low === ADMIN_HANDLE;
-    const delay = (username?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
-    
-    let displayRole = role || 'Designer';
-    if (isOwner) displayRole = 'Owner';
-    if (isAdmin) displayRole = 'Admin';
+const PasscodeOverlay: React.FC<{ 
+    mode: 'set' | 'enter' | 'change' | 'reset';
+    onSuccess: (pass?: string) => void; 
+    onCancel: () => void;
+    storedPasscode?: string;
+    targetName?: string;
+    userId?: string;
+}> = ({ mode, onSuccess, onCancel, storedPasscode, targetName, userId }) => {
+    const [digits, setDigits] = useState<string[]>([]);
+    const [tempPass, setTempPass] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [recoveryCode, setRecoveryCode] = useState<string>('');
+    const [isResetting, setIsResetting] = useState(false);
+
+    const handleInput = (n: string) => {
+        if (digits.length >= 4) return;
+        const newDigits = [...digits, n];
+        setDigits(newDigits);
+        setError(null);
+
+        if (newDigits.length === 4) {
+            const code = newDigits.join('');
+            setTimeout(() => {
+                if (mode === 'set') {
+                    if (!tempPass) {
+                        setTempPass(code);
+                        setDigits([]);
+                    } else {
+                        if (code === tempPass) onSuccess(code);
+                        else { setError("Codes don't match."); setDigits([]); setTempPass(null); }
+                    }
+                } else if (mode === 'enter' || mode === 'change') {
+                    if (code === storedPasscode) onSuccess(code);
+                    else { setError("Incorrect passcode."); setDigits([]); }
+                } else if (mode === 'reset') {
+                   // This is for resetting with recovery code
+                }
+            }, 300);
+        }
+    };
+
+    const handleDelete = () => setDigits(digits.slice(0, -1));
+
+    const handleForgotPass = async () => {
+        if (!userId) return;
+        setIsResetting(true);
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        await push(ref(db, `notifications/${userId}`), {
+            type: 'system',
+            text: `SECURITY: Your chat recovery code is ${code}. Enter this code to reset your passcode.`,
+            timestamp: Date.now(),
+            read: false,
+            fromName: 'System Security'
+        });
+        setRecoveryCode(code);
+        alert("A recovery code has been sent to your Activity hub.");
+    };
+
+    const verifyRecovery = () => {
+        const entered = prompt("Enter 6-digit recovery code from your activity:");
+        if (entered === recoveryCode) {
+            onSuccess('RESET_COMMAND');
+        } else {
+            alert("Invalid code.");
+        }
+    };
 
     return (
-        <div className="flex items-center gap-1.5 ml-1.5 flex-shrink-0">
-            {(isOwner || isAdmin) && (
-                <i style={{ animationDelay: `-${delay}s` }} className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[6000000] bg-black/98 backdrop-blur-2xl flex flex-col items-center justify-center p-8">
+            <div className="flex flex-col items-center mb-16 text-center max-w-xs">
+                <div className="w-16 h-16 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 mb-8">
+                    {mode === 'enter' ? <Lock className="text-red-600" /> : <KeyRound className="text-red-600" />}
+                </div>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest">
+                    {mode === 'set' ? (tempPass ? 'Confirm Passcode' : 'Set Chat Passcode') : 
+                     mode === 'enter' ? `Unlock Chat` : 
+                     'Security Verification'}
+                </h2>
+                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-2">
+                    {mode === 'enter' ? `Enter your 4-digit code to access @${targetName?.toLowerCase()}` : 
+                     mode === 'set' ? 'Protect your conversations with a unique code' : 
+                     'Verify identity to change settings'}
+                </p>
+            </div>
+
+            <div className="flex gap-5 mb-16">
+                {[...Array(4)].map((_, i) => (
+                    <div key={i} className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 ${digits.length > i ? 'bg-red-600 border-red-600 scale-125' : 'bg-transparent border-zinc-800'}`}></div>
+                ))}
+            </div>
+
+            {error && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-10 animate-pulse">{error}</p>}
+
+            <div className="grid grid-cols-3 gap-x-12 gap-y-8 max-w-xs">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+                    <button key={n} onClick={() => handleInput(n.toString())} className="w-14 h-14 flex items-center justify-center text-2xl font-black text-white hover:bg-white/5 rounded-full transition-all active:scale-90">{n}</button>
+                ))}
+                <button onClick={onCancel} className="w-14 h-14 flex items-center justify-center text-[10px] font-black text-zinc-600 uppercase tracking-widest hover:text-white">Cancel</button>
+                <button onClick={() => handleInput('0')} className="w-14 h-14 flex items-center justify-center text-2xl font-black text-white hover:bg-white/5 rounded-full transition-all active:scale-90">0</button>
+                <button onClick={handleDelete} className="w-14 h-14 flex items-center justify-center text-zinc-600 hover:text-white transition-all"><i className="fa-solid fa-delete-left text-xl"></i></button>
+            </div>
+
+            {mode === 'enter' && (
+                <div className="mt-16 flex flex-col items-center gap-4">
+                    <button onClick={isResetting ? verifyRecovery : handleForgotPass} className="text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-red-500 transition-colors">
+                        {isResetting ? "Verify Recovery Code" : "Forgot Passcode?"}
+                    </button>
+                </div>
             )}
-            {!hideRole && (
-              <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded border leading-none tracking-[0.1em] ${
-                  isOwner ? 'bg-red-600/10 text-red-600 border-red-600/20' : 
-                  isAdmin ? 'bg-blue-600/10 text-blue-600 border-blue-600/20' : 
-                  displayRole === 'Client' ? 'bg-zinc-800 text-zinc-400 border-white/5' :
-                  'bg-white/5 text-zinc-400 border-white/10'
-              }`}>
-                  {displayRole.toUpperCase()}
-              </span>
-            )}
-        </div>
+        </motion.div>
     );
 };
 
@@ -123,10 +220,17 @@ export const CommunityChat: React.FC<{
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const [friendsList, setFriendsList] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [conversations, setConversations] = useState<Record<string, boolean>>({});
   const [mutedUsers, setMutedUsers] = useState<Record<string, boolean>>({});
   const [blockedByMe, setBlockedByMe] = useState<Record<string, boolean>>({});
+  const [lockedChats, setLockedChats] = useState<Record<string, boolean>>({});
+  const [userPasscode, setPasscode] = useState<string | null>(null);
+  
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [isChatInfoOpen, setIsChatInfoOpen] = useState(false);
+  const [passcodeMode, setPasscodeMode] = useState<'set' | 'enter' | 'change' | null>(null);
+  const [verifiedTarget, setVerifiedTarget] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -153,10 +257,7 @@ export const CommunityChat: React.FC<{
                   if (target.username?.toLowerCase() === RESTRICTED_HANDLE && clerkUser?.username?.toLowerCase() !== OWNER_HANDLE) {
                       return;
                   }
-                  setIsGlobal(false);
-                  setSelectedUser(target);
-                  setIsMobileChatOpen(true);
-                  setSidebarTab('messages');
+                  openChat(target);
               }
           }
       }
@@ -169,11 +270,20 @@ export const CommunityChat: React.FC<{
         onValue(ref(db, `users/${clerkUser.id}/unread`), (snap) => {
             setUnreadCounts(snap.val() || {});
         });
+        onValue(ref(db, `users/${clerkUser.id}/conversations`), (snap) => {
+            setConversations(snap.val() || {});
+        });
         onValue(ref(db, `users/${clerkUser.id}/muted`), (snap) => {
             setMutedUsers(snap.val() || {});
         });
         onValue(ref(db, `users/${clerkUser.id}/blocked`), (snap) => {
             setBlockedByMe(snap.val() || {});
+        });
+        onValue(ref(db, `users/${clerkUser.id}/locked_chats`), (snap) => {
+            setLockedChats(snap.val() || {});
+        });
+        onValue(ref(db, `users/${clerkUser.id}/chat_passcode`), (snap) => {
+            setPasscode(snap.val() || null);
         });
     }
 
@@ -187,7 +297,7 @@ export const CommunityChat: React.FC<{
   }, [isGlobal, clerkUser?.id, selectedUser?.id]);
 
   useEffect(() => {
-    if (!chatPath) {
+    if (!chatPath || (selectedUser && lockedChats[selectedUser.id] && verifiedTarget !== selectedUser.id)) {
         setMessages([]);
         return;
     }
@@ -205,7 +315,7 @@ export const CommunityChat: React.FC<{
         update(ref(db, `users/${clerkUser.id}/unread`), { [selectedUser.id]: 0 });
     }
     return () => unsub();
-  }, [chatPath, isGlobal, selectedUser?.id, clerkUser?.id]);
+  }, [chatPath, isGlobal, selectedUser?.id, clerkUser?.id, verifiedTarget, lockedChats]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -215,7 +325,6 @@ export const CommunityChat: React.FC<{
     e.preventDefault();
     if (!isSignedIn || !inputValue.trim() || !chatPath || !clerkUser) return;
     
-    // 3-message limit check for non-friends
     const isFriend = selectedUser ? (friendsList.includes(selectedUser.id) || selectedUser.username?.toLowerCase() === OWNER_HANDLE) : true;
     const mySentMessages = messages.filter(m => m.senderId === clerkUser.id);
     if (!isFriend && mySentMessages.length >= 3) return;
@@ -230,9 +339,14 @@ export const CommunityChat: React.FC<{
       text: inputValue.trim(), 
       timestamp: Date.now() 
     };
+    
     setInputValue('');
     await push(ref(db, chatPath), newMessage);
+
+    // Track active conversation for inbox tabs
     if (!isGlobal && selectedUser) {
+        await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
+        await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
         const recipientUnreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
         get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
     }
@@ -244,7 +358,7 @@ export const CommunityChat: React.FC<{
         baseList = baseList.filter(u => (u.username || '').toLowerCase() !== RESTRICTED_HANDLE);
     }
 
-    const messagedIds = Object.keys(unreadCounts);
+    const messagedIds = [...new Set([...Object.keys(unreadCounts), ...Object.keys(conversations)])];
     const primary: ChatUser[] = [];
     const requests: ChatUser[] = [];
 
@@ -256,13 +370,13 @@ export const CommunityChat: React.FC<{
         
         if (isFriend) {
             primary.push(u);
-        } else {
+        } else if (messagedIds.includes(u.id)) {
             requests.push(u);
         }
     });
 
     return { primaryUsers: primary, requestUsers: requests, requestCount: requests.length };
-  }, [users, clerkUser, unreadCounts, friendsList, blockedByMe]);
+  }, [users, clerkUser, unreadCounts, conversations, friendsList, blockedByMe]);
 
   const filteredUsers = useMemo(() => {
     if (sidebarTab === 'search') {
@@ -277,14 +391,57 @@ export const CommunityChat: React.FC<{
       setMessages([]);
       if (user === null) { 
           if (isGlobal) { setIsGlobal(false); setSelectedUser(null); } else { setIsGlobal(true); setSelectedUser(null); }
+          setIsMobileChatOpen(true);
       } else { 
           if (user.username?.toLowerCase() === RESTRICTED_HANDLE && clerkUser?.username?.toLowerCase() !== OWNER_HANDLE) {
               return;
           }
           setIsGlobal(false); 
-          setSelectedUser(user); 
+          setSelectedUser(user);
+          
+          if (lockedChats[user.id] && verifiedTarget !== user.id) {
+              setPasscodeMode('enter');
+          } else {
+              setIsMobileChatOpen(true);
+          }
       }
-      setIsMobileChatOpen(true);
+  };
+
+  const handleToggleLock = async () => {
+      if (!clerkUser || !selectedUser) return;
+      if (!userPasscode) {
+          setPasscodeMode('set');
+          return;
+      }
+      
+      const path = `users/${clerkUser.id}/locked_chats/${selectedUser.id}`;
+      if (lockedChats[selectedUser.id]) {
+          await remove(ref(db, path));
+      } else {
+          await set(ref(db, path), true);
+          setVerifiedTarget(selectedUser.id);
+      }
+  };
+
+  const handlePasscodeSuccess = async (val?: string) => {
+      if (!clerkUser) return;
+      if (passcodeMode === 'set') {
+          await set(ref(db, `users/${clerkUser.id}/chat_passcode`), val);
+          setPasscodeMode(null);
+          if (selectedUser) {
+              await set(ref(db, `users/${clerkUser.id}/locked_chats/${selectedUser.id}`), true);
+              setVerifiedTarget(selectedUser.id);
+              setIsMobileChatOpen(true);
+          }
+      } else if (passcodeMode === 'enter') {
+          if (val === 'RESET_COMMAND') {
+              setPasscodeMode('set');
+              return;
+          }
+          if (selectedUser) setVerifiedTarget(selectedUser.id);
+          setPasscodeMode(null);
+          setIsMobileChatOpen(true);
+      }
   };
 
   const handleAcceptRequest = async () => {
@@ -299,6 +456,7 @@ export const CommunityChat: React.FC<{
     if (window.confirm(`Delete chat request from @${selectedUser.username}?`)) {
         await remove(ref(db, chatPath));
         await update(ref(db, `users/${clerkUser.id}/unread`), { [selectedUser.id]: 0 });
+        await remove(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`));
         setSelectedUser(null);
         setIsMobileChatOpen(false);
     }
@@ -474,6 +632,7 @@ export const CommunityChat: React.FC<{
                             const isMe = u.id === clerkUser?.id;
                             const isSelected = selectedUser?.id === u.id && !isGlobal;
                             const isMuted = mutedUsers[u.id];
+                            const isLocked = lockedChats[u.id];
                             return (
                                 <div key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all text-left group relative cursor-pointer ${isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'}`}>
                                     <div className="relative shrink-0">
@@ -488,6 +647,7 @@ export const CommunityChat: React.FC<{
                                                     <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] fez-verified-badge`}></i>
                                                 )}
                                                 {isMuted && <VolumeX size={10} className="text-zinc-600 ml-1" />}
+                                                {isLocked && <Lock size={10} className="text-zinc-600 ml-1" />}
                                             </div>
                                             <p className="text-[10px] text-zinc-500 truncate font-bold uppercase tracking-widest mt-1">@{ (u.username || '').toLowerCase() }</p>
                                         </div>
@@ -623,6 +783,22 @@ export const CommunityChat: React.FC<{
                     <div className="space-y-2">
                         <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Chat Settings</h4>
                         
+                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 mb-2">
+                            <div className="flex items-center gap-3">
+                                {lockedChats[selectedUser.id] ? <Lock className="text-red-500" size={20} /> : <Unlock className="text-zinc-400" size={20} />}
+                                <span className="text-sm font-bold text-white">Lock Chat</span>
+                            </div>
+                            <button 
+                                onClick={handleToggleLock}
+                                className={`w-12 h-6 rounded-full transition-all relative ${lockedChats[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}
+                            >
+                                <motion.div 
+                                    animate={{ x: lockedChats[selectedUser.id] ? 26 : 2 }} 
+                                    className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-lg" 
+                                />
+                            </button>
+                        </div>
+
                         <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
                             <div className="flex items-center gap-3">
                                 {mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}
@@ -638,6 +814,10 @@ export const CommunityChat: React.FC<{
                                 />
                             </button>
                         </div>
+
+                        {userPasscode && (
+                             <button onClick={() => setPasscodeMode('set')} className="w-full text-left p-4 mt-2 bg-white/5 rounded-2xl text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">Change Passcode</button>
+                        )}
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-white/5">
@@ -670,6 +850,19 @@ export const CommunityChat: React.FC<{
                 </div>
             </motion.div>
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+          {passcodeMode && (
+              <PasscodeOverlay 
+                mode={passcodeMode === 'set' ? 'set' : 'enter'} 
+                onSuccess={handlePasscodeSuccess} 
+                onCancel={() => { setPasscodeMode(null); if(passcodeMode === 'enter') setSelectedUser(null); }} 
+                storedPasscode={userPasscode || undefined}
+                targetName={selectedUser?.name}
+                userId={clerkUser?.id}
+              />
+          )}
       </AnimatePresence>
 
       <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />

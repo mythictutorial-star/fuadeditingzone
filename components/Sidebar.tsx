@@ -412,13 +412,14 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
 };
 
 export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized }) => {
+    const { isSignedIn } = useUser();
     // Hide footer completely when modal is open
     if (isMinimized) return null;
 
     return (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
-            {/* Floating Action Button for Create Post - Hide on Home route */}
-            {activeRoute !== 'home' && (
+            {/* Floating Action Button for Create Post - Hide on Home route and if not signed in */}
+            {activeRoute !== 'home' && isSignedIn && (
                 <div className="flex justify-end p-6 pointer-events-auto">
                     <motion.button 
                         whileHover={{ scale: 1.1 }}
