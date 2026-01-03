@@ -4,12 +4,13 @@ import type { GraphicWork, VideoWork, ModalItem } from '../hooks/types';
 import type { Comment as PostComment } from './ExploreFeed';
 import { 
     CloseIcon, PlayIcon, CheckCircleIcon, HeartHoverIcon,
-    ChatBubbleIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon
+    ChatBubbleIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, GlobeAltIcon
 } from './Icons';
 import { siteConfig } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { getDatabase, ref, onValue, push, remove, set, get, update } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { ExternalLink } from 'lucide-react';
 
 interface ModalViewerProps {
   state: { items: ModalItem[]; currentIndex: number };
@@ -29,7 +30,6 @@ const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
     const isAdmin = low === ADMIN_HANDLE;
     if (!isOwner && !isAdmin) return null;
     
-    // Create a deterministic offset based on username to stagger the fold animations
     const delay = (username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
     
     return (
@@ -140,7 +140,6 @@ const CommentItem: React.FC<{
                     </div>
                 </div>
             </div>
-            {/* Replies section */}
             {replies.length > 0 && (
                 <div className="ml-11 space-y-4 pt-2">
                     <button onClick={() => setShowReplies(!showReplies)} className="flex items-center gap-2 text-[8px] font-black text-zinc-600 hover:text-zinc-400 uppercase tracking-widest group">
@@ -243,8 +242,8 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
         setNewComment('');
     };
 
-    // Correctly resolve the display name for the header
     const resolvedUsername = ((currentItem as any).userName || OWNER_HANDLE).toLowerCase();
+    const externalLinks = (currentItem as any).links || [];
 
     return (
         <div className="fixed inset-0 bg-black/95 z-[5000000] flex items-center justify-center p-0 md:p-10 animate-fade-in overflow-hidden">
@@ -271,11 +270,18 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                     <div className="flex-1 relative overflow-y-auto no-scrollbar md:flex md:items-center md:justify-center">
                         <div className="w-full flex flex-col md:items-center md:justify-center" onClick={e => e.stopPropagation()}>
                             <div className="relative w-full max-h-[65vh] md:max-h-[85vh] flex items-center justify-center bg-black/40">
-                                {('imageUrl' in currentItem || ('mediaUrl' in (currentItem as any) && (currentItem as any).mediaType === 'image')) ? (
+                                {('imageUrl' in currentItem || (('mediaUrl' in (currentItem as any)) && (currentItem as any).mediaType === 'image')) ? (
                                     <img src={getImageUrl()} className="max-w-full max-h-[65vh] md:max-h-[85vh] object-contain animate-fade-in" alt="" />
-                                ) : (
+                                ) : (currentItem as any).mediaType === 'video' ? (
                                     <div className="w-full aspect-video bg-black flex items-center justify-center">
                                         <video src={(currentItem as any).url || (currentItem as any).mediaUrl} controls autoPlay className="max-w-full max-h-full object-contain" />
+                                    </div>
+                                ) : (
+                                    <div className="w-full h-[400px] flex flex-col items-center justify-center p-12 text-center">
+                                        <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center mb-6 border border-red-600/20">
+                                            <GlobeAltIcon className="w-12 h-12 text-red-600" />
+                                        </div>
+                                        <p className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.5em]">External Post</p>
                                     </div>
                                 )}
                                 <button onClick={() => onPrev((currentIndex - 1 + items.length) % items.length)} className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white p-2 bg-black/20 rounded-full"><ChevronLeftIcon className="w-6 h-6 md:w-8 md:h-8" /></button>
@@ -304,6 +310,30 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                             <h3 className="text-white font-black textxl lg:text-2xl uppercase tracking-tighter leading-tight">{(currentItem as any).title || 'Masterwork'}</h3>
                             <p className="text-zinc-400 text-sm leading-relaxed font-sans">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
                         </div>
+
+                        {externalLinks.length > 0 && (
+                            <div className="pt-6 space-y-4">
+                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Related Links</h4>
+                                <div className="flex flex-col gap-2">
+                                    {externalLinks.map((link: any, i: number) => (
+                                        <a 
+                                            key={i} 
+                                            href={link.url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-red-600/10 hover:border-red-600/30 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <ExternalLink className="w-4 h-4 text-red-600 flex-shrink-0" />
+                                                <span className="text-white font-bold text-xs truncate group-hover:text-red-500 transition-colors">{link.name}</span>
+                                            </div>
+                                            <ChevronRightIcon className="w-4 h-4 text-zinc-600" />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div ref={commentsSectionRef} className="pt-8 border-t border-white/5 space-y-8">
                             <div className="flex items-center justify-between">
                                 <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Communication</h4>

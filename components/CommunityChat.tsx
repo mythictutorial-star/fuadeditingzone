@@ -6,7 +6,7 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass } from 'lucide-react';
+import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell } from 'lucide-react';
 import { siteConfig } from '../config';
 import { CreatePostModal } from './CreatePostModal';
 
@@ -102,7 +102,14 @@ const getIdentity = (username: string, role?: string, hideRole = false) => {
     );
 };
 
-export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: string) => void; initialTargetUserId?: string | null; onBack?: () => void; onNavigateMarket?: () => void }> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket }) => {
+export const CommunityChat: React.FC<{ 
+  onShowProfile?: (id: string, username?: string) => void; 
+  initialTargetUserId?: string | null; 
+  onBack?: () => void; 
+  onNavigateMarket?: () => void;
+  forceSearchTab?: boolean;
+  onSearchTabConsumed?: () => void;
+}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -117,6 +124,15 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (forceSearchTab) {
+      setSidebarTab('search');
+      setIsMobileChatOpen(false); // Make sure inbox/search is visible
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+      onSearchTabConsumed?.();
+    }
+  }, [forceSearchTab, onSearchTabConsumed]);
 
   useEffect(() => {
     const usersRef = ref(db, 'users');
@@ -240,6 +256,15 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
     setTimeout(() => searchInputRef.current?.focus(), 100);
   };
 
+  const openGlobalNotifications = () => {
+     // This would ideally trigger the same NotificationModal from Sidebar
+     // Since that state is in App/Sidebar, we use a custom event or rely on Sidebar's desktop header.
+     // For now, we'll just log it or expect the user to use the Bell in the header.
+     // However, let's assume the user wants this rail icon to be functional.
+     const btn = document.querySelector('[title="Notifications"]') as HTMLButtonElement;
+     if(btn) btn.click();
+  };
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative bg-black font-sans">
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
@@ -252,9 +277,8 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             <div className="flex flex-col gap-8">
                 <button onClick={() => { setSidebarTab('messages'); setIsGlobal(false); setSelectedUser(null); }} className={`transition-all ${sidebarTab === 'messages' && !isGlobal && !selectedUser ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Messages"><HomeIcon className="w-7 h-7" /></button>
                 <button onClick={() => { setSidebarTab('search'); }} className={`transition-all ${sidebarTab === 'search' ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Search"><SearchIcon className="w-7 h-7" /></button>
-                <button onClick={() => { setIsGlobal(true); setSidebarTab('messages'); setSelectedUser(null); }} className={`transition-all ${isGlobal ? 'text-red-600 scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Global Stream"><GlobeAltIcon className="w-7 h-7" /></button>
                 <button onClick={onNavigateMarket} className="text-white opacity-40 hover:opacity-100 transition-all" title="Marketplace"><MarketIcon className="w-7 h-7" /></button>
-                <button className="text-white hover:opacity-70 transition-all"><Heart className="w-7 h-7" /></button>
+                <button onClick={openGlobalNotifications} className="text-white hover:opacity-70 transition-all" title="Activity"><Bell className="w-7 h-7" /></button>
                 <button onClick={() => setIsCreatePostOpen(true)} className="text-white hover:opacity-70 transition-all"><PlusSquare className="w-7 h-7" /></button>
             </div>
             <div className="mt-auto">
@@ -276,7 +300,12 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             /* Search Tab View */
             <div className="flex flex-col h-full animate-fade-in">
                 <div className="p-8 pb-4">
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight mb-8">Search</h2>
+                    <div className="flex items-center gap-4 mb-8">
+                         <button onClick={() => setSidebarTab('messages')} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white transition-colors">
+                            <ArrowLeft className="w-6 h-6" />
+                         </button>
+                         <h2 className="text-2xl font-black text-white uppercase tracking-tight">Search</h2>
+                    </div>
                     <div className="relative group">
                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 group-focus-within:text-zinc-400 transition-colors" />
                         <input 
@@ -324,8 +353,8 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                             <h2 className="text-xl font-black text-white lowercase tracking-tight">{(clerkUser?.username || OWNER_HANDLE).toLowerCase()}</h2>
                             <i className="fa-solid fa-chevron-down text-[10px] text-zinc-500"></i>
                         </div>
-                        <button onClick={handleStartNewMessage} className="text-white hover:opacity-70 transition-opacity">
-                            <Edit className="w-5 h-5" />
+                        <button onClick={handleStartNewMessage} className="md:hidden text-white hover:opacity-70 transition-opacity">
+                            <SearchIcon className="w-5 h-5" />
                         </button>
                     </div>
                     <div className="lg:hidden"><SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} /></div>
@@ -403,8 +432,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-zinc-400">
-                    <button className="hover:text-white transition-colors"><i className="fa-solid fa-phone text-lg"></i></button>
-                    <button className="hover:text-white transition-colors"><i className="fa-solid fa-video text-lg"></i></button>
                     <button className="hover:text-white transition-colors"><i className="fa-solid fa-circle-info text-xl"></i></button>
                 </div>
               </div>

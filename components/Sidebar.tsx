@@ -10,7 +10,8 @@ import {
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon } from './Icons';
+// Fixed: Added ChevronRightIcon to the imports
+import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon, SearchIcon, ChevronRightIcon } from './Icons';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
 const firebaseConfig = {
@@ -43,6 +44,7 @@ interface NavProps {
   onOpenProfile?: (userId: string) => void;
   activeRoute?: string;
   onOpenPost?: (postId: string, commentId?: string) => void;
+  onOpenMobileSearch?: () => void;
 }
 
 export const SidebarSubNav: React.FC<{ active: 'marketplace' | 'community', onSwitch: (target: 'marketplace' | 'community') => void }> = ({ active, onSwitch }) => {
@@ -254,29 +256,39 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
             </button>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed md:absolute right-4 left-4 md:left-auto md:right-0 top-20 md:top-full w-auto md:w-[320px] bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[999999]">
-                        <div className="p-4 border-b border-white/5 bg-black flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white uppercase tracking-widest">Activity</span>
-                            <button onClick={() => setIsOpen(false)}><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
+                    <motion.div initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 bg-black z-[10000000] flex flex-col overflow-hidden">
+                        <div className="p-6 md:p-10 border-b border-white/5 bg-black flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <i className="fa-solid fa-bell text-2xl text-red-600"></i>
+                                <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
+                            </div>
+                            <button onClick={() => setIsOpen(false)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
                         </div>
-                        <div className="max-h-[360px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-20 max-w-4xl mx-auto w-full space-y-4">
                             {notifications.length === 0 ? (
-                                <p className="text-[9px] uppercase font-black tracking-widest text-zinc-600 text-center py-6">No Activity Yet</p>
+                                <div className="h-full flex flex-col items-center justify-center text-center opacity-20">
+                                     <i className="fa-solid fa-bell-slash text-6xl mb-8"></i>
+                                     <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em] text-zinc-600">No Activity Yet</p>
+                                </div>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 rounded-xl cursor-pointer transition-all border border-transparent hover:bg-white/[0.03] ${!n.read && !n.isGlobal ? 'bg-red-600/5' : 'opacity-60'}`}>
-                                        <div className="flex gap-3 items-center">
+                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-6 rounded-[2rem] cursor-pointer transition-all border group relative ${!n.read && !n.isGlobal ? 'bg-red-600/5 border-red-600/20' : 'bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]'}`}>
+                                        <div className="flex gap-5 items-center">
                                             <div className="relative flex-shrink-0">
-                                                {n.fromAvatar && <img src={n.fromAvatar} className="w-8 h-8 rounded-full object-cover border border-white/10" alt="" />}
-                                                {!n.read && !n.isGlobal && <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-600 rounded-full border border-black"></div>}
+                                                {n.fromAvatar ? (
+                                                  <img src={n.fromAvatar} className="w-14 h-14 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" alt="" />
+                                                ) : (
+                                                  <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center"><i className="fa-solid fa-user text-xl text-zinc-500"></i></div>
+                                                )}
+                                                {!n.read && !n.isGlobal && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border-2 border-black"></div>}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] leading-tight text-gray-200">
+                                                <p className="text-sm md:text-lg leading-snug text-gray-200">
                                                     <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.type === 'post_like' ? 'liked your post.' : n.type === 'post_comment' ? 'commented on your post.' : n.type === 'comment_reply' ? 'replied to your comment.' : n.text}
                                                 </p>
-                                                <p className="text-[7px] text-zinc-600 font-bold uppercase mt-1">Just Now</p>
+                                                <p className="text-[10px] text-zinc-600 font-bold uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleString()}</p>
                                             </div>
-                                            {!n.read && !n.isGlobal && <div className="w-1.5 h-1.5 bg-red-600 rounded-full flex-shrink-0"></div>}
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRightIcon className="w-5 h-5 text-red-600" /></div>
                                         </div>
                                     </div>
                                 ))
@@ -333,7 +345,7 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
   );
 };
 
-export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, onOpenPost }) => {
+export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onOpenChatWithUser, onOpenProfile, onOpenPost, onOpenMobileSearch }) => {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isRequestsOpen, setIsRequestsOpen] = useState(false);
     const logoControls = useAnimation();
@@ -357,6 +369,9 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
                 </div>
             </div>
             <div className="flex items-center gap-3">
+                <button onClick={onOpenMobileSearch} className="p-2 text-white hover:text-red-500 transition-colors">
+                    <SearchIcon className="w-5 h-5" />
+                </button>
                 <SignedIn>
                     <RequestHub isOpen={isRequestsOpen} setIsOpen={(v) => { setIsRequestsOpen(v); setIsNotificationsOpen(false); }} onShowUser={onOpenProfile!} />
                     <NotificationHub isOpen={isNotificationsOpen} setIsOpen={(v) => { setIsNotificationsOpen(v); setIsRequestsOpen(false); }} onShowUser={onOpenProfile!} onGoToInbox={onOpenChatWithUser!} onOpenPost={onOpenPost} />
@@ -368,23 +383,51 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
     );
 };
 
-export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; activeRoute?: string }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, activeRoute }) => (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-black/90 backdrop-blur-2xl rounded-t-[2rem] h-20 flex justify-around items-center shadow-2xl border-t border-white/5 px-6">
-        <button onClick={() => onScrollTo('home')} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'home' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
-            <HomeIcon className="w-5 h-5" />
-            <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
-        </button>
-        <button onClick={onNavigateMarketplace} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'marketplace' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
-            <MarketIcon className="w-5 h-5" />
-            <span className="text-[8px] font-black uppercase tracking-widest">Market</span>
-        </button>
-        <button onClick={onNavigateCommunity} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'community' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
-            <ChatBubbleIcon className="w-5 h-5" />
-            <span className="text-[8px] font-black uppercase tracking-widest">Social</span>
-        </button>
-        <button onClick={() => onScrollTo('contact')} className={`flex flex-col items-center gap-1 transition-all text-zinc-500`}>
-            <ShoppingCartIcon className="w-5 h-5" />
-            <span className="text-[8px] font-black uppercase tracking-widest">Order</span>
-        </button>
-    </nav>
-);
+export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized }) => {
+    // Hide footer completely when modal is open
+    if (isMinimized) return null;
+
+    return (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
+            {/* Floating Action Button for Create Post - Hide on Home route */}
+            {activeRoute !== 'home' && (
+                <div className="flex justify-end p-6 pointer-events-auto">
+                    <motion.button 
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onCreatePost}
+                        className="w-14 h-14 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-2xl border border-white/20 active:bg-red-700 transition-colors"
+                    >
+                        <span className="text-3xl font-light">+</span>
+                    </motion.button>
+                </div>
+            )}
+
+            <motion.nav 
+                initial={false}
+                animate={{ 
+                    y: 0,
+                    opacity: 0.9 
+                }}
+                className="pointer-events-auto bg-black backdrop-blur-2xl rounded-t-[2rem] h-20 flex justify-around items-center shadow-2xl border-t border-white/5 px-6 z-[100]"
+            >
+                <button onClick={() => onScrollTo('home')} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'home' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
+                    <HomeIcon className="w-5 h-5" />
+                    <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
+                </button>
+                <button onClick={onNavigateMarketplace} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'marketplace' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
+                    <MarketIcon className="w-5 h-5" />
+                    <span className="text-[8px] font-black uppercase tracking-widest">Market</span>
+                </button>
+                <button onClick={onNavigateCommunity} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'community' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
+                    <ChatBubbleIcon className="w-5 h-5" />
+                    <span className="text-[8px] font-black uppercase tracking-widest">Social</span>
+                </button>
+                <button onClick={() => onScrollTo('contact')} className={`flex flex-col items-center gap-1 transition-all text-zinc-500`}>
+                    <ShoppingCartIcon className="w-5 h-5" />
+                    <span className="text-[8px] font-black uppercase tracking-widest">Order</span>
+                </button>
+            </motion.nav>
+        </div>
+    );
+};

@@ -25,6 +25,7 @@ import { YouTubeRedirectPopup } from './components/YouTubeRedirectPopup';
 import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { ProfileModal } from './components/ProfileModal';
 import { ExploreFeed } from './components/ExploreFeed';
+import { CreatePostModal } from './components/CreatePostModal';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -64,6 +65,9 @@ export default function App() {
   const [playingVfxVideo, setPlayingVfxVideo] = useState<VideoWork | null>(null);
   const [pipVideo, setPipVideo] = useState<VideoWork | null>(null);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
 
   // Auto-sync Clerk user to Firebase
   useEffect(() => {
@@ -266,13 +270,18 @@ export default function App() {
     });
   }, [modalState]);
 
+  const handleOpenMobileSearch = () => {
+    navigateTo('community');
+    setMobileSearchTriggered(true);
+  };
+
   return (
     <ParallaxProvider>
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
           <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} onOpenPost={handleOpenPost} />
-            <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} onOpenPost={handleOpenPost} />
+            <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} onOpenPost={handleOpenPost} onOpenMobileSearch={handleOpenMobileSearch} />
           </div>
           
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
@@ -291,7 +300,14 @@ export default function App() {
             )}
             {route === 'community' && (
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0">
-                <CommunityChat onShowProfile={handleOpenProfile} initialTargetUserId={targetUserId} onBack={() => navigateTo('home')} onNavigateMarket={() => navigateTo('marketplace')} />
+                <CommunityChat 
+                  onShowProfile={handleOpenProfile} 
+                  initialTargetUserId={targetUserId} 
+                  onBack={() => navigateTo('home')} 
+                  onNavigateMarket={() => navigateTo('marketplace')} 
+                  forceSearchTab={mobileSearchTriggered} 
+                  onSearchTabConsumed={() => setMobileSearchTriggered(false)}
+                />
               </div>
             )}
           </main>
@@ -317,7 +333,15 @@ export default function App() {
           {isYouTubeRedirectOpen && <YouTubeRedirectPopup onClose={() => setIsYouTubeRedirectOpen(false)} onConfirm={() => { setIsYouTubeRedirectOpen(false); handleScrollTo('portfolio'); }} />}
           {pipVideo && <VideoPipPlayer video={pipVideo} onClose={() => setPipVideo(null)} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />}
           <PwaInstallPrompt />
-          <MobileFooterNav onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} activeRoute={route} />
+          <MobileFooterNav 
+            onScrollTo={handleScrollTo} 
+            onNavigateMarketplace={() => navigateTo('marketplace')} 
+            onNavigateCommunity={() => navigateTo('community')} 
+            onCreatePost={() => setIsCreatePostOpen(true)}
+            activeRoute={route} 
+            isMinimized={isCreatePostOpen}
+          />
+          <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
       </div>
     </ParallaxProvider>
   );

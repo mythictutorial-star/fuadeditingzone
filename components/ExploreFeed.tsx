@@ -5,8 +5,8 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, query, limitToLast, set, update, get, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, TwoDotsIcon } from './Icons';
-import { ArrowLeft } from 'lucide-react';
+import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, TwoDotsIcon, GlobeAltIcon } from './Icons';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { CreatePostModal } from './CreatePostModal';
 
 const firebaseConfig = {
@@ -47,6 +47,7 @@ export interface Post {
     title?: string;
     caption: string;
     tags?: string[];
+    links?: { name: string; url: string }[];
     timestamp: number;
     lastEdited?: number;
     targetSection?: string;
@@ -88,6 +89,8 @@ const PostItem: React.FC<{
         return () => window.removeEventListener('resize', checkLines);
     }, [post.caption]);
 
+    const hasMedia = post.mediaUrl && (post.mediaType === 'image' || post.mediaType === 'video');
+
     return (
         <motion.article 
             initial={{ scale: 0.96, opacity: 0, y: 15 }} 
@@ -96,57 +99,40 @@ const PostItem: React.FC<{
             className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
             <div className="relative overflow-hidden bg-transparent cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
-                <div className="hidden pointer-events-none opacity-0">
-                    {post.mediaType === 'video' ? (
-                        <video 
-                            src={post.mediaUrl} 
-                            onLoadedData={() => setTimeout(() => setIsMediaLoaded(true), 50)} 
-                            muted 
-                            playsInline 
-                            preload="auto"
-                        />
-                    ) : (
-                        <img 
-                            src={post.mediaUrl} 
-                            onLoad={() => setTimeout(() => setIsMediaLoaded(true), 50)} 
-                            alt="" 
-                            loading="eager"
-                        />
-                    )}
-                </div>
-
-                <AnimatePresence>
-                    {isMediaLoaded && (
-                        <motion.div
-                            initial={{ y: 60, opacity: 0, scale: 0.98 }}
-                            animate={{ y: 0, opacity: 1, scale: 1 }}
-                            transition={{ 
-                                type: "spring",
-                                damping: 24,
-                                stiffness: 110,
-                                delay: (idx % 4) * 0.08 
-                            }}
-                            className="w-full relative"
-                        >
+                {hasMedia ? (
+                    <>
+                        <div className="hidden pointer-events-none opacity-0">
                             {post.mediaType === 'video' ? (
-                                <video 
-                                    src={post.mediaUrl} 
-                                    className="w-full h-auto max-h-[500px] object-cover" 
-                                    muted loop autoPlay playsInline 
-                                />
+                                <video src={post.mediaUrl} onLoadedData={() => setTimeout(() => setIsMediaLoaded(true), 50)} muted playsInline preload="auto" />
                             ) : (
-                                <img 
-                                    src={post.mediaUrl} 
-                                    className="w-full h-auto max-h-[600px] object-cover" 
-                                    alt="" 
-                                />
+                                <img src={post.mediaUrl} onLoad={() => setTimeout(() => setIsMediaLoaded(true), 50)} alt="" loading="eager" />
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/20 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
-                                <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                        </div>
+                        <AnimatePresence>
+                            {isMediaLoaded && (
+                                <motion.div initial={{ y: 60, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ type: "spring", damping: 24, stiffness: 110, delay: (idx % 4) * 0.08 }} className="w-full relative">
+                                    {post.mediaType === 'video' ? (
+                                        <video src={post.mediaUrl} className="w-full h-auto max-h-[500px] object-cover" muted loop autoPlay playsInline />
+                                    ) : (
+                                        <img src={post.mediaUrl} className="w-full h-auto max-h-[600px] object-cover" alt="" />
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/20 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
+                                        <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </>
+                ) : (
+                    <div className="w-full aspect-square bg-[#111] flex flex-col items-center justify-center p-6 border-b border-white/5 relative">
+                         <div className="absolute top-4 right-4 bg-white/5 p-1.5 rounded-full"><ExternalLink className="w-3 h-3 text-red-600" /></div>
+                         <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center mb-4 border border-red-600/20">
+                            <GlobeAltIcon className="w-6 h-6 text-red-600" />
+                         </div>
+                         <h2 className="text-xs md:text-sm font-black text-white uppercase tracking-tight leading-tight text-center line-clamp-3">{post.title || 'Inquiry Post'}</h2>
+                         <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.3em] mt-3">Links Attached</p>
+                    </div>
+                )}
 
                 {post.budget && (
                     <div className="absolute top-2 left-2 bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md z-10">${post.budget}</div>
