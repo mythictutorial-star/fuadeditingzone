@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, push, onChildAdded, onValue, set, update, get, remove, query, limitToLast, orderByChild, equalTo } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
 import { ArrowLeft } from 'lucide-react';
@@ -113,6 +113,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const [friendsList, setFriendsList] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasResolvedInitial = useRef(false);
 
   const activeCount = useMemo(() => Math.floor(Math.random() * 20) + 142, []);
 
@@ -124,12 +125,15 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
       if (data) {
           const list = Object.values(data) as ChatUser[];
           setUsers(list);
-          if(initialTargetUserId) {
+          
+          // Resolve initial target only once to prevent resets
+          if(initialTargetUserId && !hasResolvedInitial.current) {
               const target = list.find(u => u.id === initialTargetUserId || u.username?.toLowerCase() === initialTargetUserId?.toLowerCase());
               if(target) {
                   setIsGlobal(false);
                   setSelectedUser(target);
                   setIsMobileChatOpen(true);
+                  hasResolvedInitial.current = true;
               }
           }
       }
@@ -150,27 +154,34 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const chatPath = useMemo(() => {
     if (isGlobal) return 'community/global';
     if (!clerkUser?.id || !selectedUser?.id) return null;
-    // Private paths are unique and secure per user pair
     return `messages/${[clerkUser.id, selectedUser.id].sort().join('_')}`;
   }, [isGlobal, clerkUser?.id, selectedUser?.id]);
 
   useEffect(() => {
-    if (!chatPath) return;
-    setMessages([]);
+    if (!chatPath) {
+        setMessages([]);
+        return;
+    }
+    
+    // Switch to onValue for strict isolation of message lists per path
     const chatQuery = query(ref(db, chatPath), limitToLast(100));
-    const unsub = onChildAdded(chatQuery, (snap) => {
-      setMessages(prev => {
-          if (prev.find(m => m.id === snap.key)) return prev;
-          return [...prev, { ...snap.val() as Message, id: snap.key }];
-      });
+    const unsub = onValue(chatQuery, (snap) => {
+        const data = snap.val();
+        if (data) {
+            const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
+                .sort((a, b) => a.timestamp - b.timestamp);
+            setMessages(list);
+        } else {
+            setMessages([]);
+        }
     });
     
     // Mark as read when opening private chat
     if (!isGlobal && selectedUser && clerkUser) {
-        set(ref(db, `users/${clerkUser.id}/unread/${selectedUser.id}`), 0);
+        update(ref(db, `users/${clerkUser.id}/unread`), { [selectedUser.id]: 0 });
     }
     return () => unsub();
-  }, [chatPath, isGlobal, selectedUser, clerkUser]);
+  }, [chatPath, isGlobal, selectedUser?.id, clerkUser?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -179,6 +190,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSignedIn || !inputValue.trim() || !chatPath || !clerkUser) return;
+    
     const myProfile = users.find(u => u.id === clerkUser.id);
     const newMessage = { 
       senderId: clerkUser.id, 
@@ -189,6 +201,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
       text: inputValue.trim(), 
       timestamp: Date.now() 
     };
+    
     setInputValue('');
     await push(ref(db, chatPath), newMessage);
     
@@ -200,10 +213,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   };
 
   const filteredUsers = useMemo(() => {
-    // Show all users who have been sync'd to Firebase users node
     let list = users;
-    
-    // Prioritize showing people you've actually messaged or are friends with if not searching
     if (!sidebarSearchQuery) {
         if (showFriendsOnly) {
             list = list.filter(u => friendsList.includes(u.id));
@@ -213,23 +223,26 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
         } else {
             list = list.filter(u => u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE);
         }
-    }
-
-    if (sidebarSearchQuery) {
+    } else {
         const q = sidebarSearchQuery.toLowerCase();
         list = users.filter(u => 
             u.name?.toLowerCase().includes(q) || 
             u.username?.toLowerCase().includes(q)
         );
     }
-
-    // Always ensure current user isn't in their own list
     return list.filter(u => u.id !== clerkUser?.id).slice(0, 100);
-  }, [users, sidebarSearchQuery, clerkUser, showFriendsOnly, friendsList, isSignedIn, unreadCounts]);
+  }, [users, sidebarSearchQuery, clerkUser?.id, showFriendsOnly, friendsList, isSignedIn, unreadCounts]);
 
   const openChat = (user: ChatUser | null) => {
-      if (user === null) { setIsGlobal(true); setSelectedUser(null); }
-      else { setIsGlobal(false); setSelectedUser(user); }
+      // Clear messages immediately for visual feedback
+      setMessages([]);
+      if (user === null) { 
+          setIsGlobal(true); 
+          setSelectedUser(null); 
+      } else { 
+          setIsGlobal(false); 
+          setSelectedUser(user); 
+      }
       setIsMobileChatOpen(true);
   };
 
@@ -267,7 +280,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex items-center justify-between px-5 mb-4">
                 <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">
-                    {sidebarSearchQuery ? 'Search Results' : (showFriendsOnly ? 'Friends' : 'Private Messages')}
+                    {sidebarSearchQuery ? 'Search Results' : (showFriendsOnly ? 'Friends' : 'Inbox')}
                 </h4>
                 <div className="flex items-center gap-1.5 opacity-60"><div className="w-1 h-1 rounded-full bg-green-500"></div><span className="text-[7px] font-black text-zinc-500 uppercase">{activeCount} online</span></div>
             </div>
@@ -277,7 +290,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                   <div className="py-20 text-center opacity-30 flex flex-col items-center">
                     <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-5"><SearchIcon className="w-8 h-8" /></div>
                     <p className="text-[10px] font-black uppercase tracking-[0.3em]">{sidebarSearchQuery ? 'No users found' : 'Inbox is empty'}</p>
-                    <p className="text-[8px] text-zinc-600 uppercase mt-2 px-6">Try searching for usernames or names</p>
                   </div>
               ) : (
                 filteredUsers.map(u => (
@@ -291,7 +303,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                       <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
                         <span className={`text-[11px] font-black uppercase truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-400 group-hover:text-white'}`}>{u.name}</span>
                         {(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && (
-                          <i style={{ animationDelay: `-${(u.username?.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 60)}s` }} className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] drop-shadow-[0_0_5px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
+                          <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] fez-verified-badge`}></i>
                         )}
                       </div>
                       <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">@{ (u.username || '').toLowerCase() }</span>
@@ -321,7 +333,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
 
               <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())}>
                 <h3 className="text-base md:text-2xl font-black text-white uppercase tracking-tighter flex items-center leading-none">{isGlobal ? 'Public Global Chat' : selectedUser?.name}{!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}</h3>
-                <p className="text-[9px] md:text-[11px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1.5 leading-none">{isGlobal ? 'Encrypted Connection' : `@${(selectedUser?.username || '').toLowerCase()}`}</p>
+                <p className="text-[9px] md:text-[11px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1.5 leading-none">{isGlobal ? 'Global Broadcast' : `@${(selectedUser?.username || '').toLowerCase()}`}</p>
               </div>
             </div>
           </div>
@@ -330,7 +342,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             {messages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse">
                     <i className="fa-solid fa-shield-halved text-5xl mb-6"></i>
-                    <p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting to Global Feed...' : 'Securing Chat Session...'}</p>
+                    <p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Syncing Global Stream...' : 'Private Connection Established'}</p>
                 </div>
             ) : (
               messages.map((msg, i) => {
@@ -338,7 +350,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 const low = msg.senderUsername?.toLowerCase();
                 const isOwner = low === OWNER_HANDLE;
                 return (
-                  <div key={msg.id || i} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group`}>
+                  <div key={msg.id || i} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group animate-fade-in`}>
                     <UserAvatar 
                         user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} 
                         className={`w-8 h-8 md:w-12 md:h-12 border shadow-lg group-hover:scale-105 transition-transform ${isOwner ? 'border-red-600' : 'border-white/10'}`}
@@ -362,7 +374,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
           <div className="p-5 md:p-10 bg-black/60 border-t border-white/5 flex-shrink-0 backdrop-blur-3xl">
             {isSignedIn ? (
               <form onSubmit={handleSendMessage} className="max-w-5xl mx-auto flex gap-4 md:gap-6 p-2 bg-[#050505] border border-white/10 rounded-2xl md:rounded-[3rem] shadow-2xl focus-within:border-red-600/50 transition-all">
-                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder={isGlobal ? "Post a public message..." : "Send a private message..."} className="flex-1 bg-transparent px-6 md:px-10 py-3 md:py-5 text-sm md:text-base font-medium text-white outline-none min-w-0 placeholder-zinc-800" />
+                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder={isGlobal ? "Post to global stream..." : "Send private message..."} className="flex-1 bg-transparent px-6 md:px-10 py-3 md:py-5 text-sm md:text-base font-medium text-white outline-none min-w-0 placeholder-zinc-800" />
                 <button type="submit" disabled={!inputValue.trim()} className="bg-red-600 hover:bg-red-700 text-white w-12 h-12 md:w-16 md:h-16 flex items-center justify-center rounded-xl md:rounded-[2.5rem] transition-all shadow-xl disabled:opacity-20 flex-shrink-0 active:scale-90"><SendIcon className="w-6 h-6 md:w-7 md:h-7" /></button>
               </form>
             ) : (
@@ -373,7 +385,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             )}
             {!isGlobal && isSignedIn && (
                 <p className="text-center text-[8px] text-zinc-700 font-black uppercase tracking-[0.4em] mt-5 flex items-center justify-center gap-2">
-                    <i className="fa-solid fa-lock text-[10px] text-zinc-800"></i> Secure End-to-End Environment
+                    <i className="fa-solid fa-lock text-[10px] text-zinc-800"></i> Encrypted Direct Messaging
                 </p>
             )}
           </div>
