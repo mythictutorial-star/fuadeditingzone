@@ -254,6 +254,8 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         
         if (n.type === 'post_like' || n.type === 'post_comment' || n.type === 'comment_reply') {
             onOpenPost?.(n.postId, n.commentId);
+        } else if (n.type === 'user_report' && n.targetId) {
+            onShowUser(n.targetId);
         } else if (n.fromId && n.fromId !== 'system') {
             onShowUser(n.fromId);
         }

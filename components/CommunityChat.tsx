@@ -298,6 +298,7 @@ export const CommunityChat: React.FC<{
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
@@ -356,7 +357,7 @@ export const CommunityChat: React.FC<{
         });
         onValue(ref(db, `notifications/${clerkUser.id}`), (snap) => {
             const data = snap.val() || {};
-            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => a.timestamp - b.timestamp));
+            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => b.timestamp - a.timestamp));
         });
     }
 
@@ -393,8 +394,16 @@ export const CommunityChat: React.FC<{
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMobileChatOpen]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [inputValue]);
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser) return;
     if (!inputValue.trim() && !pendingMedia) return;
     
@@ -636,7 +645,6 @@ export const CommunityChat: React.FC<{
     });
 
     const admins = users.filter(u => u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE);
-    // Fix: Corrected the loop syntax from 'for (const admin of admin of admins)' to 'for (const admin of admins)'
     for (const admin of admins) {
         await push(ref(db, `notifications/${admin.id}`), {
             type: 'user_report',
@@ -644,7 +652,9 @@ export const CommunityChat: React.FC<{
             timestamp: Date.now(),
             read: false,
             fromId: clerkUser.id,
-            fromName: 'System Report'
+            fromName: 'System Report',
+            targetId: selectedUser.id,
+            targetUsername: selectedUser.username
         });
     }
     setReportMode(false);
@@ -884,7 +894,13 @@ export const CommunityChat: React.FC<{
                                 </div>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => { if(n.fromId) onShowProfile?.(n.fromId, n.fromName); }} className={`p-8 rounded-[2rem] cursor-pointer transition-all border group relative bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]`}>
+                                    <div key={n.id} onClick={() => { 
+                                        if (n.type === 'user_report' && n.targetId) {
+                                            onShowProfile?.(n.targetId, n.targetUsername);
+                                        } else if (n.fromId) {
+                                            onShowProfile?.(n.fromId, n.fromName);
+                                        }
+                                    }} className={`p-8 rounded-[2rem] cursor-pointer transition-all border group relative bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]`}>
                                         <div className="flex gap-4 items-center">
                                             <div className="relative flex-shrink-0">
                                                 {n.fromAvatar ? (
@@ -955,7 +971,7 @@ export const CommunityChat: React.FC<{
                         </div>
                       )}
 
-                      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 md:px-12 md:py-10 flex flex-col gap-4 md:gap-6 no-scrollbar pb-24 md:pb-10">
+                      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 md:px-12 md:py-10 flex flex-col gap-4 md:gap-6 no-scrollbar pb-32 md:pb-10">
                         {messages.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse"><i className="fa-solid fa-shield-halved text-5xl mb-6"></i><p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting...' : 'Secure Connection'}</p></div>
                         ) : (
@@ -1012,7 +1028,7 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      <div className="px-6 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-50">
+                      <div className="px-2 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
                             {isInputLocked ? (
@@ -1021,10 +1037,10 @@ export const CommunityChat: React.FC<{
                                 <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
                               </div>
                             ) : (
-                              <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] mx-2">
-                                <div className="flex items-center gap-1 pl-2">
+                              <div className="flex items-end gap-2 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02]">
+                                <div className="flex-shrink-0 flex items-center pl-1 self-center">
                                     {isMediaUploading ? (
-                                        <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin ml-2"></div>
                                     ) : (
                                         <button 
                                             type="button" 
@@ -1036,20 +1052,32 @@ export const CommunityChat: React.FC<{
                                         </button>
                                     )}
                                 </div>
-                                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-1 py-1.5 text-sm text-white outline-none min-w-0 placeholder-zinc-700" />
-                                <div className="flex items-center gap-2 pr-4">
+                                <textarea 
+                                    ref={textareaRef}
+                                    value={inputValue} 
+                                    onChange={e => setInputValue(e.target.value)} 
+                                    onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                                    placeholder="Message..." 
+                                    rows={1}
+                                    className="flex-1 bg-transparent px-1 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-700 resize-none max-h-[120px] custom-scrollbar overflow-y-auto" 
+                                />
+                                <div className="flex-shrink-0 flex items-center pr-2 self-center">
                                     {(inputValue.trim() || pendingMedia) && (
-                                        <button type="submit" disabled={isMediaUploading} className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50">
+                                        <button 
+                                            onClick={() => handleSendMessage()} 
+                                            disabled={isMediaUploading} 
+                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-2 h-full flex items-center"
+                                        >
                                             {isMediaUploading ? '...' : 'Send'}
                                         </button>
                                     )}
                                 </div>
                                 <input type="file" ref={mediaInputRef} onChange={handleMediaSelect} accept="image/*,video/*" hidden />
-                              </form>
+                              </div>
                             )}
                             
                             {!isGlobal && !isCurrentChatAFriend && !isInputLocked && (
-                              <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center">
+                              <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center mb-1">
                                 {3 - mySentMessagesCount} messages left until acceptance required
                               </p>
                             )}
