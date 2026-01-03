@@ -10,7 +10,7 @@ import {
   ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon, LockIcon
 } from './Icons';
 import { siteConfig } from '../config';
-import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -54,6 +54,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const [resolvedUserList, setResolvedUserList] = useState<any[]>([]);
     const [showCopyToast, setShowCopyToast] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
+    const [lockCountdown, setLockCountdown] = useState<string | null>(null);
     
     const [socialState, setSocialState] = useState({ 
       isFollowing: false, 
@@ -120,6 +121,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             return () => { unsubUser(); };
         }
     }, [isOpen, currentProfileId, isEditing, isJiya, hasAccessToJiya]);
+
+    useEffect(() => {
+        if (!targetUser?.lockedUntil) {
+            setLockCountdown(null);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const diff = targetUser.lockedUntil - now;
+            if (diff <= 0) {
+                setLockCountdown(null);
+                clearInterval(interval);
+                return;
+            }
+
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            setLockCountdown(`${h}h ${m}m ${s}s`);
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [targetUser?.lockedUntil]);
 
     useEffect(() => {
         if (userListMode && isOpen) {
@@ -344,9 +369,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     <div className="flex-1 overflow-y-auto custom-scrollbar relative no-scrollbar">
                         {/* Global Status Banner */}
                         {isLocked && (
-                            <div className="bg-red-600 text-white p-3 text-center flex items-center justify-center gap-3 shadow-lg sticky top-0 z-50">
-                                <Lock size={16} className="animate-pulse" />
-                                <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">This account is temporarily locked for policy violations.</span>
+                            <div className="bg-red-600 text-white p-3 text-center flex items-center justify-center gap-6 shadow-lg sticky top-0 z-50">
+                                <div className="flex items-center gap-2">
+                                    <Lock size={16} className="animate-pulse" />
+                                    <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">Account Locked</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-black/20 px-3 py-1 rounded-lg">
+                                    <Clock size={12} />
+                                    <span className="text-[10px] md:text-xs font-black tabular-nums">{lockCountdown || 'EXPIRED'}</span>
+                                </div>
                             </div>
                         )}
 

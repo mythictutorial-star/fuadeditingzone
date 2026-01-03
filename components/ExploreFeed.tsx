@@ -5,8 +5,8 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, query, limitToLast, set, update, get, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, TwoDotsIcon, GlobeAltIcon } from './Icons';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { PhotoManipulationIcon, SendIcon, CopyIcon, PlayIcon, SparklesIcon, CloseIcon, CheckCircleIcon, ChatBubbleIcon, EyeIcon, SearchIcon, ChevronLeftIcon, ChevronRightIcon, TwoDotsIcon, GlobeAltIcon, HomeIcon, MarketIcon } from './Icons';
+import { ArrowLeft, ExternalLink, PlusSquare, Bell } from 'lucide-react';
 import { CreatePostModal } from './CreatePostModal';
 
 const firebaseConfig = {
@@ -141,7 +141,7 @@ const PostItem: React.FC<{
             </div>
             <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 md:gap-2.5 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
+                    <div className="flex items-center gap-1.5 md:gap-3 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
                         <div className="relative">
                             <img src={post.userAvatar} className="w-6 h-6 md:w-9 md:h-9 rounded-md md:rounded-lg object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
                             <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 md:w-2.5 md:h-2.5 bg-green-500 border border-black rounded-full"></div>
@@ -186,9 +186,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             if (data) {
                 let list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
                     .sort((a: any, b: any) => b.timestamp - a.timestamp)
-                    .filter((p: any) => p.privacy === 'public' || !p.privacy); // Default to public if not set
+                    .filter((p: any) => p.privacy === 'public' || !p.privacy); 
                 
-                // Restriction: Only OWNER can see RESTRICTED posts
                 if (user?.username?.toLowerCase() !== OWNER_HANDLE) {
                    list = list.filter(p => (p.userName || '').toLowerCase() !== RESTRICTED_HANDLE);
                 }
@@ -214,23 +213,56 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     }, [posts, searchQuery]);
 
     return (
-        <div className="w-full max-w-full mx-auto px-5 md:px-8 pb-48 relative bg-black min-h-screen no-scrollbar">
-            <div className="sticky top-0 z-[200] py-4 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-4 border-b border-white/10 mb-8 -mx-5 md:-mx-8 px-5 md:px-10">
-                <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
-                    <h1 className="text-sm md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90">Marketplace</h1>
+        <div className="flex h-screen w-full bg-black overflow-hidden relative font-sans">
+            
+            {/* Standard Desktop Sidebar Fixed at w-20 */}
+            <nav className="hidden lg:flex flex-col items-center py-10 gap-12 w-20 flex-shrink-0 border-r border-white/10 bg-black z-[100] fixed left-0 top-0 bottom-0">
+                <button onClick={onBack} className="text-white hover:scale-110 transition-transform mb-4">
+                    <img src={siteConfig.branding.logoUrl} className="w-9 h-9" alt="" />
+                </button>
+                <div className="flex flex-col gap-6">
+                    <button onClick={onBack} className="p-3.5 rounded-2xl text-white opacity-40 hover:opacity-100 hover:bg-white/5 transition-all" title="Home">
+                        <HomeIcon className="w-6 h-6" />
+                    </button>
+                    <button className="p-3.5 rounded-2xl bg-white text-black scale-110 shadow-lg" title="Marketplace">
+                        <MarketIcon className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => { const btn = document.querySelector('[title="Activity"]') as HTMLButtonElement; if(btn) btn.click(); }} className="p-3.5 rounded-2xl text-white opacity-40 hover:opacity-100 hover:bg-white/5 transition-all" title="Activity">
+                        <Bell className="w-6 h-6" />
+                    </button>
+                    <button onClick={() => setIsPostModalOpen(true)} className="p-3.5 rounded-2xl text-white opacity-40 hover:opacity-100 hover:bg-white/5 transition-all" title="Create">
+                        <PlusSquare className="w-6 h-6" />
+                    </button>
                 </div>
-                <div className="relative w-40 md:w-80"><SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4" /><input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search assets..." className="w-full bg-white/5 border border-white/10 rounded-full py-2 md:py-2.5 pl-11 md:pl-12 pr-5 text-[9px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" /></div>
-            </div>
-            <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-6 gap-5 md:gap-6 no-scrollbar">
-                {filteredPosts.map((post, idx) => (
-                    <PostItem key={post.id} post={post} idx={idx} user={user} onOpenProfile={(id) => onOpenProfile?.(id)} onOpenModal={onOpenModal} onShare={() => {}} onLike={() => {}} onEdit={() => {}} onDelete={() => {}} posts={posts} />
-                ))}
+            </nav>
+
+            {/* Main Centered Marketplace Flow */}
+            <div className="flex-1 flex flex-col items-center lg:ml-20 overflow-y-auto custom-scrollbar no-scrollbar w-full relative px-4 md:px-0">
+                <div className="w-full max-w-5xl flex flex-col pb-48">
+                    
+                    {/* Aligned Header Block with gap-3 */}
+                    <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8 px-4 md:px-0">
+                        <div className="flex items-center gap-3">
+                            <button onClick={onBack} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
+                            <h1 className="text-sm md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90">Marketplace</h1>
+                        </div>
+                        <div className="relative w-40 md:w-80">
+                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4" />
+                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-11 pr-5 text-[10px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
+                        </div>
+                    </div>
+                    
+                    <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 md:gap-6 px-4 md:px-0">
+                        {filteredPosts.map((post, idx) => (
+                            <PostItem key={post.id} post={post} idx={idx} user={user} onOpenProfile={(id) => onOpenProfile?.(id)} onOpenModal={onOpenModal} onShare={() => {}} onLike={() => {}} onEdit={() => {}} onDelete={() => {}} posts={posts} />
+                        ))}
+                    </div>
+                </div>
             </div>
             
             <CreatePostModal isOpen={isPostModalOpen} onClose={() => setIsPostModalOpen(false)} isMarketplaceContext={true} />
 
-            {/* Restricted FAB to only desktop to satisfy requirement of single FAB in footer for mobile */}
+            {/* Restricted FAB */}
             {isSignedIn && (<motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPostModalOpen(true)} className="hidden md:flex fixed bottom-12 right-12 z-[110] w-16 h-16 bg-red-600 text-white rounded-2xl items-center justify-center shadow-lg border-2 border-white/20 group"><span className="text-4xl font-light transition-transform">+</span></motion.button>)}
         </div>
     );
