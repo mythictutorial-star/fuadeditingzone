@@ -262,11 +262,11 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     
                     {/* Aligned Header Block centered with the content */}
                     <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8 px-2 md:px-0">
-                        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-shrink-0">
+                        <div className="flex items-center gap-2 md:gap-3 min-w-0">
                             <button onClick={onBack} className="p-2 md:p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group flex-shrink-0"><ArrowLeft className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" /></button>
                             <h1 className="text-[10px] md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90 truncate">Marketplace</h1>
                         </div>
-                        <div className="relative w-full max-w-[150px] md:max-w-[450px] lg:max-w-[550px] flex-1">
+                        <div className="relative w-32 md:w-80 lg:w-[450px]">
                             <SearchIcon className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-3 h-3 md:w-4 md:h-4" />
                             <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/5 border border-white/10 rounded-full py-2 md:py-2.5 pl-9 md:pl-11 pr-3 md:pr-5 text-[9px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
                         </div>
@@ -295,13 +295,13 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             
             <CreatePostModal isOpen={isPostModalOpen} onClose={() => setIsPostModalOpen(false)} isMarketplaceContext={true} />
 
-            {/* Consistently Placed FAB - Bottom Right */}
+            {/* Restricted FAB - Bottom Right for Marketplace */}
             {isSignedIn && (
                 <motion.button 
                     whileHover={{ scale: 1.1 }} 
                     whileTap={{ scale: 0.9 }} 
                     onClick={() => setIsPostModalOpen(true)} 
-                    className="fixed bottom-28 md:bottom-12 right-6 md:right-12 z-[250] w-14 h-14 md:w-16 md:h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-[0_15px_40px_rgba(220,38,38,0.4)] border-2 border-white/20 active:bg-red-700 transition-colors"
+                    className="fixed bottom-24 md:bottom-12 right-6 md:right-12 z-[250] w-14 h-14 md:w-16 md:h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-[0_15px_40px_rgba(220,38,38,0.4)] border-2 border-white/20 active:bg-red-700 transition-colors"
                 >
                     <span className="text-3xl md:text-4xl font-light">+</span>
                 </motion.button>
