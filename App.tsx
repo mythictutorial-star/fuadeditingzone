@@ -45,7 +45,7 @@ const updateSEO = (title: string, desc: string, image?: string) => {
 };
 
 export default function App() {
-  const { isSignedIn, user } = useUser();
+  const { isSignedIn, user, isLoaded } = useUser();
   const [route, setRoute] = useState<'home' | 'marketplace' | 'community'>(
     window.location.pathname === '/marketplace' ? 'marketplace' : 
     window.location.pathname === '/community' ? 'community' : 'home'
@@ -64,6 +64,28 @@ export default function App() {
   const [playingVfxVideo, setPlayingVfxVideo] = useState<VideoWork | null>(null);
   const [pipVideo, setPipVideo] = useState<VideoWork | null>(null);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+
+  // Sync user to Firebase
+  useEffect(() => {
+    if (isLoaded && isSignedIn && user) {
+      const userRef = ref(db, `users/${user.id}`);
+      const userData = {
+        id: user.id,
+        name: user.fullName || user.username || 'Anonymous User',
+        username: (user.username || user.firstName || 'user').toLowerCase(),
+        avatar: user.imageUrl,
+        lastActive: Date.now()
+      };
+      
+      // Update data only if it changed or doesn't exist
+      get(userRef).then((snapshot) => {
+        const currentData = snapshot.val();
+        if (!currentData || currentData.name !== userData.name || currentData.avatar !== userData.avatar) {
+          update(userRef, userData);
+        }
+      });
+    }
+  }, [isLoaded, isSignedIn, user]);
 
   const resolveProfileFromUrl = async (path: string) => {
     if (path.startsWith('/@')) {

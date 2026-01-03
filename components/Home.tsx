@@ -85,8 +85,8 @@ export const Home: React.FC<HomeProps> = ({
 
     const headlineStyle = {
         transform: parallaxEnabled 
-            ? `perspective(1200px) rotateX(${y * -0.6}deg) rotateY(${x * 0.6}deg)` 
-            : 'perspective(1200px) rotateX(0deg) rotateY(0deg)',
+            ? `perspective(1200px) rotateX(${y * -0.6}deg) rotateY(${x * 0.6}deg) scale(1.08)` 
+            : 'perspective(1200px) rotateX(0deg) rotateY(0deg) scale(1.08)',
         transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         willChange: 'transform',
         backfaceVisibility: 'hidden' as const
@@ -100,21 +100,21 @@ export const Home: React.FC<HomeProps> = ({
             <div className="absolute inset-0 z-0 bg-black"></div>
 
             <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={isImageLoaded ? { opacity: 1, y: 0 } : { opacity: 0 }}
+                initial={{ opacity: 0, y: 10, scale: 1 }}
+                animate={isImageLoaded ? { opacity: 1, y: 0, scale: 1.08 } : { opacity: 0, scale: 1 }}
                 transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-30 w-full text-center flex flex-col items-center max-w-3xl" 
+                className="relative z-30 w-full text-center flex flex-col items-center max-w-4xl" 
                 style={headlineStyle}
             >
-                <div className="relative flex flex-col md:flex-row items-center justify-center mb-4 md:mb-5 gap-3 md:gap-6">
+                <div className="relative flex flex-col md:flex-row items-center justify-center mb-6 md:mb-8 gap-4 md:gap-8">
                     <motion.div 
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
                         transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
                         className="relative group flex-shrink-0 z-40"
                     >
-                        <div className="absolute -inset-2 bg-red-600/5 rounded-full blur-xl animate-pulse"></div>
-                        <div className="relative w-16 h-16 md:w-24 md:h-24 rounded-full overflow-hidden border border-white/10 bg-black shadow-xl ring-1 ring-white/5">
+                        <div className="absolute -inset-3 bg-red-600/10 rounded-full blur-2xl animate-pulse"></div>
+                        <div className="relative w-20 h-20 md:w-32 md:h-32 rounded-full overflow-hidden border-2 border-white/10 bg-black shadow-2xl ring-1 ring-white/5">
                             <motion.img 
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -124,8 +124,8 @@ export const Home: React.FC<HomeProps> = ({
                                 className="w-full h-full object-cover object-top origin-top transition-all duration-700" 
                             />
                         </div>
-                        <div className="absolute -bottom-0.5 -right-0.5 bg-red-600 text-white p-0.5 rounded-full shadow-lg border border-white/20 z-50">
-                            <CheckCircleIcon className="w-2 md:w-3 text-white" />
+                        <div className="absolute -bottom-1 -right-1 bg-red-600 text-white p-1 rounded-full shadow-lg border border-white/20 z-50">
+                            <CheckCircleIcon className="w-3 md:w-4 text-white" />
                         </div>
                     </motion.div>
 
@@ -136,24 +136,24 @@ export const Home: React.FC<HomeProps> = ({
                             transition={{ duration: 0.8, delay: 0.3 }}
                             className="font-black text-white tracking-tighter uppercase m-0 p-0 font-display flex flex-col items-center md:items-start"
                         >
-                            <span className="text-2xl sm:text-4xl md:text-[2.8rem] block -mb-[0.02em] relative leading-[0.8] opacity-90 whitespace-nowrap">FUAD</span>
-                            <span className="text-2xl sm:text-4xl md:text-[2.8rem] block text-red-600 relative leading-[0.8] opacity-100 whitespace-nowrap">AHMED</span>
+                            <span className="text-3xl sm:text-5xl md:text-[3.2rem] block -mb-[0.05em] relative leading-[0.8] opacity-90 whitespace-nowrap">FUAD</span>
+                            <span className="text-3xl sm:text-5xl md:text-[3.2rem] block text-red-600 relative leading-[0.8] opacity-100 whitespace-nowrap">AHMED</span>
                         </motion.h1>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap justify-center items-center gap-1.5 mb-4 md:mb-6 px-2 max-w-2xl">
+                <div className="flex flex-wrap justify-center items-center gap-2 mb-6 md:mb-8 px-2 max-w-3xl">
                     {sortedHeroSkills.map((skill, i) => (
                         <motion.span 
                             key={skill}
                             initial={{ opacity: 0, y: 5 }}
                             animate={isImageLoaded ? { opacity: 1, y: 0 } : { opacity: 0 }}
                             transition={{ delay: 0.5 + (0.05 * i), duration: 0.3 }}
-                            className="flex items-center bg-white/5 border border-white/10 rounded-md px-2.5 py-1 text-[7px] md:text-[9px] font-bold text-zinc-300 uppercase tracking-widest hover:text-white transition-colors whitespace-nowrap"
+                            className="flex items-center bg-white/5 border border-white/10 rounded-md px-3.5 py-1.5 text-[8px] md:text-[10px] font-bold text-zinc-300 uppercase tracking-widest hover:text-white transition-colors whitespace-nowrap"
                         >
                             {skill}
                             {proSkills.includes(skill) && (
-                                <span className="ml-1 md:ml-1.5 bg-red-600 text-white text-[5px] md:text-[7px] px-1 py-0 rounded-sm font-black ring-1 ring-white/10">PRO</span>
+                                <span className="ml-1.5 md:ml-2 bg-red-600 text-white text-[6px] md:text-[8px] px-1.5 py-0.5 rounded-sm font-black ring-1 ring-white/10">PRO</span>
                             )}
                         </motion.span>
                     ))}
@@ -162,19 +162,19 @@ export const Home: React.FC<HomeProps> = ({
                         animate={isImageLoaded ? { opacity: 1 } : { opacity: 0 }}
                         transition={{ delay: 0.8 }}
                         onClick={(e) => { e.stopPropagation(); onOpenServices(); }}
-                        className="w-6 h-6 md:w-8 md:h-8 flex items-center justify-center bg-white/5 hover:bg-red-600 border border-white/10 rounded-md transition-all"
+                        className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-white/5 hover:bg-red-600 border border-white/10 rounded-md transition-all"
                     >
-                        <ThreeDotsIcon className="w-3 md:w-3.5 text-white" />
+                        <ThreeDotsIcon className="w-4 md:w-5 text-white" />
                     </motion.button>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 w-full justify-center">
+                <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10 w-full justify-center">
                     <motion.button 
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={isImageLoaded ? { opacity: 1, scale: 1 } : { opacity: 0 }}
                         transition={{ delay: 0.9, duration: 0.6 }}
                         onClick={(e) => { e.stopPropagation(); onOrderNow(); }}
-                        className="relative bg-white text-black text-[9px] font-black px-8 py-3 rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg uppercase tracking-[0.2em] flex-shrink-0"
+                        className="relative bg-white text-black text-[10px] md:text-[11px] font-black px-10 py-4 rounded-full hover:scale-105 active:scale-95 transition-all shadow-xl uppercase tracking-[0.25em] flex-shrink-0"
                     >
                         Order Now
                     </motion.button>
@@ -183,26 +183,26 @@ export const Home: React.FC<HomeProps> = ({
                         initial={{ opacity: 0 }}
                         animate={isImageLoaded ? { opacity: 1 } : { opacity: 0 }}
                         transition={{ delay: 1.1, duration: 0.8 }}
-                        className="flex items-center gap-4 sm:gap-8 px-2"
+                        className="flex items-center gap-6 sm:gap-10 px-2"
                     >
                         <div className="text-left cursor-pointer flex-shrink-0" onClick={onYouTubeClick}>
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                                <div className="text-xl sm:text-2xl md:text-3xl font-black text-white leading-none font-display">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <div className="text-2xl sm:text-3xl md:text-4xl font-black text-white leading-none font-display">
                                     {loading ? '---' : <StretchyCounter value={animatedSubs} />}
                                 </div>
-                                <div className="w-1 h-1 bg-red-600 rounded-full animate-pulse"></div>
+                                <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>
                             </div>
-                            <span className="text-[7px] md:text-[8px] text-zinc-500 font-black uppercase tracking-[0.15em] whitespace-nowrap">Followers</span>
+                            <span className="text-[8px] md:text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] whitespace-nowrap">Followers</span>
                         </div>
 
-                        <div className="text-left border-l border-white/10 pl-4 sm:pl-8 cursor-pointer flex-shrink-0" onClick={onYouTubeClick}>
-                            <div className="flex items-center gap-1.5 mb-0.5">
-                                <div className="text-xl sm:text-2xl md:text-3xl font-black text-white leading-none font-display">
+                        <div className="text-left border-l border-white/10 pl-6 sm:pl-10 cursor-pointer flex-shrink-0" onClick={onYouTubeClick}>
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <div className="text-2xl sm:text-3xl md:text-4xl font-black text-white leading-none font-display">
                                     {loading ? '---' : <StretchyCounter value={animatedViews} />}
                                 </div>
-                                <YouTubeIcon className="w-3 md:w-4 text-red-600 opacity-60" />
+                                <YouTubeIcon className="w-4 md:w-5 text-red-600 opacity-60" />
                             </div>
-                            <span className="text-[7px] md:text-[8px] text-zinc-500 font-black uppercase tracking-[0.15em] whitespace-nowrap">Reach</span>
+                            <span className="text-[8px] md:text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em] whitespace-nowrap">Reach</span>
                         </div>
                     </motion.div>
                 </div>

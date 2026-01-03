@@ -28,8 +28,15 @@ const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
     const isOwner = low === OWNER_HANDLE;
     const isAdmin = low === ADMIN_HANDLE;
     if (!isOwner && !isAdmin) return null;
+    
+    // Create a deterministic offset based on username to stagger the fold animations
+    const delay = (username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
+    
     return (
-        <i className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1 fez-verified-badge`}></i>
+        <i 
+            style={{ animationDelay: `-${delay}s` }} 
+            className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1 fez-verified-badge`}
+        ></i>
     );
 };
 
@@ -123,9 +130,9 @@ const CommentItem: React.FC<{
                                 {likesCount > 0 && <span className="text-[8px] font-black">{likesCount}</span>}
                             </button>
                             {isLikedByOwner && (
-                                <div className="flex items-center gap-1.5" title="Liked by author">
+                                <div className="flex items-center gap-2" title="Liked by author">
                                     <span className="w-px h-2 bg-zinc-800"></span>
-                                    <i className="fa-solid fa-heart text-[8px] text-red-600 fez-verified-badge"></i>
+                                    <i style={{ animationDelay: `-${(comment.userName?.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 60)}s` }} className="fa-solid fa-heart text-[8px] text-red-600 fez-verified-badge"></i>
                                     <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Author liked</span>
                                 </div>
                             )}
@@ -294,7 +301,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
 
                     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10 no-scrollbar bg-black/40">
                         <div className="space-y-4">
-                            <h3 className="text-white font-black text-xl lg:text-2xl uppercase tracking-tighter leading-tight">{(currentItem as any).title || 'Masterwork'}</h3>
+                            <h3 className="text-white font-black textxl lg:text-2xl uppercase tracking-tighter leading-tight">{(currentItem as any).title || 'Masterwork'}</h3>
                             <p className="text-zinc-400 text-sm leading-relaxed font-sans">{(currentItem as any).caption || (currentItem as any).description || 'No description provided.'}</p>
                         </div>
                         <div ref={commentsSectionRef} className="pt-8 border-t border-white/5 space-y-8">

@@ -29,8 +29,9 @@ const ADMIN_HANDLE = 'studiomuzammil';
 
 const getBadge = (u: string) => {
   const low = u?.toLowerCase();
-  if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
-  if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>;
+  const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
+  if (low === OWNER_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
+  if (low === ADMIN_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>;
   return null;
 };
 

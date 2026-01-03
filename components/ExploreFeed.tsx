@@ -90,31 +90,43 @@ const PostItem: React.FC<{
 
     return (
         <motion.article 
-            initial={{ scale: 0.9, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }} 
-            transition={{ type: 'spring', damping: 25, stiffness: 120, delay: (idx % 10) * 0.03 }}
+            initial={{ scale: 0.96, opacity: 0, y: 15 }} 
+            animate={{ scale: 1, opacity: 1, y: 0 }} 
+            transition={{ type: 'spring', damping: 28, stiffness: 150, delay: (idx % 8) * 0.04 }}
             className="break-inside-avoid mb-4 md:mb-6 flex flex-col bg-[#090909] border border-white/5 rounded-[1rem] md:rounded-[1.2rem] overflow-hidden group shadow-lg hover:shadow-[0_15px_40px_rgba(0,0,0,0.6)] transition-all duration-500"
         >
             <div className="relative overflow-hidden bg-transparent cursor-pointer group flex-shrink-0" onClick={() => onOpenModal?.(posts, idx)}>
-                {/* Background preloader */}
-                <div className="hidden">
+                {/* Silent Preloader - Forces background fetching */}
+                <div className="hidden pointer-events-none opacity-0">
                     {post.mediaType === 'video' ? (
-                        <video src={post.mediaUrl} onLoadedData={() => setIsMediaLoaded(true)} muted playsInline />
+                        <video 
+                            src={post.mediaUrl} 
+                            onLoadedData={() => setTimeout(() => setIsMediaLoaded(true), 50)} 
+                            muted 
+                            playsInline 
+                            preload="auto"
+                        />
                     ) : (
-                        <img src={post.mediaUrl} onLoad={() => setIsMediaLoaded(true)} alt="" />
+                        <img 
+                            src={post.mediaUrl} 
+                            onLoad={() => setTimeout(() => setIsMediaLoaded(true), 50)} 
+                            alt="" 
+                            loading="eager"
+                        />
                     )}
                 </div>
 
                 <AnimatePresence>
                     {isMediaLoaded && (
                         <motion.div
-                            initial={{ y: "40%", opacity: 0, scale: 0.95 }}
+                            initial={{ y: 60, opacity: 0, scale: 0.98 }}
                             animate={{ y: 0, opacity: 1, scale: 1 }}
                             transition={{ 
                                 type: "spring",
-                                damping: 20,
-                                stiffness: 90,
-                                duration: 0.8
+                                damping: 24,
+                                stiffness: 110,
+                                // Sequential stagger effect: adds a tiny bit of separation based on grid index
+                                delay: (idx % 4) * 0.08 
                             }}
                             className="w-full relative"
                         >
@@ -131,7 +143,7 @@ const PostItem: React.FC<{
                                     alt="" 
                                 />
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/30 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/100 via-black/20 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-5">
                                 <h2 className="text-[9px] md:text-sm lg:text-base font-black text-white uppercase tracking-tight leading-[1.2] drop-shadow-[0_2px_10px_rgba(0,0,0,1)] whitespace-normal line-clamp-2">{post.title || 'Untitled Work'}</h2>
                             </div>
                         </motion.div>

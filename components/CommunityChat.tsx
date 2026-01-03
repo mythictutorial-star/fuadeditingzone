@@ -26,7 +26,7 @@ interface ChatUser {
   id: string;
   name: string;
   username: string;
-  avatar: string;
+  avatar?: string;
   role?: string;
   online?: boolean;
 }
@@ -36,16 +36,46 @@ interface Message {
   senderId: string;
   senderName: string;
   senderUsername?: string;
-  senderAvatar: string;
+  senderAvatar?: string;
   senderRole?: string;
   text: string;
   timestamp: number;
 }
 
+const getAvatarStyles = (username: string) => {
+    const colors = [
+        'bg-red-500', 'bg-blue-500', 'bg-green-500', 
+        'bg-purple-500', 'bg-pink-500', 'bg-orange-500', 
+        'bg-indigo-500', 'bg-teal-500', 'bg-cyan-500'
+    ];
+    const index = (username || 'user').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return colors[index];
+};
+
+const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ user, className = "w-10 h-10", onClick }) => {
+    const username = user.username || 'user';
+    const firstLetter = username.charAt(0).toUpperCase();
+    const bgClass = getAvatarStyles(username);
+
+    return (
+        <div 
+            onClick={onClick}
+            className={`${className} rounded-xl border border-white/10 flex-shrink-0 overflow-hidden relative group cursor-pointer ${user.avatar ? '' : bgClass + ' flex items-center justify-center'}`}
+        >
+            {user.avatar ? (
+                <img src={user.avatar} className="w-full h-full object-cover" alt="" />
+            ) : (
+                <span className="text-white font-black text-lg">{firstLetter}</span>
+            )}
+        </div>
+    );
+};
+
 const getIdentity = (username: string, role?: string, hideRole = false) => {
     const low = username?.toLowerCase();
     const isOwner = low === OWNER_HANDLE;
     const isAdmin = low === ADMIN_HANDLE;
+    const delay = (username?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
     
     let displayRole = role || 'Designer';
     if (isOwner) displayRole = 'Owner';
@@ -54,7 +84,7 @@ const getIdentity = (username: string, role?: string, hideRole = false) => {
     return (
         <div className="flex items-center gap-1.5 ml-1.5 flex-shrink-0">
             {(isOwner || isAdmin) && (
-                <i className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
+                <i style={{ animationDelay: `-${delay}s` }} className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
             )}
             {!hideRole && (
               <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded border leading-none tracking-[0.1em] ${
@@ -87,7 +117,9 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   const activeCount = useMemo(() => Math.floor(Math.random() * 20) + 142, []);
 
   useEffect(() => {
-    onValue(ref(db, 'users'), (snapshot) => {
+    // Fetch all registered users for discoverability
+    const usersRef = ref(db, 'users');
+    const unsubUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
           const list = Object.values(data) as ChatUser[];
@@ -111,21 +143,29 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             setUnreadCounts(snap.val() || {});
         });
     }
+
+    return () => unsubUsers();
   }, [clerkUser, initialTargetUserId]);
 
   const chatPath = useMemo(() => {
     if (isGlobal) return 'community/global';
     if (!clerkUser?.id || !selectedUser?.id) return null;
+    // Private paths are unique and secure per user pair
     return `messages/${[clerkUser.id, selectedUser.id].sort().join('_')}`;
   }, [isGlobal, clerkUser?.id, selectedUser?.id]);
 
   useEffect(() => {
     if (!chatPath) return;
     setMessages([]);
-    const chatQuery = query(ref(db, chatPath), limitToLast(50));
+    const chatQuery = query(ref(db, chatPath), limitToLast(100));
     const unsub = onChildAdded(chatQuery, (snap) => {
-      setMessages(prev => [...prev, { ...snap.val() as Message, id: snap.key }]);
+      setMessages(prev => {
+          if (prev.find(m => m.id === snap.key)) return prev;
+          return [...prev, { ...snap.val() as Message, id: snap.key }];
+      });
     });
+    
+    // Mark as read when opening private chat
     if (!isGlobal && selectedUser && clerkUser) {
         set(ref(db, `users/${clerkUser.id}/unread/${selectedUser.id}`), 0);
     }
@@ -151,6 +191,8 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
     };
     setInputValue('');
     await push(ref(db, chatPath), newMessage);
+    
+    // Update unread status for private recipient
     if (!isGlobal && selectedUser) {
         const recipientUnreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
         get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
@@ -158,21 +200,31 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   };
 
   const filteredUsers = useMemo(() => {
-    if (!isSignedIn && !sidebarSearchQuery) {
-        return users.filter(u => u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE);
-    }
+    // Show all users who have been sync'd to Firebase users node
     let list = users;
-    if (showFriendsOnly && isSignedIn) {
-        list = list.filter(u => friendsList.includes(u.id));
-    } else if (!sidebarSearchQuery && isSignedIn) {
-        const messagedIds = Object.keys(unreadCounts);
-        if (messagedIds.length === 0) return [];
-        list = list.filter(u => messagedIds.includes(u.id));
+    
+    // Prioritize showing people you've actually messaged or are friends with if not searching
+    if (!sidebarSearchQuery) {
+        if (showFriendsOnly) {
+            list = list.filter(u => friendsList.includes(u.id));
+        } else if (isSignedIn) {
+            const messagedIds = Object.keys(unreadCounts);
+            list = list.filter(u => messagedIds.includes(u.id) || u.username?.toLowerCase() === OWNER_HANDLE);
+        } else {
+            list = list.filter(u => u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE);
+        }
     }
-    return list.filter(u => 
-        u.name?.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) || 
-        u.username?.toLowerCase().includes(sidebarSearchQuery.toLowerCase())
-    ).slice(0, 50);
+
+    if (sidebarSearchQuery) {
+        const q = sidebarSearchQuery.toLowerCase();
+        list = users.filter(u => 
+            u.name?.toLowerCase().includes(q) || 
+            u.username?.toLowerCase().includes(q)
+        );
+    }
+
+    // Always ensure current user isn't in their own list
+    return list.filter(u => u.id !== clerkUser?.id).slice(0, 100);
   }, [users, sidebarSearchQuery, clerkUser, showFriendsOnly, friendsList, isSignedIn, unreadCounts]);
 
   const openChat = (user: ChatUser | null) => {
@@ -183,47 +235,65 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
 
   const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
     if (!count || count <= 0) return null;
-    return <div className="absolute -top-2 -right-2 bg-red-600 text-white text-[8px] font-black min-w-[16px] h-[16px] flex items-center justify-center rounded-full border border-black px-1 shadow-lg">{count}</div>;
+    return <div className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[8px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full border-2 border-black px-1 shadow-lg z-10">{count}</div>;
   };
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
-        <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[260px] lg:w-[300px] flex-col flex-shrink-0 min-h-0 bg-black/40 backdrop-blur-3xl border-r border-white/5 animate-fade-in`}>
-          <div className="p-4 flex flex-col gap-2">
+        <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[260px] lg:w-[320px] flex-col flex-shrink-0 min-h-0 bg-black/40 backdrop-blur-3xl border-r border-white/5 animate-fade-in`}>
+          <div className="p-4 flex flex-col gap-3">
             <SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} />
-            <div className="flex items-center gap-2 mb-2">
+            
+            <div className="flex items-center gap-2">
               {clerkUser && (
                 <>
-                  <button onClick={() => setShowFriendsOnly(!showFriendsOnly)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border transition-all ${showFriendsOnly ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white'}`}><UserGroupIcon className="w-4 h-4" /><span className="text-[10px] font-black uppercase tracking-widest">Friends</span></button>
-                  <button onClick={() => onShowProfile?.(clerkUser.id, (clerkUser.username || '').toLowerCase())} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white transition-all flex items-center justify-center flex-shrink-0" title="Your Profile"><UserCircleIcon className="w-5 h-5" /></button>
+                  <button onClick={() => setShowFriendsOnly(!showFriendsOnly)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border transition-all ${showFriendsOnly ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-zinc-500 hover:text-white'}`}><UserGroupIcon className="w-4 h-4" /><span className="text-[10px] font-black uppercase tracking-widest">Friends</span></button>
+                  <button onClick={() => onShowProfile?.(clerkUser.id, (clerkUser.username || '').toLowerCase())} className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-zinc-500 hover:text-white transition-all flex items-center justify-center flex-shrink-0" title="Your Profile"><UserCircleIcon className="w-5 h-5" /></button>
                 </>
               )}
             </div>
+
             <div className="relative group">
               <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 group-focus-within:text-red-500 transition-colors" />
-              <input value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder={showFriendsOnly ? "Search friends..." : "Find users..."} className="w-full bg-black/60 border border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-bold placeholder-zinc-800 shadow-inner" />
+              <input value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Find community users..." className="w-full bg-black/60 border border-white/10 rounded-xl py-3 pl-11 pr-3 text-white text-[10px] outline-none focus:border-red-600/50 transition-all font-bold placeholder-zinc-800 shadow-inner" />
             </div>
-            <div className="flex flex-col gap-1">
-                <button onClick={() => openChat(null)} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/20' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}><i className="fa-solid fa-earth-americas text-lg"></i><span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Chat</span></button>
-                <div className="flex items-center gap-1.5 px-4 mt-1 opacity-60"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div><span className="text-[7px] font-black text-zinc-400 uppercase tracking-widest">{activeCount} ACTIVE PERSONS</span></div>
+
+            <div className="flex flex-col gap-1.5">
+                <button onClick={() => openChat(null)} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all ${isGlobal ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/20' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`}><i className="fa-solid fa-earth-americas text-xl"></i><span className="text-[10px] font-black uppercase tracking-[0.2em]">Global Feed</span></button>
             </div>
           </div>
+
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-5 mb-3">{!isSignedIn && !sidebarSearchQuery ? 'Recommended' : (showFriendsOnly ? 'Friends List' : 'Messages')}</h4>
+            <div className="flex items-center justify-between px-5 mb-4">
+                <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">
+                    {sidebarSearchQuery ? 'Search Results' : (showFriendsOnly ? 'Friends' : 'Private Messages')}
+                </h4>
+                <div className="flex items-center gap-1.5 opacity-60"><div className="w-1 h-1 rounded-full bg-green-500"></div><span className="text-[7px] font-black text-zinc-500 uppercase">{activeCount} online</span></div>
+            </div>
+            
             <div className="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1.5">
               {filteredUsers.length === 0 ? (
-                  <div className="py-12 text-center opacity-20"><div className="w-12 h-12 mx-auto mb-4 bg-white/5 rounded-full flex items-center justify-center">{showFriendsOnly ? <UserGroupIcon className="w-6 h-6" /> : <SearchIcon className="w-6 h-6" />}</div><p className="text-[8px] font-black uppercase tracking-widest">{showFriendsOnly ? 'No friends found' : 'Empty'}</p></div>
+                  <div className="py-20 text-center opacity-30 flex flex-col items-center">
+                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-5"><SearchIcon className="w-8 h-8" /></div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em]">{sidebarSearchQuery ? 'No users found' : 'Inbox is empty'}</p>
+                    <p className="text-[8px] text-zinc-600 uppercase mt-2 px-6">Try searching for usernames or names</p>
+                  </div>
               ) : (
                 filteredUsers.map(u => (
-                  <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left group relative ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
-                    <div className="relative shrink-0 cursor-pointer" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }}>
-                      <img src={u.avatar} className={`w-10 h-10 rounded-xl border object-cover ${u.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.2)]' : 'border-white/10'}`} alt="" />
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border border-zinc-900 rounded-full"></div>
+                  <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group relative ${selectedUser?.id === u.id && !isGlobal ? 'bg-red-600/10 border-red-600/30' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
+                    <div className="relative shrink-0">
+                      <UserAvatar user={u} onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }} />
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-zinc-900 rounded-full shadow-lg"></div>
                       <UnreadBadge count={unreadCounts[u.id] || 0} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden"><span className={`text-[11px] font-black uppercase truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-400'}`}>{u.name}</span>{(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && <i className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] drop-shadow-[0_0_5px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>}</div>
+                      <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
+                        <span className={`text-[11px] font-black uppercase truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white' : 'text-zinc-400 group-hover:text-white'}`}>{u.name}</span>
+                        {(u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE) && (
+                          <i style={{ animationDelay: `-${(u.username?.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 60)}s` }} className={`fa-solid fa-circle-check ${u.username?.toLowerCase() === OWNER_HANDLE ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[10px] drop-shadow-[0_0_5px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
+                        )}
+                      </div>
                       <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tighter truncate block opacity-60">@{ (u.username || '').toLowerCase() }</span>
                     </div>
                   </button>
@@ -232,33 +302,55 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             </div>
           </div>
         </aside>
-        <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-transparent animate-fade-in`}>
-          <div className="px-4 py-3 md:px-8 md:py-4 flex items-center justify-between bg-black/40 border-b border-white/5 flex-shrink-0 backdrop-blur-xl sticky top-0 z-[50]">
-            <div className="flex items-center gap-4 min-w-0">
-              <button onClick={onBack} className="hidden md:flex p-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group mr-2"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
-              <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
-              <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className={`w-10 h-10 md:w-12 md:h-12 rounded-xl bg-red-600/10 flex items-center justify-center border-2 overflow-hidden flex-shrink-0 cursor-pointer ${!isGlobal && selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.3)]' : 'border-white/10'}`}>{isGlobal ? <i className="fa-solid fa-earth-americas text-red-600 text-xl"></i> : <img src={selectedUser?.avatar} className="w-full h-full object-cover" alt="" />}</div>
+
+        <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black/20 animate-fade-in`}>
+          <div className="px-5 py-4 md:px-10 md:py-6 flex items-center justify-between bg-black/60 border-b border-white/5 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50]">
+            <div className="flex items-center gap-5 min-w-0">
+              <button onClick={onBack} className="hidden md:flex p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group mr-2"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
+              <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2.5 rounded-xl bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
+              
+              <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className="relative cursor-pointer">
+                {isGlobal ? (
+                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-red-600/10 flex items-center justify-center border-2 border-red-600/40 shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+                        <i className="fa-solid fa-earth-americas text-red-600 text-2xl"></i>
+                    </div>
+                ) : (
+                    <UserAvatar user={selectedUser!} className={`w-12 h-12 md:w-14 md:h-14 border-2 ${selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)]' : 'border-white/20'}`} />
+                )}
+              </div>
+
               <div className="min-w-0 cursor-pointer" onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())}>
-                <h3 className="text-sm md:text-xl font-black text-white uppercase tracking-tighter flex items-center leading-none">{isGlobal ? 'Global Chat' : selectedUser?.name}{!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}</h3>
-                <p className="text-[8px] md:text-[10px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1 leading-none">{isGlobal ? 'Connected' : `@${(selectedUser?.username || '').toLowerCase()}`}</p>
+                <h3 className="text-base md:text-2xl font-black text-white uppercase tracking-tighter flex items-center leading-none">{isGlobal ? 'Public Global Chat' : selectedUser?.name}{!isGlobal && getIdentity(selectedUser!.username, selectedUser!.role)}</h3>
+                <p className="text-[9px] md:text-[11px] text-zinc-500 font-black uppercase tracking-[0.4em] mt-1.5 leading-none">{isGlobal ? 'Encrypted Connection' : `@${(selectedUser?.username || '').toLowerCase()}`}</p>
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 lg:p-10 flex flex-col gap-5 md:gap-8">
-            {messages.length === 0 ? (<div className="flex-1 flex flex-col items-center justify-center opacity-10"><i className="fa-solid fa-earth-americas text-4xl mb-6"></i><p className="text-[12px] font-black uppercase tracking-[0.5em]">Connecting...</p></div>) : (
-              messages.map(msg => {
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-12 flex flex-col gap-6 md:gap-10">
+            {messages.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse">
+                    <i className="fa-solid fa-shield-halved text-5xl mb-6"></i>
+                    <p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting to Global Feed...' : 'Securing Chat Session...'}</p>
+                </div>
+            ) : (
+              messages.map((msg, i) => {
                 const isMe = msg.senderId === clerkUser?.id;
                 const low = msg.senderUsername?.toLowerCase();
                 const isOwner = low === OWNER_HANDLE;
                 return (
-                  <div key={msg.id} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group`}>
-                    <img src={msg.senderAvatar} className={`w-7 h-7 md:w-10 md:h-10 rounded-lg border object-cover cursor-pointer flex-shrink-0 shadow-lg transition-transform ${isOwner ? 'border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.4)]' : 'border-white/10'}`} alt="" onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())} />
+                  <div key={msg.id || i} className={`flex gap-3 md:gap-6 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group`}>
+                    <UserAvatar 
+                        user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} 
+                        className={`w-8 h-8 md:w-12 md:h-12 border shadow-lg group-hover:scale-105 transition-transform ${isOwner ? 'border-red-600' : 'border-white/10'}`}
+                        onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}
+                    />
                     <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
-                      <div className={`flex items-center mb-1 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'} cursor-pointer`} onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}>
-                        <span className="text-[10px] md:text-[12px] font-black text-white uppercase tracking-tight truncate leading-none">{low === OWNER_HANDLE ? "FUAD EDITING ZONE" : msg.senderName}</span>
+                      <div className={`flex items-center mb-1.5 px-1 transition-all ${isMe ? 'flex-row-reverse' : 'flex-row'} cursor-pointer opacity-70 group-hover:opacity-100`} onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}>
+                        <span className="text-[10px] md:text-[13px] font-black text-white uppercase tracking-tight truncate leading-none">{low === OWNER_HANDLE ? "FUAD EDITING ZONE" : msg.senderName}</span>
                         {getIdentity(msg.senderUsername || '', msg.senderRole)}
                       </div>
-                      <div className={`p-3 md:p-4 rounded-xl md:rounded-[1.8rem] text-[12px] md:text-[14px] border font-medium leading-relaxed shadow-xl poppins-font ${isMe ? 'bg-red-600/15 border-red-600/30 text-white rounded-br-none' : (isOwner ? 'bg-zinc-900 border-red-600/40 text-white rounded-bl-none shadow-red-600/5' : 'bg-white/5 border-white/10 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
+                      <div className={`p-4 md:p-5 rounded-2xl md:rounded-[2.2rem] text-[13px] md:text-[15px] border font-medium leading-relaxed shadow-xl ${isMe ? 'bg-red-600/20 border-red-600/40 text-white rounded-br-none shadow-red-600/5' : (isOwner ? 'bg-zinc-900 border-red-600/40 text-white rounded-bl-none' : 'bg-white/5 border-white/10 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
+                      <span className="text-[7px] md:text-[8px] text-zinc-700 font-bold uppercase mt-2 tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                 );
@@ -266,17 +358,23 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             )}
             <div ref={messagesEndRef} />
           </div>
-          <div className="p-4 md:p-8 bg-black/40 border-t border-white/5 flex-shrink-0 backdrop-blur-2xl">
+
+          <div className="p-5 md:p-10 bg-black/60 border-t border-white/5 flex-shrink-0 backdrop-blur-3xl">
             {isSignedIn ? (
-              <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex gap-3 md:gap-4 p-1.5 bg-[#050505] border border-white/10 rounded-2xl md:rounded-[2.5rem] shadow-2xl focus-within:border-red-600/50 transition-all">
-                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Type a message..." className="flex-1 bg-transparent px-5 md:px-8 py-2.5 md:py-4 text-xs md:sm font-bold text-white outline-none min-w-0 placeholder-zinc-800" />
-                <button type="submit" disabled={!inputValue.trim()} className="bg-red-600 hover:bg-red-700 text-white w-10 h-10 md:w-14 md:h-14 flex items-center justify-center rounded-xl md:rounded-2xl transition-all shadow-xl disabled:opacity-20 flex-shrink-0"><SendIcon className="w-5 h-5 md:w-6 md:h-6" /></button>
+              <form onSubmit={handleSendMessage} className="max-w-5xl mx-auto flex gap-4 md:gap-6 p-2 bg-[#050505] border border-white/10 rounded-2xl md:rounded-[3rem] shadow-2xl focus-within:border-red-600/50 transition-all">
+                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder={isGlobal ? "Post a public message..." : "Send a private message..."} className="flex-1 bg-transparent px-6 md:px-10 py-3 md:py-5 text-sm md:text-base font-medium text-white outline-none min-w-0 placeholder-zinc-800" />
+                <button type="submit" disabled={!inputValue.trim()} className="bg-red-600 hover:bg-red-700 text-white w-12 h-12 md:w-16 md:h-16 flex items-center justify-center rounded-xl md:rounded-[2.5rem] transition-all shadow-xl disabled:opacity-20 flex-shrink-0 active:scale-90"><SendIcon className="w-6 h-6 md:w-7 md:h-7" /></button>
               </form>
             ) : (
-              <div className="py-6 text-center space-y-4">
-                <p className="text-[10px] md:text-[11px] text-zinc-600 font-black uppercase tracking-[0.4em]">Log in to chat</p>
-                <SignInButton mode="modal"><button className="bg-red-600 hover:bg-red-700 text-white font-black py-3 md:py-4 px-10 md:px-16 rounded-xl md:rounded-2xl uppercase text-[9px] md:text-[10px] tracking-[0.4em] transition-all active:scale-95 border border-white/10">Log In</button></SignInButton>
+              <div className="py-8 text-center space-y-5">
+                <p className="text-xs md:text-sm text-zinc-600 font-black uppercase tracking-[0.5em]">Authorize to participate</p>
+                <SignInButton mode="modal"><button className="bg-red-600 hover:bg-red-700 text-white font-black py-4 md:py-5 px-12 md:px-24 rounded-2xl md:rounded-[3rem] uppercase text-[10px] md:text-xs tracking-[0.5em] transition-all active:scale-95 border border-white/10 shadow-2xl">Log In Now</button></SignInButton>
               </div>
+            )}
+            {!isGlobal && isSignedIn && (
+                <p className="text-center text-[8px] text-zinc-700 font-black uppercase tracking-[0.4em] mt-5 flex items-center justify-center gap-2">
+                    <i className="fa-solid fa-lock text-[10px] text-zinc-800"></i> Secure End-to-End Environment
+                </p>
             )}
           </div>
         </main>
