@@ -24,8 +24,35 @@ const db = getDatabase();
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
+
+// R2 Configuration
 const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
-const R2_PUBLIC_URL = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev/Messages';
+const R2_PUBLIC_BASE = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev/Messages';
+
+/**
+ * Uploads a file to R2 via the worker and returns the public URL.
+ */
+const uploadMediaToR2 = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', 'Messages/'); // Save to Messages/ folder
+    
+    const response = await fetch(R2_WORKER_URL, {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+
+    const result = await response.json();
+    
+    // Construct the public URL as requested
+    // If the worker returns a full URL, we extract just the filename to be safe
+    const filename = result.url.split('/').pop() || `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+    return `${R2_PUBLIC_BASE}/${filename}`;
+};
 
 const REPORT_REASONS = [
     { id: 'spam', label: 'It\'s spam', desc: 'Repetitive or unwanted messages' },
@@ -418,16 +445,7 @@ export const CommunityChat: React.FC<{
 
     try {
         if (pendingMedia) {
-            const formData = new FormData();
-            formData.append('file', pendingMedia.file);
-            // Use specific R2 folder
-            formData.append('folder', 'fuadeditingzone-portfolio/Messages/');
-            const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
-            const result = await res.json();
-            
-            // Extract filename and construct requested Public URL
-            const filename = result.url.split('/').pop();
-            mediaUrl = `${R2_PUBLIC_URL}/${filename}`;
+            mediaUrl = await uploadMediaToR2(pendingMedia.file);
             mediaType = pendingMedia.type;
         }
 
@@ -455,7 +473,8 @@ export const CommunityChat: React.FC<{
             get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
         }
     } catch (err) {
-        alert("Failed to send message.");
+        console.error("Upload Error:", err);
+        alert("Failed to send message. Please check your connection.");
     } finally {
         setIsMediaUploading(false);
     }
@@ -740,11 +759,11 @@ export const CommunityChat: React.FC<{
             </div>
         </nav>
 
-        {/* Main Content Area - Aligned Left Flush with Desktop Menu */}
+        {/* Main Content Area */}
         <div className="flex-1 flex flex-col items-start lg:ml-20 overflow-hidden w-full relative">
             <div className="w-full flex-1 flex flex-row overflow-hidden relative">
                 
-                {/* Secondary Aside Sidebar (Chat List) */}
+                {/* Sidebar Chat List */}
                 <aside className={`${isMobileChatOpen || isActivityOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[300px] lg:w-[340px] flex-col flex-shrink-0 min-h-0 bg-black md:border-r border-white/10 animate-fade-in`}>
                   {sidebarTab === 'search' ? (
                     <div className="flex flex-col h-full animate-fade-in">
@@ -936,7 +955,7 @@ export const CommunityChat: React.FC<{
                     </div>
                   ) : (
                     <>
-                      {/* Fixed Chat Header with Aligned gap-3 Profile */}
+                      {/* Fixed Chat Header */}
                       <div className="px-6 py-6 md:px-10 md:py-10 flex items-center justify-between border-b border-white/10 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50] bg-black/60">
                         <div className="flex items-center gap-3 min-w-0">
                           <button onClick={() => { setIsMobileChatOpen(false); setSelectedUser(null); setIsGlobal(false); setVerifiedTarget(null); }} className="md:hidden p-2 rounded-lg bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
@@ -1033,8 +1052,8 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      {/* Refined Typing Section */}
-                      <div className="px-2 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
+                      {/* Refined Typing Section - Corrected for clipping */}
+                      <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
                             {isInputLocked ? (
@@ -1043,7 +1062,7 @@ export const CommunityChat: React.FC<{
                                 <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
                               </div>
                             ) : (
-                              <div className="flex items-end gap-2 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] bg-black">
+                              <div className="flex items-end gap-2 p-1.5 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] bg-black">
                                 <div className="flex-shrink-0 flex items-center pl-2 self-center">
                                     {isMediaUploading ? (
                                         <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1063,17 +1082,17 @@ export const CommunityChat: React.FC<{
                                     value={inputValue} 
                                     onChange={e => setInputValue(e.target.value)} 
                                     onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                                    placeholder={isMediaUploading ? "Sending media..." : "Message..."} 
+                                    placeholder={isMediaUploading ? "Sending..." : "Message..."} 
                                     rows={1}
                                     disabled={isMediaUploading}
                                     className="flex-1 bg-transparent px-1 py-3 text-sm text-white outline-none min-w-0 placeholder-zinc-700 resize-none max-h-[120px] custom-scrollbar overflow-y-auto" 
                                 />
-                                <div className="flex-shrink-0 flex items-center pr-3 self-center">
+                                <div className="flex-shrink-0 flex items-center pr-1 self-center">
                                     {(inputValue.trim() || pendingMedia || isMediaUploading) && (
                                         <button 
                                             onClick={() => handleSendMessage()} 
                                             disabled={isMediaUploading || (!inputValue.trim() && !pendingMedia)} 
-                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-2 flex items-center h-10"
+                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-3 flex items-center justify-center min-w-[60px] h-10"
                                         >
                                             {isMediaUploading ? '...' : 'Send'}
                                         </button>
