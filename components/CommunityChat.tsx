@@ -357,7 +357,7 @@ export const CommunityChat: React.FC<{
         });
         onValue(ref(db, `notifications/${clerkUser.id}`), (snap) => {
             const data = snap.val() || {};
-            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => b.timestamp - a.timestamp));
+            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => a.timestamp - b.timestamp));
         });
     }
 
@@ -419,7 +419,7 @@ export const CommunityChat: React.FC<{
         if (pendingMedia) {
             const formData = new FormData();
             formData.append('file', pendingMedia.file);
-            formData.append('folder', 'ChatMedia');
+            formData.append('folder', 'fuadeditingzone-portfolio/Messages/');
             const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
             const result = await res.json();
             mediaUrl = result.url;
@@ -1028,7 +1028,7 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      <div className="px-2 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
+                      <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
                             {isInputLocked ? (
@@ -1037,8 +1037,8 @@ export const CommunityChat: React.FC<{
                                 <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
                               </div>
                             ) : (
-                              <div className="flex items-end gap-2 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02]">
-                                <div className="flex-shrink-0 flex items-center pl-1 self-center">
+                              <div className="flex items-end gap-2 p-1.5 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] mx-1">
+                                <div className="flex items-center gap-1 pl-1 self-center">
                                     {isMediaUploading ? (
                                         <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin ml-2"></div>
                                     ) : (
@@ -1061,13 +1061,9 @@ export const CommunityChat: React.FC<{
                                     rows={1}
                                     className="flex-1 bg-transparent px-1 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-700 resize-none max-h-[120px] custom-scrollbar overflow-y-auto" 
                                 />
-                                <div className="flex-shrink-0 flex items-center pr-2 self-center">
+                                <div className="flex items-center gap-2 pr-3 self-center flex-shrink-0">
                                     {(inputValue.trim() || pendingMedia) && (
-                                        <button 
-                                            onClick={() => handleSendMessage()} 
-                                            disabled={isMediaUploading} 
-                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-2 h-full flex items-center"
-                                        >
+                                        <button onClick={() => handleSendMessage()} disabled={isMediaUploading} className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-2">
                                             {isMediaUploading ? '...' : 'Send'}
                                         </button>
                                     )}
@@ -1077,7 +1073,7 @@ export const CommunityChat: React.FC<{
                             )}
                             
                             {!isGlobal && !isCurrentChatAFriend && !isInputLocked && (
-                              <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center mb-1">
+                              <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center mb-2">
                                 {3 - mySentMessagesCount} messages left until acceptance required
                               </p>
                             )}
