@@ -65,22 +65,25 @@ export default function App() {
   const [pipVideo, setPipVideo] = useState<VideoWork | null>(null);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
 
-  // Sync user to Firebase
+  // Auto-sync Clerk user to Firebase
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
       const userRef = ref(db, `users/${user.id}`);
       const userData = {
         id: user.id,
-        name: user.fullName || user.username || 'Anonymous User',
+        name: user.fullName || user.username || 'Community Member',
         username: (user.username || user.firstName || 'user').toLowerCase(),
         avatar: user.imageUrl,
         lastActive: Date.now()
       };
       
-      // Update data only if it changed or doesn't exist
+      // Update entry if changed
       get(userRef).then((snapshot) => {
         const currentData = snapshot.val();
-        if (!currentData || currentData.name !== userData.name || currentData.avatar !== userData.avatar) {
+        if (!currentData || 
+            currentData.name !== userData.name || 
+            currentData.username !== userData.username ||
+            currentData.avatar !== userData.avatar) {
           update(userRef, userData);
         }
       });
