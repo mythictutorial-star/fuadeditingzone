@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon } from './Icons';
+import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass } from 'lucide-react';
+// Added missing siteConfig import to resolve "Cannot find name 'siteConfig'" error
+import { siteConfig } from '../config';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -258,10 +260,37 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative bg-black font-sans">
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
-        {/* Sidebar Container */}
+        
+        {/* Instagram-style Vertical Rail */}
+        <nav className="hidden lg:flex flex-col items-center py-8 gap-10 w-[72px] flex-shrink-0 border-r border-white/10 bg-black z-[100]">
+            <button onClick={onBack} className="text-white hover:scale-110 transition-transform">
+                <img src={siteConfig.branding.logoUrl} className="w-7 h-7" alt="" />
+            </button>
+            <div className="flex flex-col gap-8">
+                <button onClick={onBack} className="text-white hover:opacity-70 transition-all" title="Home"><HomeIcon className="w-7 h-7" /></button>
+                <button className="text-white opacity-40 hover:opacity-100 transition-all"><SearchIcon className="w-7 h-7" /></button>
+                <button className="text-white opacity-40 hover:opacity-100 transition-all"><Compass className="w-7 h-7" /></button>
+                <button onClick={() => setIsGlobal(true)} className={`transition-all ${isGlobal ? 'text-red-600 scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Global Stream"><GlobeAltIcon className="w-7 h-7" /></button>
+                <button onClick={onNavigateMarket} className="text-white opacity-40 hover:opacity-100 transition-all" title="Marketplace"><MarketIcon className="w-7 h-7" /></button>
+                <button className="text-white hover:opacity-70 transition-all"><Heart className="w-7 h-7" /></button>
+                <button className="text-white hover:opacity-70 transition-all"><PlusSquare className="w-7 h-7" /></button>
+            </div>
+            <div className="mt-auto">
+                {clerkUser && (
+                    <button 
+                        onClick={() => onShowProfile?.(clerkUser.id, clerkUser.username || '')}
+                        className="w-8 h-8 rounded-full border-2 border-white/20 overflow-hidden hover:border-white transition-all hover:scale-110"
+                        title="Your Profile"
+                    >
+                        <img src={clerkUser.imageUrl} className="w-full h-full object-cover" alt="" />
+                    </button>
+                )}
+            </div>
+        </nav>
+
+        {/* Inbox List Container */}
         <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[320px] lg:w-[380px] flex-col flex-shrink-0 min-h-0 bg-black border-r border-white/10 animate-fade-in`}>
           
-          {/* Sidebar Header */}
           <div className="p-4 flex flex-col gap-5">
             <div className="flex items-center justify-between px-2 pt-2">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => clerkUser && onShowProfile?.(clerkUser.id, clerkUser.username || '')}>
@@ -273,9 +302,11 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 </button>
             </div>
 
-            <SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} />
+            {/* Sub-nav toggle is hidden on large desktop rail view */}
+            <div className="lg:hidden">
+                <SidebarSubNav active="community" onSwitch={(t) => t === 'marketplace' && onNavigateMarket?.()} />
+            </div>
             
-            {/* Search Input */}
             <div className="relative group">
               <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4 group-focus-within:text-zinc-400 transition-colors" />
               <input 
@@ -287,7 +318,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               />
             </div>
 
-            {/* Top Row Tabs */}
             <div className="flex items-center justify-between px-2">
                 <h4 className="text-sm font-bold text-white tracking-tight">Messages</h4>
                 <button className="text-xs font-bold text-zinc-500 hover:text-white transition-colors">Requests</button>
@@ -310,9 +340,9 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
             </div>
           </div>
 
-          {/* User List */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-1">
+              {/* Corrected variable name from filteredPosts to filteredUsers to resolve "Cannot find name 'filteredPosts'" error */}
               {filteredUsers.length === 0 ? (
                   <div className="py-20 text-center opacity-30 flex flex-col items-center">
                     <p className="text-sm font-bold uppercase tracking-widest text-zinc-500">{sidebarSearchQuery ? 'No members found' : 'No messages yet'}</p>
@@ -328,19 +358,17 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                       className={`w-full flex items-center gap-4 p-3 rounded-lg transition-all text-left group relative cursor-pointer ${isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'}`}
                     >
                       <div className="relative shrink-0">
-                        {/* Avatar Area - Opens Profile */}
                         <UserAvatar 
                             user={u} 
                             className="w-14 h-14" 
-                            onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }} 
+                            onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, (u.username || '').toLowerCase()); }} 
                         />
                         <UnreadBadge count={unreadCounts[u.id] || 0} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        {/* Text Area - Opens Profile */}
                         <div 
                             className="inline-block max-w-full cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username?.toLowerCase()); }}
+                            onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, (u.username || '').toLowerCase()); }}
                         >
                             <div className="flex items-center gap-1.5 mb-0.5 overflow-hidden">
                                 <span className={`text-sm font-medium truncate leading-none ${unreadCounts[u.id] > 0 ? 'text-white font-black' : 'text-zinc-200'}`}>{u.name} {isMe && '(You)'}</span>
@@ -363,7 +391,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
         <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black animate-fade-in`}>
           
           {!isGlobal && !selectedUser ? (
-            /* "Your Messages" Placeholder View */
             <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-fade-in">
               <div className="w-24 h-24 rounded-full border-2 border-white flex items-center justify-center mb-6">
                 <i className="fa-regular fa-paper-plane text-4xl text-white"></i>
@@ -378,7 +405,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               </button>
             </div>
           ) : (
-            /* Active Chat View */
             <>
               <div className="px-5 py-3 md:px-8 md:py-4 flex items-center justify-between border-b border-white/10 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50] bg-black/60">
                 <div className="flex items-center gap-4 min-w-0">
@@ -444,7 +470,6 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Message Input Container */}
               <div className="p-4 md:p-6 bg-black border-t border-white/10 flex-shrink-0">
                 {isSignedIn ? (
                   <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-red-600/50">
