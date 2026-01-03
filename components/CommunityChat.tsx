@@ -27,31 +27,33 @@ const RESTRICTED_HANDLE = 'jiya';
 
 // R2 Configuration
 const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
-const R2_PUBLIC_BASE = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev/Messages';
+const R2_PUBLIC_DEV_URL = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev';
 
 /**
- * Uploads a file to R2 via the worker and returns the public URL.
+ * Upload Utility: Sends media to R2 via Worker and constructs the requested public URL
  */
 const uploadMediaToR2 = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('folder', 'Messages/'); // Save to Messages/ folder
-    
+    formData.append('folder', 'Messages/'); // Target folder in R2 bucket
+
     const response = await fetch(R2_WORKER_URL, {
         method: 'POST',
         body: formData,
     });
 
     if (!response.ok) {
-        throw new Error('Network response was not ok');
+        const errorText = await response.text();
+        console.error('R2 Worker Error:', errorText);
+        throw new Error('Upload failed at worker level');
     }
 
     const result = await response.json();
     
-    // Construct the public URL as requested
-    // If the worker returns a full URL, we extract just the filename to be safe
-    const filename = result.url.split('/').pop() || `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
-    return `${R2_PUBLIC_BASE}/${filename}`;
+    // Construct the specific Public URL requested: https://.../Messages/{filename}
+    // We extract the filename from the worker's returned URL
+    const filename = result.url.split('/').pop() || `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+    return `${R2_PUBLIC_DEV_URL}/Messages/${filename}`;
 };
 
 const REPORT_REASONS = [
@@ -473,8 +475,8 @@ export const CommunityChat: React.FC<{
             get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
         }
     } catch (err) {
-        console.error("Upload Error:", err);
-        alert("Failed to send message. Please check your connection.");
+        console.error("Upload Error Details:", err);
+        alert("Signal Lost: Failed to send media. Check connection or file format.");
     } finally {
         setIsMediaUploading(false);
     }
@@ -1052,7 +1054,7 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      {/* Refined Typing Section - Corrected for clipping */}
+                      {/* Typing Section: Enhanced for Mobile Clipping */}
                       <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
@@ -1070,7 +1072,7 @@ export const CommunityChat: React.FC<{
                                         <button 
                                             type="button" 
                                             onClick={() => mediaInputRef.current?.click()} 
-                                            className="p-2.5 text-zinc-400 hover:text-white transition-opacity"
+                                            className="p-2.5 text-zinc-400 hover:text-white transition-opacity flex-shrink-0"
                                             title="Attach Media"
                                         >
                                             <ImageIcon size={20} />
@@ -1092,13 +1094,13 @@ export const CommunityChat: React.FC<{
                                         <button 
                                             onClick={() => handleSendMessage()} 
                                             disabled={isMediaUploading || (!inputValue.trim() && !pendingMedia)} 
-                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-3 flex items-center justify-center min-w-[60px] h-10"
+                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-3 flex items-center justify-center min-w-[60px] h-10 flex-shrink-0"
                                         >
                                             {isMediaUploading ? '...' : 'Send'}
                                         </button>
                                     )}
                                 </div>
-                                <input type="file" ref={mediaInputRef} onChange={handleMediaSelect} accept="image/*,video/*" hidden />
+                                <input type="file" min-w-0 flex-shrink-0 ref={mediaInputRef} onChange={handleMediaSelect} accept="image/*,video/*" hidden />
                               </div>
                             )}
                             
