@@ -198,6 +198,34 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
         return () => unsubscribe();
     }, [user]);
 
+    const handleLike = async (e: React.MouseEvent, post: Post, isLiked: boolean) => {
+        e.stopPropagation();
+        if (!isSignedIn || !user) {
+            alert("Please log in to like posts.");
+            return;
+        }
+
+        const likeRef = ref(db, `explore_posts/${post.id}/likes/${user.id}`);
+        if (isLiked) {
+            await remove(likeRef);
+        } else {
+            await set(likeRef, true);
+            // Notify post author
+            if (post.userId !== user.id) {
+                await push(ref(db, `notifications/${post.userId}`), {
+                    type: 'post_like',
+                    fromId: user.id,
+                    fromName: (user.username || user.fullName || 'user').toLowerCase(),
+                    fromAvatar: user.imageUrl,
+                    text: `@${(user.username || user.fullName || 'user').toLowerCase()} liked your post.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    postId: post.id
+                });
+            }
+        }
+    };
+
     const filteredPosts = useMemo(() => {
         let list = posts;
         if (searchQuery.trim()) {
@@ -254,7 +282,19 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     
                     <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 md:gap-6 px-4 md:px-0">
                         {filteredPosts.map((post, idx) => (
-                            <PostItem key={post.id} post={post} idx={idx} user={user} onOpenProfile={(id) => onOpenProfile?.(id)} onOpenModal={onOpenModal} onShare={() => {}} onLike={() => {}} onEdit={() => {}} onDelete={() => {}} posts={posts} />
+                            <PostItem 
+                                key={post.id} 
+                                post={post} 
+                                idx={idx} 
+                                user={user} 
+                                onOpenProfile={(id) => onOpenProfile?.(id)} 
+                                onOpenModal={onOpenModal} 
+                                onShare={() => {}} 
+                                onLike={handleLike} 
+                                onEdit={() => {}} 
+                                onDelete={() => {}} 
+                                posts={posts} 
+                            />
                         ))}
                     </div>
                 </div>

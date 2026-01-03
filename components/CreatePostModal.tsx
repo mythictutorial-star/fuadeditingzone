@@ -2,9 +2,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
-import { getDatabase, ref, push, update, set, onValue } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, push, update, set, onValue, query, orderByChild, equalTo, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { CloseIcon, PhotoManipulationIcon, SendIcon, CheckCircleIcon, GlobeAltIcon, UserGroupIcon, EyeIcon, ChevronRightIcon } from './Icons';
-import { Lock, Trash2, Plus, ShieldAlert, Clock } from 'lucide-react';
+import { Lock, Trash2, Plus, ShieldAlert, Clock, AlertCircle } from 'lucide-react';
 
 const db = getDatabase();
 const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
@@ -34,16 +34,21 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [isUploading, setIsUploading] = useState(false);
   const [lockStatus, setLockStatus] = useState<{ isLocked: boolean; countdown: string | null; warning: string | null }>({ isLocked: false, countdown: null, warning: null });
   
+  // Upload Limit State
+  const [limitStatus, setLimitStatus] = useState<{ isLimited: boolean; countdown: string | null }>({ isLimited: false, countdown: null });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isMarketplaceContext) setPrivacy('public');
   }, [isMarketplaceContext]);
 
+  // Combined Security & Upload Limit Check
   useEffect(() => {
     if (!user?.id || !isOpen) return;
 
-    const unsub = onValue(ref(db, `users/${user.id}`), (snap) => {
+    // 1. Check System Lock (Admin-triggered)
+    const unsubLock = onValue(ref(db, `users/${user.id}`), (snap) => {
         const userData = snap.val();
         if (userData?.lockedUntil && userData.lockedUntil > Date.now()) {
             setLockStatus(prev => ({ ...prev, isLocked: true, warning: userData.warning?.message || 'Access Restricted.' }));
@@ -66,7 +71,44 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         }
     });
 
-    return () => unsub();
+    // 2. Check 24h Upload Limit
+    const checkUploadLimit = async () => {
+        const postsQuery = query(ref(db, 'explore_posts'), orderByChild('userId'), equalTo(user.id));
+        const snapshot = await get(postsQuery);
+        if (snapshot.exists()) {
+            const now = Date.now();
+            const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+            const userPosts = Object.values(snapshot.val() as any)
+                .filter((p: any) => p.timestamp > twentyFourHoursAgo)
+                .sort((a: any, b: any) => b.timestamp - a.timestamp);
+
+            if (userPosts.length >= 5) {
+                // Find the oldest post in the 5-post set that needs to "expire" to allow a new one
+                const oldestPostInSet = userPosts[4];
+                // Fix: Cast oldestPostInSet to any to avoid "unknown" type error on timestamp property
+                const nextAvailableTime = (oldestPostInSet as any).timestamp + (24 * 60 * 60 * 1000);
+
+                const interval = setInterval(() => {
+                    const diff = nextAvailableTime - Date.now();
+                    if (diff <= 0) {
+                        setLimitStatus({ isLimited: false, countdown: null });
+                        clearInterval(interval);
+                        return;
+                    }
+                    const h = Math.floor(diff / 3600000);
+                    const m = Math.floor((diff % 3600000) / 60000);
+                    const s = Math.floor((diff % 60000) / 1000);
+                    setLimitStatus({ isLimited: true, countdown: `${h}h ${m}m ${s}s` });
+                }, 1000);
+                return () => clearInterval(interval);
+            } else {
+                setLimitStatus({ isLimited: false, countdown: null });
+            }
+        }
+    };
+    checkUploadLimit();
+
+    return () => unsubLock();
   }, [user?.id, isOpen]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,7 +145,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   };
 
   const handleSubmit = async () => {
-    if (!user || !title.trim() || lockStatus.isLocked) return;
+    if (!user || !title.trim() || lockStatus.isLocked || limitStatus.isLimited) return;
     if (role === 'Designer' && !selectedFile) return;
     
     setIsUploading(true);
@@ -184,26 +226,44 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar relative">
-          {lockStatus.isLocked && (
+          
+          {/* Restriction Overlay (Security or Upload Limit) */}
+          {(lockStatus.isLocked || limitStatus.isLimited) && (
               <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-xl flex items-center justify-center p-8 text-center">
-                  <div className="max-w-sm w-full bg-red-600/10 border border-red-600/20 rounded-[2.5rem] p-10 shadow-[0_0_80px_rgba(220,38,38,0.2)]">
-                      <ShieldAlert className="w-16 h-16 text-red-600 mx-auto mb-6" />
-                      <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-4">Posting Restricted</h3>
-                      <p className="text-zinc-400 text-xs leading-relaxed mb-10 font-medium">"{lockStatus.warning}"</p>
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="max-w-sm w-full bg-red-600/10 border border-red-600/20 rounded-[2.5rem] p-10 shadow-[0_0_80px_rgba(220,38,38,0.2)]"
+                  >
+                      {lockStatus.isLocked ? (
+                          <>
+                              <ShieldAlert className="w-16 h-16 text-red-600 mx-auto mb-6" />
+                              <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-4">Posting Restricted</h3>
+                              <p className="text-zinc-400 text-xs leading-relaxed mb-10 font-medium">"{lockStatus.warning}"</p>
+                          </>
+                      ) : (
+                          <>
+                              <AlertCircle className="w-16 h-16 text-red-600 mx-auto mb-6" />
+                              <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-4 leading-tight">Your upload limit has ended today</h3>
+                              <p className="text-zinc-400 text-xs leading-relaxed mb-10 font-medium uppercase tracking-widest">Maximum 5 posts per 24 hours allowed to maintain quality.</p>
+                          </>
+                      )}
                       
                       <div className="bg-black/40 border border-white/10 rounded-2xl p-6 flex flex-col items-center gap-2">
                           <div className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-widest">
-                             <Clock size={12}/> Lock Expiry
+                             <Clock size={12}/> Next Upload In
                           </div>
-                          <span className="text-2xl font-black text-white tabular-nums tracking-widest">{lockStatus.countdown}</span>
+                          <span className="text-2xl font-black text-white tabular-nums tracking-widest">
+                              {lockStatus.isLocked ? lockStatus.countdown : limitStatus.countdown}
+                          </span>
                       </div>
                       
                       <button onClick={onClose} className="mt-10 text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em] hover:text-white transition-colors">Close Portal</button>
-                  </div>
+                  </motion.div>
               </div>
           )}
 
-          <div className={`max-w-7xl mx-auto w-full p-6 md:p-12 flex flex-col md:flex-row gap-10 md:gap-12 lg:gap-20 ${lockStatus.isLocked ? 'blur-sm pointer-events-none' : ''}`}>
+          <div className={`max-w-7xl mx-auto w-full p-6 md:p-12 flex flex-col md:flex-row gap-10 md:gap-12 lg:gap-20 ${(lockStatus.isLocked || limitStatus.isLimited) ? 'blur-sm pointer-events-none' : ''}`}>
             
             {/* Left Column: Category & Content */}
             <div className="md:w-5/12 lg:w-4/12 space-y-8 md:space-y-10">
@@ -360,14 +420,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         <div className="p-6 md:p-10 border-t border-white/10 bg-black/80 backdrop-blur-xl flex flex-col md:flex-row gap-4 items-center justify-between pb-12 md:pb-10">
           <p className="hidden md:block text-[9px] text-zinc-600 font-black uppercase tracking-[0.2em] text-center md:text-left">Friendly reminder: Stick to the community guidelines. Sharing high quality content helps everyone.</p>
           <button 
-            disabled={isUploading || !title.trim() || (role === 'Designer' && !selectedFile) || lockStatus.isLocked}
+            disabled={isUploading || !title.trim() || (role === 'Designer' && !selectedFile) || lockStatus.isLocked || limitStatus.isLimited}
             onClick={handleSubmit}
             className="w-full md:w-auto bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:grayscale text-white px-16 py-5 rounded-xl text-[12px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 shadow-[0_15px_40px_rgba(220,38,38,0.4)] active:scale-95"
           >
             {isUploading ? (
               <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-            ) : lockStatus.isLocked ? (
-                <>Locked <Lock className="w-4 h-4" /></>
+            ) : (lockStatus.isLocked || limitStatus.isLimited) ? (
+                <>{lockStatus.isLocked ? 'Locked' : 'Limit Reached'} <Lock className="w-4 h-4" /></>
             ) : (
               <>Share Content <SendIcon className="w-5 h-5" /></>
             )}
