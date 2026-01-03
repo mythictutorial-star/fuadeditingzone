@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton, useClerk } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon, LockIcon, UnlockIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
 import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck, KeyRound, Fingerprint, Lock, Unlock, AlertTriangle, ShieldCheck as Shield, Image as ImageIcon, Film, X } from 'lucide-react';
@@ -25,35 +26,46 @@ const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
 
-// R2 Configuration
-const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
-const R2_PUBLIC_DEV_URL = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev';
+// R2 Storage Configuration
+const R2_PUBLIC_DOMAIN = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev';
+const R2_BUCKET_NAME = 'pub-c35a446ba9db4c89b71a674f0248f02a';
+
+// S3 Client initialization with direct R2 credentials
+const s3Client = new S3Client({
+  region: 'auto',
+  endpoint: 'https://af6242186ef611cf46b450432dcda328.r2.cloudflarestorage.com',
+  credentials: {
+    accessKeyId: '33ee13a93f78b70795d137e80f99f9fa',
+    secretAccessKey: 'c7ce8fd8fc45a310184ac3b4fa98646991b8bea2b8798576764553f676d02fe2',
+  },
+  forcePathStyle: true,
+});
 
 /**
- * Upload Utility: Sends media to R2 via Worker and constructs the requested public URL
+ * REWRITTEN UPLOAD UTILITY: 
+ * Direct S3 integration for R2 storage with robust error handling.
  */
 const uploadMediaToR2 = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folder', 'Messages/'); // Target folder in R2 bucket
+    const fileName = `${Date.now()}-${file.name.replace(/[^a-z0-9.]/gi, '_')}`;
+    const arrayBuffer = await file.arrayBuffer();
+    const body = new Uint8Array(arrayBuffer);
 
-    const response = await fetch(R2_WORKER_URL, {
-        method: 'POST',
-        body: formData,
+    const command = new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: `Messages/${fileName}`,
+        Body: body,
+        ContentType: file.type,
     });
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('R2 Worker Error:', errorText);
-        throw new Error('Upload failed at worker level');
+    try {
+        await s3Client.send(command);
+        // Publicly accessible URL construction
+        return `${R2_PUBLIC_DOMAIN}/Messages/${fileName}`;
+    } catch (err: any) {
+        // Detailed error logging for debugging (e.g. status codes)
+        console.dir(err);
+        throw new Error('S3_UPLOAD_FAILED');
     }
-
-    const result = await response.json();
-    
-    // Construct the specific Public URL requested: https://.../Messages/{filename}
-    // We extract the filename from the worker's returned URL
-    const filename = result.url.split('/').pop() || `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
-    return `${R2_PUBLIC_DEV_URL}/Messages/${filename}`;
 };
 
 const REPORT_REASONS = [
@@ -296,7 +308,8 @@ export const CommunityChat: React.FC<{
   forceSearchTab?: boolean;
   onSearchTabConsumed?: () => void;
   onThreadStateChange?: (active: boolean) => void;
-}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed, onThreadStateChange }) => {
+  onOpenPost?: (postId: string, commentId?: string) => void;
+}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed, onThreadStateChange, onOpenPost }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -432,6 +445,10 @@ export const CommunityChat: React.FC<{
     }
   }, [inputValue]);
 
+  /**
+   * REWRITTEN SEND MESSAGE LOGIC:
+   * Direct R2 S3 Upload followed by sequential Firebase Sync.
+   */
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser) return;
@@ -446,11 +463,13 @@ export const CommunityChat: React.FC<{
     let mediaType: 'image' | 'video' | undefined = undefined;
 
     try {
+        // Sequential Upload to R2 Storage first
         if (pendingMedia) {
             mediaUrl = await uploadMediaToR2(pendingMedia.file);
             mediaType = pendingMedia.type;
         }
 
+        // Only after R2 success, proceed with Firebase sync
         const myProfile = users.find(u => u.id === clerkUser.id);
         const newMessage: Message = { 
           senderId: clerkUser.id, 
@@ -474,9 +493,10 @@ export const CommunityChat: React.FC<{
             const recipientUnreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
             get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
         }
-    } catch (err) {
-        console.error("Upload Error Details:", err);
-        alert("Signal Lost: Failed to send media. Check connection or file format.");
+    } catch (err: any) {
+        // Robust error inspection for debugging
+        console.dir(err);
+        alert("Signal Lost: Failed to send message. Inspect tool may show storage status code.");
     } finally {
         setIsMediaUploading(false);
     }
@@ -686,6 +706,20 @@ export const CommunityChat: React.FC<{
     setReportMode(false);
     setIsChatInfoOpen(false);
     alert("Report submitted. Our moderation team will review this account soon.");
+  };
+
+  const handleNotificationClick = async (n: any) => {
+    if (!clerkUser) return;
+    if (!n.isGlobal) await update(ref(db, `notifications/${clerkUser.id}/${n.id}`), { read: true });
+    
+    if (n.type === 'post_like' || n.type === 'post_comment' || n.type === 'comment_reply') {
+        onOpenPost?.(n.postId, n.commentId);
+    } else if (n.type === 'user_report' && n.targetId) {
+        onShowProfile?.(n.targetId);
+    } else if (n.fromId && n.fromId !== 'system') {
+        onShowProfile?.(n.fromId);
+    }
+    setIsActivityOpen(false);
   };
 
   const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
@@ -920,13 +954,7 @@ export const CommunityChat: React.FC<{
                                 </div>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => { 
-                                        if (n.type === 'user_report' && n.targetId) {
-                                            onShowProfile?.(n.targetId, n.targetUsername);
-                                        } else if (n.fromId) {
-                                            onShowProfile?.(n.fromId, n.fromName);
-                                        }
-                                    }} className={`p-8 rounded-[2rem] cursor-pointer transition-all border group relative bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]`}>
+                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-8 rounded-[2rem] cursor-pointer transition-all border group relative bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]`}>
                                         <div className="flex gap-4 items-center">
                                             <div className="relative flex-shrink-0">
                                                 {n.fromAvatar ? (
@@ -1064,7 +1092,7 @@ export const CommunityChat: React.FC<{
                                 <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
                               </div>
                             ) : (
-                              <div className="flex items-end gap-2 p-1.5 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] bg-black">
+                              <div className="flex items-end gap-2 p-1.5 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] bg-black min-h-[70px]">
                                 <div className="flex-shrink-0 flex items-center pl-2 self-center">
                                     {isMediaUploading ? (
                                         <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1094,7 +1122,7 @@ export const CommunityChat: React.FC<{
                                         <button 
                                             onClick={() => handleSendMessage()} 
                                             disabled={isMediaUploading || (!inputValue.trim() && !pendingMedia)} 
-                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-3 flex items-center justify-center min-w-[60px] h-10 flex-shrink-0"
+                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-3 flex items-center justify-center min-w-[70px] h-10 flex-shrink-0"
                                         >
                                             {isMediaUploading ? '...' : 'Send'}
                                         </button>

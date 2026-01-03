@@ -341,6 +341,7 @@ export default function App() {
                   forceSearchTab={mobileSearchTriggered} 
                   onSearchTabConsumed={() => setMobileSearchTriggered(false)}
                   onThreadStateChange={(active) => setIsMessageThreadActive(active)}
+                  onOpenPost={handleOpenPost}
                 />
             </div>
           </main>
