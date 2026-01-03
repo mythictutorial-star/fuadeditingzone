@@ -10,7 +10,6 @@ import {
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { siteConfig } from '../config';
-// Fixed: Added ChevronRightIcon to the imports
 import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon, SearchIcon, ChevronRightIcon } from './Icons';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 
@@ -411,15 +410,15 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
     );
 };
 
-export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized }) => {
+export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean; hideFAB?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized, hideFAB }) => {
     const { isSignedIn } = useUser();
     // Hide footer completely when modal is open
     if (isMinimized) return null;
 
     return (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
-            {/* Floating Action Button for Create Post - Hide on Home route and if not signed in */}
-            {activeRoute !== 'home' && isSignedIn && (
+            {/* Floating Action Button for Create Post - Hide on Home route and if not signed in or FAB hidden explicitly */}
+            {activeRoute !== 'home' && isSignedIn && !hideFAB && (
                 <div className="flex justify-end p-6 pointer-events-auto">
                     <motion.button 
                         whileHover={{ scale: 1.1 }}

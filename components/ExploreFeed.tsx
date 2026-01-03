@@ -230,7 +230,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             
             <CreatePostModal isOpen={isPostModalOpen} onClose={() => setIsPostModalOpen(false)} isMarketplaceContext={true} />
 
-            {isSignedIn && (<motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPostModalOpen(true)} className="fixed bottom-32 right-6 md:bottom-12 md:right-12 z-[110] w-16 h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg border-2 border-white/20 group"><span className="text-4xl font-light transition-transform">+</span></motion.button>)}
+            {/* Restricted FAB to only desktop to satisfy requirement of single FAB in footer for mobile */}
+            {isSignedIn && (<motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPostModalOpen(true)} className="hidden md:flex fixed bottom-12 right-12 z-[110] w-16 h-16 bg-red-600 text-white rounded-2xl items-center justify-center shadow-lg border-2 border-white/20 group"><span className="text-4xl font-light transition-transform">+</span></motion.button>)}
         </div>
     );
 };

@@ -10,7 +10,7 @@ import {
   ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon, LockIcon
 } from './Icons';
 import { siteConfig } from '../config';
-import { Lock, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -68,6 +68,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     const isJiya = targetUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
     const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
+    const isAdmin = clerkUser?.username?.toLowerCase() === ADMIN_HANDLE;
     const hasAccessToJiya = isOwner;
 
     useEffect(() => {
@@ -251,6 +252,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         }
     };
 
+    const handleAdminAction = async () => {
+        if (!isOwner && !isAdmin) return;
+        const action = prompt("ADMIN CONSOLE: (1) Lock Account (2) Add Warning (3) Clear All");
+        if (action === '1') {
+            const hours = prompt("Lock for how many hours?");
+            if (hours) {
+                const expiry = Date.now() + (parseInt(hours) * 3600000);
+                await update(ref(db, `users/${currentProfileId}`), { lockedUntil: expiry });
+                alert("Account locked.");
+            }
+        } else if (action === '2') {
+            const msg = prompt("Enter warning message:");
+            if (msg) {
+                await update(ref(db, `users/${currentProfileId}`), { 
+                    warning: { message: msg, timestamp: Date.now() } 
+                });
+                alert("Warning added.");
+            }
+        } else if (action === '3') {
+            await update(ref(db, `users/${currentProfileId}`), { lockedUntil: null, warning: null });
+            alert("Statuses cleared.");
+        }
+    };
+
     const getVerifiedBadge = (u: string) => {
         const low = u?.toLowerCase();
         const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
@@ -285,6 +310,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         );
     }
 
+    const isLocked = targetUser?.lockedUntil && targetUser.lockedUntil > Date.now();
+    const hasWarning = !!targetUser?.warning;
+
     return (
         <AnimatePresence>
             <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
@@ -302,6 +330,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
+                            {(isOwner || isAdmin) && !isMyOwnProfile && (
+                                <button onClick={handleAdminAction} className="p-2.5 bg-yellow-600/10 rounded-xl border border-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white transition-all"><ShieldAlert size={20} /></button>
+                            )}
                             {!showSecurity && isMyOwnProfile && (
                                 <button onClick={() => setShowSecurity(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-all"><ShieldCheck size={20} /></button>
                             )}
@@ -310,7 +341,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative no-scrollbar">
+                        {/* Global Status Banner */}
+                        {isLocked && (
+                            <div className="bg-red-600 text-white p-3 text-center flex items-center justify-center gap-3 shadow-lg sticky top-0 z-50">
+                                <Lock size={16} className="animate-pulse" />
+                                <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">This account is temporarily locked for policy violations.</span>
+                            </div>
+                        )}
+
+                        {hasWarning && (
+                            <div className="bg-yellow-600/10 border-b border-yellow-600/30 p-4 text-center flex flex-col items-center justify-center gap-1 shadow-inner sticky top-0 z-40 backdrop-blur-md">
+                                <div className="flex items-center gap-2 text-yellow-500">
+                                    <AlertTriangle size={14} />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">Community Warning</span>
+                                </div>
+                                <p className="text-[11px] md:text-sm text-zinc-200 font-medium italic">"{targetUser.warning.message}"</p>
+                            </div>
+                        )}
+
                         {showSecurity ? (
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-10">
                                 <div className="space-y-4">
@@ -381,9 +430,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             </div>
                                             <div className="flex gap-3">
                                                 {isViewingOther ? (
-                                                    <><button onClick={() => handleAction('follow')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${socialState.isFollowing ? 'bg-white/10 text-white border border-white/10 hover:text-red-500' : 'bg-red-600 text-white shadow-xl hover:bg-red-700'}`}>{socialState.isFollowing ? 'Following' : 'Follow'}</button>
-                                                      <button onClick={() => handleAction('friend')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${socialState.friendStatus === 'accepted' ? 'bg-green-600/20 text-green-500 border border-green-600/30' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10'}`}>{socialState.friendStatus === 'accepted' ? 'Friends' : socialState.friendStatus === 'pending' ? 'Accept?' : socialState.friendStatus === 'requested' ? 'Requested' : 'Add Friend'}</button>
-                                                      <button onClick={() => onMessageUser?.(viewingUserId!)} className="p-2.5 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 active:scale-95 transition-all"><ChatBubbleIcon className="w-5 h-5" /></button></>
+                                                    <><button disabled={isLocked} onClick={() => handleAction('follow')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.isFollowing ? 'bg-white/10 text-white border border-white/10 hover:text-red-500' : 'bg-red-600 text-white shadow-xl hover:bg-red-700')}`}>{socialState.isFollowing ? 'Following' : 'Follow'}</button>
+                                                      <button disabled={isLocked} onClick={() => handleAction('friend')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.friendStatus === 'accepted' ? 'bg-green-600/20 text-green-500 border border-green-600/30' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10')}`}>{socialState.friendStatus === 'accepted' ? 'Friends' : socialState.friendStatus === 'pending' ? 'Accept?' : socialState.friendStatus === 'requested' ? 'Requested' : 'Add Friend'}</button>
+                                                      <button disabled={isLocked} onClick={() => onMessageUser?.(viewingUserId!)} className={`p-2.5 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 active:scale-95 transition-all ${isLocked ? 'opacity-20 cursor-not-allowed' : ''}`}><ChatBubbleIcon className="w-5 h-5" /></button></>
                                                 ) : (!isEditing && <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 bg-white/10 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-white hover:bg-white/20 transition-all">Edit Profile</button>)}
                                             </div>
                                         </div>
@@ -416,13 +465,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                           <GlobeAltIcon className="w-4 h-4 text-red-600 opacity-60" />
                                                           <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUser?.profile?.origin || 'Earth'}</span>
                                                       </div>
-                                                  </div>
-
-                                                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-2">
-                                                      <span className="text-red-600 mr-1"><SparklesIcon className="w-4 h-4" /></span>
-                                                      {(targetUser?.profile?.skills || []).map((s: string, i: number) => (
-                                                          <span key={i} className="text-[9px] md:text-[10px] font-bold text-zinc-400 uppercase tracking-[0.1em] px-2 py-0.5 border border-white/5 rounded-md bg-white/[0.02]">{s}</span>
-                                                      ))}
                                                   </div>
 
                                                   <div className="flex items-center justify-center md:justify-start gap-4 pt-3">
@@ -497,6 +539,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* Admin/System Bottom Tag */}
+                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5">
+                        <img src={siteConfig.branding.logoUrl} className="h-8 mx-auto grayscale invert mb-4" alt="" />
+                        <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Zone Protocol v4.0</p>
                     </div>
                 </motion.div>
             </div>

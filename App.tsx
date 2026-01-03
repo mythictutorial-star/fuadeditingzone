@@ -72,6 +72,9 @@ export default function App() {
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
 
+  // Tracking if a message thread is active to hide footer components
+  const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
+
   // Auto-sync Clerk user to Firebase
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
@@ -232,6 +235,7 @@ export default function App() {
     setRoute(path);
     window.history.pushState(null, '', path === 'home' ? '/' : `/${path}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsMessageThreadActive(false);
   };
 
   const handleOpenProfile = async (userId: string, username?: string) => {
@@ -337,6 +341,7 @@ export default function App() {
                   onNavigateMarket={() => navigateTo('marketplace')} 
                   forceSearchTab={mobileSearchTriggered} 
                   onSearchTabConsumed={() => setMobileSearchTriggered(false)}
+                  onThreadStateChange={(active) => setIsMessageThreadActive(active)}
                 />
               </div>
             )}
@@ -370,6 +375,7 @@ export default function App() {
             onCreatePost={() => setIsCreatePostOpen(true)}
             activeRoute={route} 
             isMinimized={isCreatePostOpen}
+            hideFAB={isMessageThreadActive}
           />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
       </div>

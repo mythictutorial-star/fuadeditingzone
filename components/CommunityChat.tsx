@@ -6,7 +6,7 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon, LockIcon, UnlockIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck, KeyRound, Fingerprint, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck, KeyRound, Fingerprint, Lock, Unlock, AlertTriangle } from 'lucide-react';
 import { siteConfig } from '../config';
 import { CreatePostModal } from './CreatePostModal';
 
@@ -24,6 +24,16 @@ const db = getDatabase();
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
+
+const REPORT_REASONS = [
+    { id: 'spam', label: 'It\'s spam', desc: 'Repetitive or unwanted messages' },
+    { id: 'hate', label: 'Hate speech or symbols', desc: 'Violence, dehumanization, or threats' },
+    { id: 'harassment', label: 'Harassment or bullying', desc: 'Targeted attacks or abuse' },
+    { id: 'inappropriate', label: 'Inappropriate content', desc: 'Sexual or graphic imagery' },
+    { id: 'scam', label: 'Scam or fraud', desc: 'Deceptive financial requests' },
+    { id: 'impersonation', label: 'Impersonation', desc: 'Pretending to be someone else' },
+    { id: 'other', label: 'Something else', desc: 'Other policy violations' }
+];
 
 interface ChatUser {
   id: string;
@@ -121,8 +131,6 @@ const PasscodeOverlay: React.FC<{
                 } else if (mode === 'enter' || mode === 'change') {
                     if (code === storedPasscode) onSuccess(code);
                     else { setError("Incorrect passcode."); setDigits([]); }
-                } else if (mode === 'reset') {
-                   // This is for resetting with recovery code
                 }
             }, 300);
         }
@@ -207,7 +215,8 @@ export const CommunityChat: React.FC<{
   onNavigateMarket?: () => void;
   forceSearchTab?: boolean;
   onSearchTabConsumed?: () => void;
-}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed }) => {
+  onThreadStateChange?: (active: boolean) => void;
+}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed, onThreadStateChange }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -224,15 +233,20 @@ export const CommunityChat: React.FC<{
   const [mutedUsers, setMutedUsers] = useState<Record<string, boolean>>({});
   const [blockedByMe, setBlockedByMe] = useState<Record<string, boolean>>({});
   const [lockedChats, setLockedChats] = useState<Record<string, boolean>>({});
-  const [userPasscode, setPasscode] = useState<string | null>(null);
+  const [userPasscode, setUserPasscode] = useState<string | null>(null);
   
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [isChatInfoOpen, setIsChatInfoOpen] = useState(false);
   const [passcodeMode, setPasscodeMode] = useState<'set' | 'enter' | 'change' | null>(null);
   const [verifiedTarget, setVerifiedTarget] = useState<string | null>(null);
+  const [reportMode, setReportMode] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
+  }, [isMobileChatOpen, selectedUser, isGlobal]);
 
   useEffect(() => {
     if (forceSearchTab) {
@@ -283,7 +297,7 @@ export const CommunityChat: React.FC<{
             setLockedChats(snap.val() || {});
         });
         onValue(ref(db, `users/${clerkUser.id}/chat_passcode`), (snap) => {
-            setPasscode(snap.val() || null);
+            setUserPasscode(snap.val() || null);
         });
     }
 
@@ -339,11 +353,10 @@ export const CommunityChat: React.FC<{
       text: inputValue.trim(), 
       timestamp: Date.now() 
     };
-    
     setInputValue('');
     await push(ref(db, chatPath), newMessage);
-
-    // Track active conversation for inbox tabs
+    
+    // Ensure both users have this in their conversation persistent list
     if (!isGlobal && selectedUser) {
         await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
         await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
@@ -358,7 +371,10 @@ export const CommunityChat: React.FC<{
         baseList = baseList.filter(u => (u.username || '').toLowerCase() !== RESTRICTED_HANDLE);
     }
 
-    const messagedIds = [...new Set([...Object.keys(unreadCounts), ...Object.keys(conversations)])];
+    const talkHistoryIds = Object.keys(conversations);
+    const unreadIds = Object.keys(unreadCounts);
+    const messagedIds = [...new Set([...talkHistoryIds, ...unreadIds])];
+
     const primary: ChatUser[] = [];
     const requests: ChatUser[] = [];
 
@@ -487,6 +503,39 @@ export const CommunityChat: React.FC<{
       }
   };
 
+  const submitReport = async (reason: string) => {
+    if (!clerkUser || !selectedUser) return;
+    
+    const reportData = {
+        reporterId: clerkUser.id,
+        reporterUsername: clerkUser.username,
+        targetId: selectedUser.id,
+        targetUsername: selectedUser.username,
+        reason,
+        timestamp: Date.now()
+    };
+
+    // Save to reports collection
+    await push(ref(db, `system/reports`), reportData);
+
+    // Notify admins
+    const admins = users.filter(u => u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE);
+    for (const admin of admins) {
+        await push(ref(db, `notifications/${admin.id}`), {
+            type: 'user_report',
+            text: `ALERT: @${clerkUser.username} reported @${selectedUser.username} for "${reason}". Check system reports for details.`,
+            timestamp: Date.now(),
+            read: false,
+            fromId: clerkUser.id,
+            fromName: 'System Report'
+        });
+    }
+
+    setReportMode(false);
+    setIsChatInfoOpen(false);
+    alert("Report submitted. Our moderation team will review this account soon.");
+  };
+
   const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
     if (!count || count <= 0) return null;
     return <div className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-black min-w-[16px] h-[16px] flex items-center justify-center rounded-full border border-black px-1 shadow-lg z-10">{count}</div>;
@@ -514,7 +563,7 @@ export const CommunityChat: React.FC<{
                 <button onClick={() => { setSidebarTab('messages'); setIsGlobal(false); setSelectedUser(null); setInboxView('primary'); }} className={`transition-all ${sidebarTab === 'messages' && !isGlobal && !selectedUser ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Messages"><HomeIcon className="w-7 h-7" /></button>
                 <button onClick={() => { setSidebarTab('search'); }} className={`transition-all ${sidebarTab === 'search' ? 'text-white scale-110' : 'text-white opacity-40 hover:opacity-100'}`} title="Search"><SearchIcon className="w-7 h-7" /></button>
                 <button onClick={onNavigateMarket} className="text-white opacity-40 hover:opacity-100 transition-all" title="Marketplace"><MarketIcon className="w-7 h-7" /></button>
-                <button onClick={() => { const btn = document.querySelector('[title="Notifications"]') as HTMLButtonElement; if(btn) btn.click(); }} className="text-white hover:opacity-70 transition-all" title="Activity"><Bell className="w-7 h-7" /></button>
+                <button onClick={() => { const btn = document.querySelector('[title="Activity"]') as HTMLButtonElement; if(btn) btn.click(); }} className="text-white hover:opacity-70 transition-all" title="Activity"><Bell className="w-7 h-7" /></button>
                 <button onClick={() => setIsCreatePostOpen(true)} className="text-white hover:opacity-70 transition-all"><PlusSquare className="w-7 h-7" /></button>
             </div>
             <div className="mt-auto">
@@ -674,7 +723,7 @@ export const CommunityChat: React.FC<{
             <>
               <div className="px-5 py-3 md:px-8 md:py-4 flex items-center justify-between border-b border-white/10 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50] bg-black/60">
                 <div className="flex items-center gap-4 min-w-0">
-                  <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 rounded-lg bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
+                  <button onClick={() => { setIsMobileChatOpen(false); setSelectedUser(null); setIsGlobal(false); }} className="md:hidden p-2 rounded-lg bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
                   <div onClick={() => !isGlobal && onShowProfile?.(selectedUser!.id, selectedUser!.username?.toLowerCase())} className="relative cursor-pointer">
                     {isGlobal ? (<div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-white/10"><i className="fa-solid fa-earth-americas text-white text-xl"></i></div>) : (<UserAvatar user={selectedUser!} className={`w-10 h-10 md:w-12 md:h-12 border ${selectedUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600' : 'border-white/10'}`} />)}
                   </div>
@@ -702,7 +751,7 @@ export const CommunityChat: React.FC<{
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-10 flex flex-col gap-4 md:gap-6">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-10 flex flex-col gap-4 md:gap-6 no-scrollbar">
                 {messages.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse"><i className="fa-solid fa-shield-halved text-5xl mb-6"></i><p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting...' : 'Secure Connection'}</p></div>
                 ) : (
@@ -722,7 +771,7 @@ export const CommunityChat: React.FC<{
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-4 md:p-6 bg-black border-t border-white/10 flex-shrink-0">
+              <div className="p-4 md:p-6 bg-black border-t border-white/10 flex-shrink-0 z-50">
                 {isSignedIn ? (
                   <div className="max-w-4xl mx-auto flex flex-col gap-3">
                     {isInputLocked ? (
@@ -731,15 +780,15 @@ export const CommunityChat: React.FC<{
                         <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
                       </div>
                     ) : (
-                      <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-red-600/50">
-                        <button type="button" className="p-2 text-white hover:text-red-500 transition-colors"><i className="fa-regular fa-face-smile text-xl"></i></button>
-                        <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-500" />
-                        {inputValue.trim() ? (<button type="submit" className="text-red-600 hover:text-red-500 font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>) : (<div className="flex items-center gap-3 pr-2 text-white"><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-image text-lg"></i></button><button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button></div>)}
+                      <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02]">
+                        <button type="button" className="p-2 text-zinc-500 hover:text-white transition-colors"><i className="fa-regular fa-face-smile text-xl"></i></button>
+                        <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-1 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-700" />
+                        {inputValue.trim() ? (<button type="submit" className="text-red-600 hover:text-red-500 font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>) : (<div className="flex items-center gap-3 pr-2 text-zinc-500"><button type="button" className="hover:text-white transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button><button type="button" className="hover:text-white transition-opacity"><i className="fa-regular fa-image text-lg"></i></button><button type="button" className="hover:text-white transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button></div>)}
                       </form>
                     )}
                     
                     {!isGlobal && !isCurrentChatAFriend && !isInputLocked && (
-                      <p className="text-[8px] text-zinc-600 font-black uppercase tracking-[0.2em] text-center">
+                      <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center">
                         {3 - mySentMessagesCount} messages left until acceptance required
                       </p>
                     )}
@@ -761,93 +810,123 @@ export const CommunityChat: React.FC<{
                 initial={{ opacity: 0, x: '100%' }} 
                 animate={{ opacity: 1, x: 0 }} 
                 exit={{ opacity: 0, x: '100%' }} 
-                className="fixed inset-0 z-[1000] bg-black flex flex-col md:max-w-md md:left-auto border-l border-white/10"
+                className="fixed inset-0 z-[1000] bg-black flex flex-col md:max-w-md md:left-auto border-l border-white/10 shadow-[0_0_100px_rgba(0,0,0,1)]"
             >
-                <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl">
-                    <button onClick={() => setIsChatInfoOpen(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
-                    <h2 className="text-sm font-black text-white uppercase tracking-widest">Details</h2>
-                    <div className="w-10"></div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10">
-                    <div className="flex flex-col items-center text-center">
-                        <UserAvatar user={selectedUser} className="w-24 h-24 mb-4 ring-4 ring-white/5" />
-                        <h3 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-1.5">{selectedUser.name}{getIdentity(selectedUser.username, selectedUser.role)}</h3>
-                        <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">@{selectedUser.username.toLowerCase()}</p>
-                        
-                        <div className="mt-8 flex gap-4">
-                            <button onClick={() => { setIsChatInfoOpen(false); onShowProfile?.(selectedUser.id, selectedUser.username); }} className="px-6 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all active:scale-95">View Profile</button>
+                {reportMode ? (
+                  <div className="flex flex-col h-full bg-black">
+                    <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/40 backdrop-blur-xl">
+                        <button onClick={() => setReportMode(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Report Account</h2>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        <div className="mb-8">
+                            <h3 className="text-lg font-black text-white mb-2 uppercase tracking-tight">Why are you reporting?</h3>
+                            <p className="text-xs text-zinc-500">Select a reason that best describes your concern. Your report is confidential.</p>
+                        </div>
+                        <div className="space-y-1">
+                            {REPORT_REASONS.map((reason) => (
+                                <button key={reason.id} onClick={() => submitReport(reason.label)} className="w-full text-left p-4 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 transition-all group">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm font-bold text-white group-hover:text-red-500 transition-colors">{reason.label}</p>
+                                            <p className="text-[10px] text-zinc-500 mt-1">{reason.desc}</p>
+                                        </div>
+                                        <ChevronRightIcon className="w-4 h-4 text-zinc-800 group-hover:text-red-600" />
+                                    </div>
+                                </button>
+                            ))}
                         </div>
                     </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl">
+                        <button onClick={() => setIsChatInfoOpen(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Details</h2>
+                        <div className="w-10"></div>
+                    </div>
 
-                    <div className="space-y-2">
-                        <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Chat Settings</h4>
-                        
-                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 mb-2">
-                            <div className="flex items-center gap-3">
-                                {lockedChats[selectedUser.id] ? <Lock className="text-red-500" size={20} /> : <Unlock className="text-zinc-400" size={20} />}
-                                <span className="text-sm font-bold text-white">Lock Chat</span>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10">
+                        <div className="flex flex-col items-center text-center">
+                            <UserAvatar user={selectedUser} className="w-24 h-24 mb-4 ring-4 ring-white/5" />
+                            <h3 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-1.5">{selectedUser.name}{getIdentity(selectedUser.username, selectedUser.role)}</h3>
+                            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">@{selectedUser.username.toLowerCase()}</p>
+                            
+                            <div className="mt-8 flex gap-4">
+                                <button onClick={() => { setIsChatInfoOpen(false); onShowProfile?.(selectedUser.id, selectedUser.username); }} className="px-6 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all active:scale-95">View Profile</button>
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Chat Settings</h4>
+                            
+                            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 mb-2">
+                                <div className="flex items-center gap-3">
+                                    {lockedChats[selectedUser.id] ? <Lock className="text-red-500" size={20} /> : <Unlock className="text-zinc-400" size={20} />}
+                                    <span className="text-sm font-bold text-white">Lock Chat</span>
+                                </div>
+                                <button 
+                                    onClick={handleToggleLock}
+                                    className={`w-12 h-6 rounded-full transition-all relative ${lockedChats[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}
+                                >
+                                    <motion.div 
+                                        animate={{ x: lockedChats[selectedUser.id] ? 26 : 2 }} 
+                                        className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-lg" 
+                                    />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                                <div className="flex items-center gap-3">
+                                    {mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}
+                                    <span className="text-sm font-bold text-white">Mute Messages</span>
+                                </div>
+                                <button 
+                                    onClick={handleToggleMute}
+                                    className={`w-12 h-6 rounded-full transition-all relative ${mutedUsers[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}
+                                >
+                                    <motion.div 
+                                        animate={{ x: mutedUsers[selectedUser.id] ? 26 : 2 }} 
+                                        className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-lg" 
+                                    />
+                                </button>
+                            </div>
+
+                            {userPasscode && (
+                                 <button onClick={() => setPasscodeMode('set')} className="w-full text-left p-4 mt-2 bg-white/5 rounded-2xl text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">Change Passcode</button>
+                            )}
+                        </div>
+
+                        <div className="space-y-4 pt-4 border-t border-white/5">
+                            <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Privacy & Safety</h4>
+                            
                             <button 
-                                onClick={handleToggleLock}
-                                className={`w-12 h-6 rounded-full transition-all relative ${lockedChats[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}
+                                onClick={handleBlockUser}
+                                className="w-full flex items-center justify-between p-4 bg-red-600/10 hover:bg-red-600/20 rounded-2xl border border-red-600/20 transition-all group"
                             >
-                                <motion.div 
-                                    animate={{ x: lockedChats[selectedUser.id] ? 26 : 2 }} 
-                                    className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-lg" 
-                                />
+                                <div className="flex items-center gap-3 text-red-500">
+                                    <UserMinus size={20} />
+                                    <span className="text-sm font-black uppercase tracking-widest">Block Member</span>
+                                </div>
+                                <ShieldAlert size={16} className="text-red-600 opacity-50 group-hover:opacity-100" />
+                            </button>
+
+                            <button onClick={() => setReportMode(true)} className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all group">
+                                <div className="flex items-center gap-3 text-zinc-300">
+                                    <AlertTriangle size={20} className="text-yellow-500" />
+                                    <span className="text-sm font-bold">Report Account</span>
+                                </div>
+                                <ChevronRightIcon className="w-4 h-4 text-zinc-600" />
                             </button>
                         </div>
-
-                        <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                            <div className="flex items-center gap-3">
-                                {mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}
-                                <span className="text-sm font-bold text-white">Mute Messages</span>
-                            </div>
-                            <button 
-                                onClick={handleToggleMute}
-                                className={`w-12 h-6 rounded-full transition-all relative ${mutedUsers[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}
-                            >
-                                <motion.div 
-                                    animate={{ x: mutedUsers[selectedUser.id] ? 26 : 2 }} 
-                                    className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow-lg" 
-                                />
-                            </button>
-                        </div>
-
-                        {userPasscode && (
-                             <button onClick={() => setPasscodeMode('set')} className="w-full text-left p-4 mt-2 bg-white/5 rounded-2xl text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">Change Passcode</button>
-                        )}
                     </div>
 
-                    <div className="space-y-4 pt-4 border-t border-white/5">
-                        <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Privacy & Safety</h4>
-                        
-                        <button 
-                            onClick={handleBlockUser}
-                            className="w-full flex items-center justify-between p-4 bg-red-600/10 hover:bg-red-600/20 rounded-2xl border border-red-600/20 transition-all group"
-                        >
-                            <div className="flex items-center gap-3 text-red-500">
-                                <UserMinus size={20} />
-                                <span className="text-sm font-black uppercase tracking-widest">Block Member</span>
-                            </div>
-                            <ShieldAlert size={16} className="text-red-600 opacity-50 group-hover:opacity-100" />
-                        </button>
-
-                        <button className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all group">
-                            <div className="flex items-center gap-3 text-zinc-300">
-                                <ShieldCheck size={20} />
-                                <span className="text-sm font-bold">Report Account</span>
-                            </div>
-                            <ChevronRightIcon className="w-4 h-4 text-zinc-600" />
-                        </button>
+                    <div className="p-10 text-center opacity-30 mt-auto">
+                        <img src={siteConfig.branding.logoUrl} className="h-8 mx-auto grayscale invert mb-4" alt="" />
+                        <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Encrypted Interaction</p>
                     </div>
-                </div>
-
-                <div className="p-10 text-center opacity-30">
-                    <img src={siteConfig.branding.logoUrl} className="h-8 mx-auto grayscale invert mb-4" alt="" />
-                    <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Encrypted Interaction</p>
-                </div>
+                  </>
+                )}
             </motion.div>
         )}
       </AnimatePresence>

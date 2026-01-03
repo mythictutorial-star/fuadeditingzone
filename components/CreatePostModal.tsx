@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { getDatabase, ref, push, update, set } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-// Removed missing PlusSquare from ./Icons
 import { CloseIcon, PhotoManipulationIcon, SendIcon, CheckCircleIcon, GlobeAltIcon, UserGroupIcon, EyeIcon, ChevronRightIcon } from './Icons';
 import { Lock, Trash2, Plus } from 'lucide-react';
 
@@ -140,45 +139,45 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         className="w-full h-full flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 flex-shrink-0 sticky top-0 z-10 backdrop-blur-md">
+        <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-black/40 flex-shrink-0 sticky top-0 z-10 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20">
               <PhotoManipulationIcon className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-white uppercase tracking-widest">New Post</h2>
-              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">FEZ Creative Zone</p>
+              <h2 className="text-sm font-black text-white uppercase tracking-widest leading-none mb-1">New Post</h2>
+              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest leading-none">FEZ Creative Zone</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2.5 rounded-full hover:bg-white/5 transition-colors text-zinc-500"><CloseIcon className="w-6 h-6" /></button>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-500"><CloseIcon className="w-5 h-5" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="max-w-7xl mx-auto w-full p-6 md:p-12 flex flex-col md:flex-row gap-12 lg:gap-20">
+        <div className="flex-1 overflow-y-auto custom-scrollbar no-scrollbar">
+          <div className="max-w-7xl mx-auto w-full p-6 md:p-12 flex flex-col md:flex-row gap-10 md:gap-12 lg:gap-20">
             
             {/* Left Column: Category & Content */}
-            <div className="md:w-5/12 lg:w-4/12 space-y-10">
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Post Category</label>
-                <div className="flex gap-3">
+            <div className="md:w-5/12 lg:w-4/12 space-y-8 md:space-y-10">
+              <div className="space-y-3 md:space-y-4">
+                <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Post Category</label>
+                <div className="flex gap-2 md:gap-3">
                   {['Designer', 'Client/Visitor'].map((r) => (
                     <button 
                       key={r} 
                       onClick={() => setRole(r as any)} 
-                      className={`flex-1 py-4 rounded-xl border font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all ${role === r ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-white/5 border-white/5 text-zinc-500 hover:text-white'}`}
+                      className={`flex-1 py-3 md:py-4 rounded-xl border font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all ${role === r ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-white/5 border-white/5 text-zinc-500 hover:text-white'}`}
                     >
-                      {r}
+                      {r === 'Client/Visitor' ? 'Inquiry' : r}
                     </button>
                   ))}
                 </div>
               </div>
 
               {role === 'Designer' && (
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Upload Content</label>
+                <div className="space-y-3 md:space-y-4">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Upload Content</label>
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className={`relative w-full h-40 md:h-80 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer group overflow-hidden ${previewUrl ? 'border-red-600/50 bg-black' : 'border-white/10 hover:border-red-600/40 bg-white/5'}`}
+                    className={`relative w-full h-32 md:h-80 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer group overflow-hidden ${previewUrl ? 'border-red-600/50 bg-black' : 'border-white/10 hover:border-red-600/40 bg-white/5'}`}
                   >
                     {previewUrl ? (
                       selectedFile?.type.startsWith('video') ? (
@@ -188,8 +187,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                       )
                     ) : (
                       <>
-                        <i className="fa-solid fa-cloud-arrow-up text-3xl md:text-4xl text-zinc-700 group-hover:text-red-600 transition-colors mb-3 md:mb-4"></i>
-                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300">Tap to choose work</p>
+                        <i className="fa-solid fa-cloud-arrow-up text-2xl md:text-4xl text-zinc-700 group-hover:text-red-600 transition-colors mb-2 md:mb-4"></i>
+                        <p className="text-[9px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest group-hover:text-zinc-300">Tap to choose work</p>
                       </>
                     )}
                     {previewUrl && (
@@ -204,16 +203,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             </div>
 
             {/* Right Column: Details & Settings */}
-            <div className="md:w-7/12 lg:w-8/12 space-y-12">
-              <div className="space-y-8">
+            <div className="md:w-7/12 lg:w-8/12 space-y-10 md:space-y-12">
+              <div className="space-y-6 md:space-y-8">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Work Title</label>
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Work Title</label>
                   <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Give it a name..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-sm text-white font-bold outline-none focus:border-red-600/50 transition-all placeholder-zinc-800" />
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Search Tags (5 MAX)</label>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Search Tags (5 MAX)</label>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
                     {tags.map((tag, idx) => (
                       <div key={idx} className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 font-black text-[10px]">#</span>
@@ -224,23 +223,23 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Description</label>
-                  <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Describe your masterpiece..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-sm text-white min-h-[160px] outline-none focus:border-red-600/50 transition-all resize-none placeholder-zinc-800" />
+                  <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Description</label>
+                  <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Describe your masterpiece..." className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-sm text-white min-h-[140px] md:min-h-[160px] outline-none focus:border-red-600/50 transition-all resize-none placeholder-zinc-800 no-clip" />
                 </div>
               </div>
 
               {/* Privacy */}
               <div className="relative">
-                 <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-4">Post Visibility</label>
+                 <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block mb-4 ml-1">Post Visibility</label>
                  <button 
                     onClick={() => setIsPrivacyOpen(!isPrivacyOpen)}
-                    className="w-full flex items-center justify-between p-5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
+                    className="w-full flex items-center justify-between p-4 md:p-5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all"
                  >
                     <div className="flex items-center gap-4">
                       {React.createElement(privacyOptions.find(o => o.id === privacy)?.icon || GlobeAltIcon, { className: 'w-5 h-5 text-red-600' })}
                       <div className="text-left">
-                        <p className="text-[11px] font-black text-white uppercase tracking-widest">{privacyOptions.find(o => o.id === privacy)?.label}</p>
-                        <p className="text-[9px] text-zinc-500 font-medium">{privacyOptions.find(o => o.id === privacy)?.desc}</p>
+                        <p className="text-[10px] md:text-[11px] font-black text-white uppercase tracking-widest">{privacyOptions.find(o => o.id === privacy)?.label}</p>
+                        <p className="text-[8px] md:text-[9px] text-zinc-500 font-medium">{privacyOptions.find(o => o.id === privacy)?.desc}</p>
                       </div>
                     </div>
                     <ChevronRightIcon className={`w-4 h-4 text-zinc-500 transition-transform ${isPrivacyOpen ? 'rotate-90' : ''}`} />
@@ -275,7 +274,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               {role === 'Client/Visitor' && (
                 <div className="space-y-4 pt-4 border-t border-white/5">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">External Links</label>
+                    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">External Links</label>
                     <button onClick={addLink} className="p-2 bg-red-600 rounded-lg text-white hover:bg-red-700 transition-colors shadow-lg">
                       <Plus className="w-4 h-4" />
                     </button>
@@ -285,7 +284,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                     {links.map((link, idx) => (
                       <div key={idx} className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
                         <div className="w-full sm:flex-1 space-y-2">
-                           <p className="text-[8px] text-zinc-600 font-black uppercase">Name (Max 5 words)</p>
+                           <p className="text-[8px] text-zinc-600 font-black uppercase">Name</p>
                            <input value={link.name} onChange={e => updateLink(idx, 'name', e.target.value)} placeholder="e.g. My Website" className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-xs text-white outline-none focus:border-red-600 transition-all" />
                         </div>
                         <div className="w-full sm:flex-[2] space-y-2">
