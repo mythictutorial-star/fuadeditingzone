@@ -58,7 +58,7 @@ export default function App() {
   const { isSignedIn, user, isLoaded } = useUser();
   const [route, setRoute] = useState<'home' | 'marketplace' | 'community'>(
     window.location.pathname === '/marketplace' ? 'marketplace' : 
-    window.location.pathname === '/community' ? 'community' : 'home'
+    window.location.pathname.startsWith('/community') ? 'community' : 'home'
   );
   
   const [isYouTubeApiReady, setIsYouTubeApiReady] = useState(false);
@@ -225,7 +225,7 @@ export default function App() {
         }
       } else {
         const resolved = await resolveProfileFromUrl(path);
-        if (!resolved) setRoute(path === '/marketplace' ? 'marketplace' : path === '/community' ? 'community' : 'home');
+        if (!resolved) setRoute(path === '/marketplace' ? 'marketplace' : path.startsWith('/community') ? 'community' : 'home');
       }
     };
     handleInitialLink();
@@ -280,7 +280,7 @@ export default function App() {
       if (!path.includes('/work/') && !path.includes('/post/')) setModalState(null);
       const resolved = await resolveProfileFromUrl(path);
       if (!resolved && !path.includes('/post/') && !path.includes('/work/')) setViewingProfileId(null);
-      setRoute(path === '/marketplace' ? 'marketplace' : path === '/community' ? 'community' : 'home');
+      setRoute(path === '/marketplace' ? 'marketplace' : path.startsWith('/community') ? 'community' : 'home');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -354,8 +354,8 @@ export default function App() {
   }, [modalState]);
 
   const handleOpenMobileSearch = () => {
+    window.history.pushState(null, '', '/community/search');
     navigateTo('community');
-    setMobileSearchTriggered(true);
   };
 
   return (
