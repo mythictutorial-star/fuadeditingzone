@@ -15,20 +15,18 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Signal Intercepted: ', payload);
   
   const isLocked = payload.data?.isLocked === 'true';
-  const senderName = payload.data?.fromName || "System";
-  const messageText = payload.data?.text || "New signal received.";
+  const notificationTitle = payload.notification?.title || "Messages";
   
-  const notificationTitle = `Message from @${senderName.toLowerCase()}`;
   const notificationOptions = {
-    body: isLocked ? "Sent a locked message" : messageText,
+    body: isLocked ? "Sent a message" : (payload.notification?.body || "New signal received."),
     icon: 'https://dl.dropboxusercontent.com/scl/fi/vvk2qlo8i0mer2n4sip1h/faeez-logo.png?rlkey=xiahu40vwixf0uf96wwnvqlw2&raw=1',
     badge: 'https://dl.dropboxusercontent.com/scl/fi/vvk2qlo8i0mer2n4sip1h/faeez-logo.png?rlkey=xiahu40vwixf0uf96wwnvqlw2&raw=1',
-    vibrate: [100, 50, 100],
+    vibrate: [200, 100, 200],
     data: {
       url: payload.data?.url || '/community',
-      senderId: payload.data?.fromId
+      senderId: payload.data?.senderId
     },
-    tag: 'fez-direct-message',
+    tag: 'fez-message',
     renotify: true
   };
 

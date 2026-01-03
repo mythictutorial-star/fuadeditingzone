@@ -165,7 +165,7 @@ export const CommunityChat: React.FC<{
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [conversations, setConversations] = useState<Record<string, number | boolean>>({});
+  const [conversations, setConversations] = useState<Record<string, boolean>>({});
   const [mutedUsers, setMutedUsers] = useState<Record<string, boolean>>({});
   const [blockedByMe, setBlockedByMe] = useState<Record<string, boolean>>({});
   const [lockedChats, setLockedChats] = useState<Record<string, boolean>>({});
@@ -293,7 +293,6 @@ export const CommunityChat: React.FC<{
     if (!isSignedIn || !chatPath || !clerkUser || !text) return;
     
     try {
-        const now = Date.now();
         const currentUser = users.find(u => u.id === clerkUser.id);
         const newMessage: Message = { 
           senderId: clerkUser.id, 
@@ -302,7 +301,7 @@ export const CommunityChat: React.FC<{
           senderAvatar: clerkUser.imageUrl,
           senderRole: currentUser?.role || 'Client',
           text: text,
-          timestamp: now 
+          timestamp: Date.now() 
         };
 
         if (replyingTo) {
@@ -319,8 +318,8 @@ export const CommunityChat: React.FC<{
         await push(ref(db, chatPath), newMessage);
         
         if (!isGlobal && selectedUser) {
-            await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), now);
-            await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), now);
+            await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
+            await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
             
             await push(ref(db, `notifications/${selectedUser.id}`), {
                 type: 'message',
@@ -328,7 +327,7 @@ export const CommunityChat: React.FC<{
                 fromName: currentUser?.name || clerkUser.fullName || clerkUser.username,
                 fromAvatar: clerkUser.imageUrl,
                 text: text,
-                timestamp: now,
+                timestamp: Date.now(),
                 read: false,
                 isLocked: !!lockedChats[selectedUser.id]
             });
@@ -421,13 +420,7 @@ export const CommunityChat: React.FC<{
 
   const filteredUsers = useMemo(() => {
     const talkIds = Object.keys(conversations);
-    return users
-      .filter(u => clerkUser?.id !== u.id && !blockedByMe[u.id] && (talkIds.includes(u.id) || u.username === OWNER_HANDLE))
-      .sort((a, b) => {
-          const timeA = typeof conversations[a.id] === 'number' ? (conversations[a.id] as number) : 0;
-          const timeB = typeof conversations[b.id] === 'number' ? (conversations[b.id] as number) : 0;
-          return timeB - timeA;
-      });
+    return users.filter(u => clerkUser?.id !== u.id && !blockedByMe[u.id] && (talkIds.includes(u.id) || u.username === OWNER_HANDLE));
   }, [users, clerkUser, conversations, blockedByMe]);
 
   const searchResults = useMemo(() => {
@@ -523,23 +516,23 @@ export const CommunityChat: React.FC<{
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-8 flex flex-col pb-32 no-scrollbar min-w-0">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-8 flex flex-col pb-32 no-scrollbar">
                                 {messages.map((msg, i) => {
                                     const isMe = msg.senderId === clerkUser?.id;
                                     const prevMsg = i > 0 ? messages[i - 1] : null;
                                     const showTimeHeader = !prevMsg || (msg.timestamp - prevMsg.timestamp > 3600000); // 1 hour gap
 
                                     return (
-                                        <div key={msg.id || i} className="flex flex-col gap-2 w-full min-w-0">
+                                        <div key={msg.id || i} className="flex flex-col gap-2 w-full">
                                             {showTimeHeader && (
                                                 <div className="text-center py-6">
                                                     <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]">{formatChatTime(msg.timestamp)}</span>
                                                 </div>
                                             )}
-                                            <div className={`flex gap-2 md:gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group w-full min-w-0`}>
-                                                <UserAvatar user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} className="w-7 h-7 md:w-8 md:h-8 mt-6 flex-shrink-0" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)} />
-                                                <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0 relative overflow-hidden`}>
-                                                    <div className="flex items-center gap-1.5 mb-1 px-1 cursor-pointer w-full" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)}>
+                                            <div className={`flex gap-2 md:gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group`}>
+                                                <UserAvatar user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} className="w-7 h-7 md:w-8 md:h-8 mt-6" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)} />
+                                                <div className={`max-w-[80%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0 relative`}>
+                                                    <div className="flex items-center gap-1.5 mb-1 px-1 cursor-pointer" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)}>
                                                         <span className="text-[8px] md:text-[10px] font-black text-white uppercase tracking-tight truncate max-w-[80px] md:max-w-[100px]">
                                                             {msg.senderName}
                                                         </span>
@@ -549,14 +542,14 @@ export const CommunityChat: React.FC<{
                                                         </span>
                                                     </div>
 
-                                                    <div className="relative group/bubble flex flex-col items-inherit w-full min-w-0 overflow-hidden">
+                                                    <div className="relative group/bubble flex flex-col items-inherit">
                                                       {msg.replyTo && (
                                                         <div className={`mb-[-12px] pb-4 pt-2 px-3 rounded-t-xl bg-white/5 border-t border-x border-white/10 text-[9px] text-zinc-500 max-w-full truncate ${isMe ? 'self-end' : 'self-start'}`}>
                                                           <p className="font-black uppercase tracking-widest text-[7px] text-red-600/60 mb-0.5">Reply to {msg.replyTo.senderName}</p>
                                                           <p className="italic opacity-60 truncate">{msg.replyTo.text}</p>
                                                         </div>
                                                       )}
-                                                      <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden ${isMe ? 'bg-red-600 text-white rounded-tr-none self-end text-right' : 'bg-[#1a1a1a] text-zinc-200 rounded-tl-none border border-white/5 self-start text-left'}`}>
+                                                      <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap ${isMe ? 'bg-red-600 text-white rounded-tr-none' : 'bg-[#1a1a1a] text-zinc-200 rounded-tl-none border border-white/5'}`}>
                                                         {msg.text}
                                                       </div>
                                                       <button 
@@ -612,61 +605,60 @@ export const CommunityChat: React.FC<{
         </div>
       </div>
 
-      {/* User Settings Overlay */}
       <AnimatePresence>
           {isSettingsOpen && (
-              <motion.div initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 z-[10000000] bg-black backdrop-blur-2xl flex flex-col p-4 md:p-20 overflow-y-auto custom-scrollbar pb-32 md:pb-20">
+              <motion.div initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 z-[10000000] bg-black/98 backdrop-blur-2xl flex flex-col p-5 md:p-20 overflow-y-auto custom-scrollbar pb-24 md:pb-20">
                   <div className="max-w-3xl mx-auto w-full flex flex-col h-full">
-                      <div className="flex items-center justify-between mb-6 md:mb-12">
-                          <div className="flex items-center gap-3">
-                              <Settings className="w-6 h-6 md:w-8 md:h-8 text-red-600" />
-                              <h2 className="text-xl md:text-5xl font-black text-white uppercase tracking-tighter">Settings</h2>
+                      <div className="flex items-center justify-between mb-8 md:mb-12">
+                          <div className="flex items-center gap-4">
+                              <Settings className="w-7 h-7 md:w-8 md:h-8 text-red-600" />
+                              <h2 className="text-2xl md:text-5xl font-black text-white uppercase tracking-tighter">Settings</h2>
                           </div>
-                          <button onClick={() => openOverlay('inbox')} className="p-2 md:p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-5 h-5 md:w-6 md:h-6 text-white" /></button>
+                          <button onClick={() => openOverlay('inbox')} className="p-2.5 md:p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-5 h-5 md:w-6 md:h-6 text-white" /></button>
                       </div>
 
-                      <div className="flex gap-2 md:gap-4 mb-6 md:mb-10 overflow-x-auto no-scrollbar pb-2">
-                          <button onClick={() => setSettingsTab('profile')} className={`px-4 py-2.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsTab === 'profile' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><User size={12}/> Profile</button>
-                          <button onClick={() => setSettingsTab('security')} className={`px-4 py-2.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsTab === 'security' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><Shield size={12}/> Safety</button>
+                      <div className="flex gap-3 md:gap-4 mb-8 md:mb-10 overflow-x-auto no-scrollbar pb-2">
+                          <button onClick={() => setSettingsTab('profile')} className={`px-5 py-3 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsTab === 'profile' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><User size={13}/> Profile Info</button>
+                          <button onClick={() => setSettingsTab('security')} className={`px-5 py-3 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsTab === 'security' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><Shield size={13}/> Privacy & Safety</button>
                       </div>
 
                       <div className="px-1">
                       {settingsTab === 'profile' ? (
-                          <div className="space-y-5 md:space-y-8 animate-fade-in">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                                  <div className="space-y-1.5 md:space-y-3">
-                                      <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Display Name</label>
-                                      <input value={settingsData.name} onChange={e => setSettingsData({...settingsData, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-xs font-bold outline-none focus:border-red-600/50 transition-all" />
+                          <div className="space-y-6 md:space-y-8 animate-fade-in">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
+                                  <div className="space-y-2 md:space-y-3">
+                                      <label className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Display Name</label>
+                                      <input value={settingsData.name} onChange={e => setSettingsData({...settingsData, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl py-3.5 md:py-4 px-5 md:px-6 text-white text-sm font-bold outline-none focus:border-red-600/50 transition-all" />
                                   </div>
-                                  <div className="space-y-1.5 md:space-y-3">
-                                      <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Username</label>
-                                      <input value={settingsData.username} onChange={e => setSettingsData({...settingsData, username: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-xs font-bold outline-none focus:border-red-600/50 transition-all lowercase" />
+                                  <div className="space-y-2 md:space-y-3">
+                                      <label className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Username</label>
+                                      <input value={settingsData.username} onChange={e => setSettingsData({...settingsData, username: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl py-3.5 md:py-4 px-5 md:px-6 text-white text-sm font-bold outline-none focus:border-red-600/50 transition-all lowercase" />
                                   </div>
                               </div>
-                              <div className="space-y-1.5 md:space-y-3">
-                                  <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Gender</label>
-                                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                      {['Male', 'Female', 'Secret'].map((g) => (
-                                          <button key={g} onClick={() => setSettingsData({...settingsData, gender: g})} className={`flex-1 py-3 px-3 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${settingsData.gender === g ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-zinc-500 hover:text-white'}`}>{g}</button>
+                              <div className="space-y-2 md:space-y-3">
+                                  <label className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Gender</label>
+                                  <div className="flex gap-2 md:gap-4 overflow-x-auto no-scrollbar">
+                                      {['Male', 'Female', 'Prefer not to say'].map((g) => (
+                                          <button key={g} onClick={() => setSettingsData({...settingsData, gender: g})} className={`flex-1 py-3.5 md:py-4 px-4 rounded-xl md:rounded-2xl border text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${settingsData.gender === g ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-zinc-500 hover:text-white'}`}>{g}</button>
                                       ))}
                                   </div>
                               </div>
-                              <div className="space-y-1.5 md:space-y-3">
-                                  <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Short Bio</label>
-                                  <textarea value={settingsData.bio} onChange={e => setSettingsData({...settingsData, bio: e.target.value})} rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-[11px] md:text-sm font-medium outline-none focus:border-red-600/50 transition-all resize-none" placeholder="Bio..." />
+                              <div className="space-y-2 md:space-y-3">
+                                  <label className="text-[8px] md:text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Short Bio</label>
+                                  <textarea value={settingsData.bio} onChange={e => setSettingsData({...settingsData, bio: e.target.value})} rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl py-4 px-5 md:px-6 text-white text-xs md:text-sm font-medium outline-none focus:border-red-600/50 transition-all resize-none" placeholder="Tell the community about yourself..." />
                               </div>
-                              <button onClick={handleSaveSettings} className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 md:py-6 rounded-2xl md:rounded-3xl uppercase tracking-[0.3em] text-[9px] md:text-xs shadow-xl transition-all active:scale-95">Save Profile</button>
+                              <button onClick={handleSaveSettings} className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-5 md:py-6 rounded-2xl md:rounded-3xl uppercase tracking-[0.3em] text-[10px] md:text-xs shadow-xl transition-all active:scale-95 mb-10 md:mb-10">Update Metadata</button>
                           </div>
                       ) : (
                           <div className="space-y-6 animate-fade-in pb-10">
-                              <div className="space-y-3">
-                                  <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Notifications</h4>
-                                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                              <div className="space-y-4">
+                                  <h4 className="text-[9px] md:text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Notifications</h4>
+                                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl md:rounded-2xl border border-white/10">
                                       <div className="flex items-center gap-3">
-                                          <BellRing className={pushEnabled ? "text-red-500" : "text-zinc-500"} size={16} />
+                                          <BellRing className={pushEnabled ? "text-red-500" : "text-zinc-500"} size={18} />
                                           <div className="text-left">
-                                              <p className="text-xs font-bold text-white leading-tight">Push Alerts</p>
-                                              <p className="text-[8px] text-zinc-500 uppercase tracking-widest mt-0.5">Stay notified</p>
+                                              <p className="text-xs md:text-sm font-bold text-white leading-tight">System Push Notifications</p>
+                                              <p className="text-[8px] md:text-[9px] text-zinc-500 uppercase tracking-widest mt-0.5">Get notified even when you're away</p>
                                           </div>
                                       </div>
                                       <button onClick={togglePushNotifications} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative flex-shrink-0 ${pushEnabled ? 'bg-red-600' : 'bg-zinc-800'}`}>
@@ -675,24 +667,29 @@ export const CommunityChat: React.FC<{
                                   </div>
                               </div>
 
-                              <div className="space-y-3 pt-2">
-                                  <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Restricted Members</h4>
-                                  <div className="space-y-2">
+                              <div className="space-y-4 pt-4">
+                                  <h4 className="text-[9px] md:text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Restricted Access</h4>
+                                  <div className="flex items-center gap-3 p-4 bg-red-600/10 border border-red-600/20 rounded-xl md:rounded-2xl">
+                                      <AlertTriangle size={16} className="text-red-500" />
+                                      <p className="text-[8px] md:text-[10px] text-red-500 font-bold uppercase tracking-widest leading-relaxed">Restricted members cannot message or follow you.</p>
+                                  </div>
+                                  <div className="space-y-3 md:space-y-4">
                                       {blockedUsersData.length === 0 ? (
-                                          <div className="py-12 text-center opacity-20">
-                                              <UserX size={40} className="mx-auto mb-2" />
-                                              <p className="text-[9px] font-black uppercase tracking-widest">List Empty</p>
+                                          <div className="py-16 text-center opacity-20">
+                                              <UserX size={50} className="mx-auto mb-3" />
+                                              <p className="text-[9px] font-black uppercase tracking-widest">No restricted members</p>
                                           </div>
                                       ) : (
                                           blockedUsersData.map(u => (
-                                              <div key={u.id} className="p-3 bg-white/[0.03] border border-white/5 rounded-xl flex items-center justify-between group">
-                                                  <div className="flex items-center gap-3 overflow-hidden">
-                                                      <UserAvatar user={u} className="w-8 h-8 md:w-10 md:h-10" />
+                                              <div key={u.id} className="p-4 bg-white/[0.03] border border-white/5 rounded-xl md:rounded-2xl flex items-center justify-between group">
+                                                  <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+                                                      <UserAvatar user={u} className="w-10 h-10 md:w-12 md:h-12" />
                                                       <div className="text-left min-w-0">
-                                                          <p className="text-[11px] md:text-sm font-black text-white uppercase tracking-tight truncate">@{u.username?.toLowerCase()}</p>
+                                                          <p className="text-xs md:text-sm font-black text-white uppercase tracking-tight truncate">@{u.username?.toLowerCase()}</p>
+                                                          <p className="text-[8px] md:text-[9px] text-zinc-600 font-bold uppercase">{u.role || 'Member'}</p>
                                                       </div>
                                                   </div>
-                                                  <button onClick={() => handleUnblock(u.id)} className="px-3 py-1.5 rounded-lg border border-white/10 text-[8px] font-black text-zinc-400 uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">Unblock</button>
+                                                  <button onClick={() => handleUnblock(u.id)} className="px-4 py-2 rounded-lg md:rounded-xl border border-white/10 text-[8px] md:text-[9px] font-black text-zinc-400 uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex-shrink-0">Unrestrict</button>
                                               </div>
                                           ))
                                       )}
@@ -706,40 +703,26 @@ export const CommunityChat: React.FC<{
           )}
       </AnimatePresence>
 
-      {/* Full-Screen Instagram-Style Search Overlay */}
       <AnimatePresence>
           {isSearchOverlayOpen && (
-              <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                exit={{ opacity: 0, scale: 0.98 }} 
-                className="fixed inset-0 z-[10000000] bg-black/95 backdrop-blur-3xl flex flex-col"
-              >
-                  <div className="max-w-4xl mx-auto w-full flex flex-col h-full p-6 md:p-20 overflow-hidden">
-                      <div className="flex items-center justify-between mb-8 md:mb-16 flex-shrink-0">
-                          <h2 className="text-2xl md:text-6xl font-black text-white uppercase tracking-tighter">Explore</h2>
+              <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-[10000000] bg-black backdrop-blur-3xl flex flex-col" >
+                  <div className="max-w-4xl mx-auto w-full flex flex-col h-full p-6 md:p-20">
+                      <div className="flex items-center justify-between mb-8 md:mb-16">
+                          <h2 className="text-2xl md:text-6xl font-black text-white uppercase tracking-tighter">Search</h2>
                           <button onClick={() => openOverlay('inbox')} className="p-2.5 md:p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-5 h-5 md:w-8 md:h-8 text-white" /></button>
                       </div>
-                      
-                      <div className="relative mb-10 md:mb-16 flex-shrink-0">
+                      <div className="relative mb-10 md:mb-16">
                           <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 w-6 h-6" />
-                          <input 
-                            autoFocus
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Type name or handle..." 
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl md:rounded-[2.5rem] py-6 md:py-8 pl-16 md:pl-20 pr-8 text-xl md:text-3xl font-bold text-white outline-none focus:border-red-600 transition-all placeholder-zinc-800"
-                          />
+                          <input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Type @username or name..." className="w-full bg-white/5 border border-white/10 rounded-2xl md:rounded-[2.5rem] py-6 md:py-8 pl-16 md:pl-20 pr-8 text-xl md:text-3xl font-bold text-white outline-none focus:border-red-600 transition-all placeholder-zinc-800" />
                       </div>
-
                       <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 md:space-y-6">
                           {searchResults.length === 0 ? (
-                              <div className="py-20 text-center opacity-20">
-                                  <SearchIcon className="w-16 h-16 mx-auto mb-4" />
-                                  <p className="text-[10px] font-black uppercase tracking-[0.5em]">Nothing found</p>
+                              <div className="py-20 text-center opacity-10">
+                                  <SearchIcon className="w-20 h-20 mx-auto mb-4" />
+                                  <p className="text-[10px] font-black uppercase tracking-[0.5em]">No members found</p>
                               </div>
                           ) : searchResults.map(u => (
-                              <div key={u.id} onClick={() => openChat(u)} className="p-4 md:p-8 bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2.5rem] flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer group">
+                              <div key={u.id} onClick={() => openChat(u)} className="p-4 md:p-8 bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2.5rem] flex items-center justify-between hover:bg-red-600/10 hover:border-red-600/20 transition-all cursor-pointer group">
                                   <div className="flex items-center gap-4 md:gap-8">
                                       <UserAvatar user={u} className="w-12 h-12 md:w-24 md:h-24" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username); }} />
                                       <div className="text-left min-w-0">
@@ -759,10 +742,9 @@ export const CommunityChat: React.FC<{
           )}
       </AnimatePresence>
 
-      {/* Activity Overlay */}
       <AnimatePresence>
           {isActivityOpen && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000000] bg-black/95 backdrop-blur-3xl flex flex-col p-6 md:p-20 overflow-y-auto">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000000] bg-black backdrop-blur-3xl flex flex-col p-6 md:p-20 overflow-y-auto">
                   <div className="max-w-3xl mx-auto w-full flex flex-col h-full">
                       <div className="flex items-center justify-between mb-12">
                           <div className="flex items-center gap-4">
@@ -775,7 +757,7 @@ export const CommunityChat: React.FC<{
                           {notifications.length === 0 ? (
                               <div className="py-32 text-center opacity-20">
                                   <Bell size={100} className="mx-auto mb-6" />
-                                  <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em]">No alerts yet</p>
+                                  <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em]">No new alerts</p>
                               </div>
                           ) : (
                               notifications.map((n) => (
@@ -783,7 +765,7 @@ export const CommunityChat: React.FC<{
                                       <img src={n.fromAvatar} className="w-14 h-14 rounded-2xl object-cover border border-white/10" onClick={(e) => { e.stopPropagation(); onShowProfile?.(n.fromId); }} />
                                       <div className="flex-1" onClick={() => onShowProfile?.(n.fromId)}>
                                           <p className="text-sm md:text-lg text-gray-200">
-                                              <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.text || 'pinged you.'}
+                                              <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.text || 'sent you a signal.'}
                                           </p>
                                           <p className="text-[10px] text-zinc-600 font-bold uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleString()}</p>
                                       </div>
@@ -803,14 +785,14 @@ export const CommunityChat: React.FC<{
                   <div className="flex flex-col h-full bg-black">
                     <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/40 backdrop-blur-xl">
                         <button onClick={() => setReportMode(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
-                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Report</h2>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Report Member</h2>
                     </div>
                   </div>
                 ) : (
                   <>
                     <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl">
                         <button onClick={() => setIsChatInfoOpen(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
-                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Info</h2>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Details</h2>
                         <div className="w-10"></div>
                     </div>
 
@@ -820,7 +802,7 @@ export const CommunityChat: React.FC<{
                                 <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 mb-6">
                                     <GlobeAltIcon className="w-12 h-12 text-red-600" />
                                 </div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Global Feed</h3>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Global Stream</h3>
                                 <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-2">Public Broadcast Channel</p>
                             </div>
                         ) : selectedUser && (
@@ -833,21 +815,21 @@ export const CommunityChat: React.FC<{
                                 </div>
 
                                 <div className="space-y-4">
-                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Settings</h4>
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Chat Settings</h4>
                                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
                                         <div className="flex items-center gap-3">{lockedChats[selectedUser.id] ? <Lock className="text-red-500" size={20} /> : <Unlock className="text-zinc-400" size={20} />}<span className="text-sm font-bold text-white">Lock Chat</span></div>
                                         <button onClick={handleToggleLock} className={`w-12 h-6 rounded-full transition-all relative ${lockedChats[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}><motion.div animate={{ x: lockedChats[selectedUser.id] ? 26 : 2 }} className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full" /></button>
                                     </div>
                                     <button onClick={() => setPasscodeMode('change')} className="w-full flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 transition-all hover:bg-white/10"><div className="flex items-center gap-3 text-zinc-400"><KeyRound size={20} /><span className="text-sm font-bold">Change Passcode</span></div><ChevronRightIcon className="w-4 h-4 text-zinc-700" /></button>
                                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
-                                        <div className="flex items-center gap-3">{mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}<span className="text-sm font-bold text-white">Mute Alerts</span></div>
+                                        <div className="flex items-center gap-3">{mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}<span className="text-sm font-bold text-white">Mute Notifications</span></div>
                                         <button onClick={handleToggleMute} className={`w-12 h-6 rounded-full transition-all relative ${mutedUsers[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}><motion.div animate={{ x: mutedUsers[selectedUser.id] ? 26 : 2 }} className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full" /></button>
                                     </div>
                                 </div>
 
                                 <div className="space-y-4 pt-4 border-t border-white/5">
-                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Privacy</h4>
-                                    <button onClick={handleBlockUser} className="w-full flex items-center justify-between p-4 bg-red-600/10 hover:bg-red-600/20 rounded-2xl border border-red-600/20 transition-all"><div className="flex items-center gap-3 text-red-500"><UserMinus size={20} /><span className="text-sm font-black uppercase">Block</span></div><ShieldAlert size={16} className="text-red-600 opacity-50" /></button>
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Privacy & Safety</h4>
+                                    <button onClick={handleBlockUser} className="w-full flex items-center justify-between p-4 bg-red-600/10 hover:bg-red-600/20 rounded-2xl border border-red-600/20 transition-all"><div className="flex items-center gap-3 text-red-500"><UserMinus size={20} /><span className="text-sm font-black uppercase">Block Member</span></div><ShieldAlert size={16} className="text-red-600 opacity-50" /></button>
                                 </div>
                             </>
                         )}
