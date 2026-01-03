@@ -30,7 +30,7 @@ const RESTRICTED_HANDLE = 'jiya';
 const R2_PUBLIC_DOMAIN = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev';
 const R2_BUCKET_NAME = 'pub-c35a446ba9db4c89b71a674f0248f02a';
 
-// S3 Client initialization with direct R2 credentials
+// S3 Client initialization with direct R2 credentials as requested
 const s3Client = new S3Client({
   region: 'auto',
   endpoint: 'https://af6242186ef611cf46b450432dcda328.r2.cloudflarestorage.com',
@@ -59,12 +59,12 @@ const uploadMediaToR2 = async (file: File): Promise<string> => {
 
     try {
         await s3Client.send(command);
-        // Publicly accessible URL construction
+        // Constructed Public URL using the requested format
         return `${R2_PUBLIC_DOMAIN}/Messages/${fileName}`;
     } catch (err: any) {
-        // Detailed error logging for debugging (e.g. status codes)
+        // Detailed error logging for debugging in browser inspect tools
         console.dir(err);
-        throw new Error('S3_UPLOAD_FAILED');
+        throw new Error('R2_UPLOAD_FAILED');
     }
 };
 
@@ -447,7 +447,7 @@ export const CommunityChat: React.FC<{
 
   /**
    * REWRITTEN SEND MESSAGE LOGIC:
-   * Direct R2 S3 Upload followed by sequential Firebase Sync.
+   * Direct R2 S3 Upload using provided credentials followed by sequential Firebase Sync.
    */
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -463,13 +463,13 @@ export const CommunityChat: React.FC<{
     let mediaType: 'image' | 'video' | undefined = undefined;
 
     try {
-        // Sequential Upload to R2 Storage first
+        // Sequential Upload to R2 Storage first if media exists
         if (pendingMedia) {
             mediaUrl = await uploadMediaToR2(pendingMedia.file);
             mediaType = pendingMedia.type;
         }
 
-        // Only after R2 success, proceed with Firebase sync
+        // Only after R2 success (or if text only), proceed with Firebase sync
         const myProfile = users.find(u => u.id === clerkUser.id);
         const newMessage: Message = { 
           senderId: clerkUser.id, 
@@ -483,8 +483,11 @@ export const CommunityChat: React.FC<{
           timestamp: Date.now() 
         };
         
+        // Reset inputs immediately for UX
+        const savedInput = inputValue;
         setInputValue('');
         setPendingMedia(null);
+        
         await push(ref(db, chatPath), newMessage);
         
         if (!isGlobal && selectedUser) {
@@ -494,9 +497,9 @@ export const CommunityChat: React.FC<{
             get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
         }
     } catch (err: any) {
-        // Robust error inspection for debugging
+        // Robust error inspection for debugging as requested
         console.dir(err);
-        alert("Signal Lost: Failed to send message. Inspect tool may show storage status code.");
+        alert("Failed to send message. Please check your connection and inspect tool for status codes.");
     } finally {
         setIsMediaUploading(false);
     }
