@@ -25,6 +25,7 @@ const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
 const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
+const R2_PUBLIC_URL = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev/Messages';
 
 const REPORT_REASONS = [
     { id: 'spam', label: 'It\'s spam', desc: 'Repetitive or unwanted messages' },
@@ -357,7 +358,7 @@ export const CommunityChat: React.FC<{
         });
         onValue(ref(db, `notifications/${clerkUser.id}`), (snap) => {
             const data = snap.val() || {};
-            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => a.timestamp - b.timestamp));
+            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => b.timestamp - a.timestamp));
         });
     }
 
@@ -419,10 +420,14 @@ export const CommunityChat: React.FC<{
         if (pendingMedia) {
             const formData = new FormData();
             formData.append('file', pendingMedia.file);
+            // Use specific R2 folder
             formData.append('folder', 'fuadeditingzone-portfolio/Messages/');
             const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
             const result = await res.json();
-            mediaUrl = result.url;
+            
+            // Extract filename and construct requested Public URL
+            const filename = result.url.split('/').pop();
+            mediaUrl = `${R2_PUBLIC_URL}/${filename}`;
             mediaType = pendingMedia.type;
         }
 
@@ -999,7 +1004,7 @@ export const CommunityChat: React.FC<{
                         <div ref={messagesEndRef} />
                       </div>
 
-                      {/* Instagram-like Media Preview */}
+                      {/* Media Preview */}
                       <AnimatePresence>
                         {pendingMedia && (
                             <motion.div 
@@ -1028,7 +1033,8 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
+                      {/* Refined Typing Section */}
+                      <div className="px-2 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
                             {isInputLocked ? (
@@ -1037,18 +1043,18 @@ export const CommunityChat: React.FC<{
                                 <p className="text-[8px] text-zinc-600 font-bold uppercase tracking-tight mt-1">You can only send 3 messages to non-friends.</p>
                               </div>
                             ) : (
-                              <div className="flex items-end gap-2 p-1.5 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] mx-1">
-                                <div className="flex items-center gap-1 pl-1 self-center">
+                              <div className="flex items-end gap-2 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] bg-black">
+                                <div className="flex-shrink-0 flex items-center pl-2 self-center">
                                     {isMediaUploading ? (
-                                        <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin ml-2"></div>
+                                        <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                                     ) : (
                                         <button 
                                             type="button" 
                                             onClick={() => mediaInputRef.current?.click()} 
-                                            className="p-2 text-zinc-400 hover:text-white transition-opacity"
+                                            className="p-2.5 text-zinc-400 hover:text-white transition-opacity"
                                             title="Attach Media"
                                         >
-                                            <ImageIcon size={22} />
+                                            <ImageIcon size={20} />
                                         </button>
                                     )}
                                 </div>
@@ -1057,13 +1063,18 @@ export const CommunityChat: React.FC<{
                                     value={inputValue} 
                                     onChange={e => setInputValue(e.target.value)} 
                                     onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-                                    placeholder="Message..." 
+                                    placeholder={isMediaUploading ? "Sending media..." : "Message..."} 
                                     rows={1}
-                                    className="flex-1 bg-transparent px-1 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-700 resize-none max-h-[120px] custom-scrollbar overflow-y-auto" 
+                                    disabled={isMediaUploading}
+                                    className="flex-1 bg-transparent px-1 py-3 text-sm text-white outline-none min-w-0 placeholder-zinc-700 resize-none max-h-[120px] custom-scrollbar overflow-y-auto" 
                                 />
-                                <div className="flex items-center gap-2 pr-3 self-center flex-shrink-0">
-                                    {(inputValue.trim() || pendingMedia) && (
-                                        <button onClick={() => handleSendMessage()} disabled={isMediaUploading} className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-2">
+                                <div className="flex-shrink-0 flex items-center pr-3 self-center">
+                                    {(inputValue.trim() || pendingMedia || isMediaUploading) && (
+                                        <button 
+                                            onClick={() => handleSendMessage()} 
+                                            disabled={isMediaUploading || (!inputValue.trim() && !pendingMedia)} 
+                                            className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50 px-2 flex items-center h-10"
+                                        >
                                             {isMediaUploading ? '...' : 'Send'}
                                         </button>
                                     )}
@@ -1073,7 +1084,7 @@ export const CommunityChat: React.FC<{
                             )}
                             
                             {!isGlobal && !isCurrentChatAFriend && !isInputLocked && (
-                              <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center mb-2">
+                              <p className="text-[8px] text-zinc-700 font-black uppercase tracking-[0.2em] text-center mb-1">
                                 {3 - mySentMessagesCount} messages left until acceptance required
                               </p>
                             )}
