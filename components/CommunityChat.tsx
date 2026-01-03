@@ -652,9 +652,7 @@ export const CommunityChat: React.FC<{
             timestamp: Date.now(),
             read: false,
             fromId: clerkUser.id,
-            fromName: 'System Report',
-            targetId: selectedUser.id,
-            targetUsername: selectedUser.username
+            fromName: 'System Report'
         });
     }
     setReportMode(false);
@@ -894,13 +892,7 @@ export const CommunityChat: React.FC<{
                                 </div>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => { 
-                                        if (n.type === 'user_report' && n.targetId) {
-                                            onShowProfile?.(n.targetId, n.targetUsername);
-                                        } else if (n.fromId) {
-                                            onShowProfile?.(n.fromId, n.fromName);
-                                        }
-                                    }} className={`p-8 rounded-[2rem] cursor-pointer transition-all border group relative bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]`}>
+                                    <div key={n.id} onClick={() => { if(n.fromId) onShowProfile?.(n.fromId, n.fromName); }} className={`p-8 rounded-[2rem] cursor-pointer transition-all border group relative bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]`}>
                                         <div className="flex gap-4 items-center">
                                             <div className="relative flex-shrink-0">
                                                 {n.fromAvatar ? (
