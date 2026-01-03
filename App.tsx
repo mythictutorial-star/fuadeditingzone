@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignIn } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue, limitToLast, query, get, update, push, set } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
 
 import type { GraphicWork, VideoWork, ModalItem } from './hooks/types';
 import { siteConfig } from './config';
@@ -26,6 +27,7 @@ import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { ProfileModal } from './components/ProfileModal';
 import { ExploreFeed } from './components/ExploreFeed';
 import { CreatePostModal } from './components/CreatePostModal';
+import { MessageNotificationToast } from './components/MessageNotificationToast';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -37,6 +39,10 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getDatabase(app);
+const messaging = getMessaging(app);
+
+// Actual VAPID key provided by user
+const VAPID_KEY = "BE7pik37RZvIuKStwPfrAucx4DhCTQ3BK9ehWMpThmtxKaKZfGkurRqWGECejo8Wu_LqHh-k5JMnGetyEJ4Uukc"; 
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const RESTRICTED_HANDLE = 'jiya';
@@ -72,6 +78,10 @@ export default function App() {
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
 
+  // In-app Notification state
+  const [activeToast, setActiveToast] = useState<{ senderName: string; senderAvatar?: string; text: string; isLocked: boolean; senderId: string } | null>(null);
+  const lastProcessedNotificationId = useRef<string | null>(null);
+
   // Tracking if a message thread is active to hide footer components
   const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
 
@@ -87,7 +97,6 @@ export default function App() {
         lastActive: Date.now()
       };
       
-      // Update entry if changed
       get(userRef).then((snapshot) => {
         const currentData = snapshot.val();
         if (!currentData || 
@@ -100,14 +109,72 @@ export default function App() {
     }
   }, [isLoaded, isSignedIn, user]);
 
+  // FCM Setup logic
+  useEffect(() => {
+    const handleRequestToken = async () => {
+      if (!isSignedIn || !user) return;
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+          if (token) {
+            await update(ref(db, `users/${user.id}`), { fcmToken: token });
+          }
+        }
+      } catch (err) {
+        console.error("FCM Token acquisition failed:", err);
+      }
+    };
+
+    window.addEventListener('request-fcm-token', handleRequestToken);
+    
+    // Foreground message handler
+    const unsubOnMessage = onMessage(messaging, (payload) => {
+      // Logic for foreground messaging can go here if needed
+      // Currently handled by the database listener for higher reliability
+    });
+
+    return () => {
+      window.removeEventListener('request-fcm-token', handleRequestToken);
+      unsubOnMessage();
+    };
+  }, [isSignedIn, user]);
+
+  // Message Notification Listener (In-App)
+  useEffect(() => {
+    if (!isSignedIn || !user || route === 'community') {
+      setActiveToast(null);
+      return;
+    }
+
+    const notificationsRef = query(ref(db, `notifications/${user.id}`), limitToLast(1));
+    const unsub = onValue(notificationsRef, async (snap) => {
+      const data = snap.val();
+      if (!data) return;
+
+      const entries = Object.entries(data);
+      const [id, info]: [string, any] = entries[0];
+
+      if (info.type === 'message' && !info.read && id !== lastProcessedNotificationId.current) {
+        lastProcessedNotificationId.current = id;
+        setActiveToast({
+          senderName: info.fromName,
+          senderAvatar: info.fromAvatar,
+          text: info.text,
+          isLocked: info.isLocked || false,
+          senderId: info.fromId
+        });
+        setTimeout(() => setActiveToast(null), 5000);
+      }
+    });
+
+    return () => unsub();
+  }, [isSignedIn, user, route]);
+
   const resolveProfileFromUrl = async (path: string) => {
     if (path.startsWith('/@')) {
       const handle = path.substring(2).toLowerCase();
-      
-      // Restriction: Only Owner can resolve Jiya
-      if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
-          return false;
-      }
+      if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return false;
 
       const usersSnap = await get(ref(db, 'users'));
       const usersData = usersSnap.val();
@@ -126,10 +193,7 @@ export default function App() {
       const postSnap = await get(ref(db, `explore_posts/${postId}`));
       if (postSnap.exists()) {
           const postData = postSnap.val();
-          // Restriction: Only Owner can see Jiya's posts
-          if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
-              return;
-          }
+          if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
           setModalState({ items: [{ id: postId, ...postData }], currentIndex: 0 });
           setHighlightCommentId(commentId || null);
           window.history.pushState(null, '', `/post/${postId}${commentId ? `?commentId=${commentId}` : ''}`);
@@ -152,7 +216,6 @@ export default function App() {
         const postSnap = await get(ref(db, `explore_posts/${id}`));
         if (postSnap.exists()) {
             const postData = postSnap.val();
-            // Restriction check
             if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
                setRoute('home');
                return;
@@ -162,9 +225,7 @@ export default function App() {
         }
       } else {
         const resolved = await resolveProfileFromUrl(path);
-        if (!resolved) {
-          setRoute(path === '/marketplace' ? 'marketplace' : path === '/community' ? 'community' : 'home');
-        }
+        if (!resolved) setRoute(path === '/marketplace' ? 'marketplace' : path === '/community' ? 'community' : 'home');
       }
     };
     handleInitialLink();
@@ -191,9 +252,7 @@ export default function App() {
 
   const handleSetModal = (items: ModalItem[], index: number) => {
     const item = items[index] as any;
-    // Restriction: Only owner can see jiya's items in modal
     if (item.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-
     const path = item.userId ? `/post/${item.id}` : `/work/${item.id}`;
     window.history.pushState(null, '', path);
     setModalState({ items, currentIndex: index });
@@ -219,12 +278,8 @@ export default function App() {
     const handlePopState = async () => {
       const path = window.location.pathname;
       if (!path.includes('/work/') && !path.includes('/post/')) setModalState(null);
-      
       const resolved = await resolveProfileFromUrl(path);
-      if (!resolved && !path.includes('/post/') && !path.includes('/work/')) {
-        setViewingProfileId(null);
-      }
-      
+      if (!resolved && !path.includes('/post/') && !path.includes('/work/')) setViewingProfileId(null);
       setRoute(path === '/marketplace' ? 'marketplace' : path === '/community' ? 'community' : 'home');
     };
     window.addEventListener('popstate', handlePopState);
@@ -244,10 +299,7 @@ export default function App() {
         const snap = await get(ref(db, `users/${userId}`));
         handle = snap.val()?.username?.toLowerCase() || userId;
     }
-    
-    // Restriction
     if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-
     window.history.pushState(null, '', `/@${handle}`);
     setViewingProfileId(userId);
   };
@@ -261,10 +313,7 @@ export default function App() {
   const handleOpenChatWithUser = async (userId: string) => {
     const snap = await get(ref(db, `users/${userId}`));
     const handle = snap.val()?.username?.toLowerCase();
-    
-    // Restriction: Only owner can message jiya
     if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-
     setTargetUserId(userId);
     setViewingProfileId(null);
     navigateTo('community');
@@ -320,7 +369,6 @@ export default function App() {
           </div>
           
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
-            {/* Background Pre-Rendering logic: keep components mounted and toggle display */}
             <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth ${route !== 'home' ? 'hidden' : 'block'}`}>
                 <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
                 <Portfolio openModal={handleSetModal} isYouTubeApiReady={isYouTubeApiReady} playingVfxVideo={playingVfxVideo} setPlayingVfxVideo={setPlayingVfxVideo} pipVideo={pipVideo} setPipVideo={setPipVideo} activeYouTubeId={activeYouTubeId} setActiveYouTubeId={setActiveYouTubeId} isYtPlaying={isYtPlaying} setIsYtPlaying={setIsYtPlaying} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />
@@ -344,6 +392,21 @@ export default function App() {
                 />
             </div>
           </main>
+
+          <MessageNotificationToast 
+              isVisible={!!activeToast}
+              senderName={activeToast?.senderName || ''}
+              senderAvatar={activeToast?.senderAvatar}
+              text={activeToast?.text || ''}
+              isLocked={activeToast?.isLocked || false}
+              onClose={() => setActiveToast(null)}
+              onClick={() => {
+                  if (activeToast) {
+                      handleOpenChatWithUser(activeToast.senderId);
+                      setActiveToast(null);
+                  }
+              }}
+          />
 
           <ProfileModal 
             isOpen={!!viewingProfileId} 

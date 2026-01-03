@@ -179,14 +179,6 @@ export const Home: React.FC<HomeProps> = ({
                       >
                           Order Now
                       </motion.button>
-                      <motion.p 
-                        initial={{ opacity: 0 }}
-                        animate={isImageLoaded ? { opacity: 0.4 } : { opacity: 0 }}
-                        transition={{ delay: 1.2 }}
-                        className="text-[7px] md:text-[8px] font-black uppercase tracking-[0.4em] text-white"
-                      >
-                        Soon: Work in Progress
-                      </motion.p>
                     </div>
                     
                     <motion.div 
