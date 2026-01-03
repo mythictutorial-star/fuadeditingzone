@@ -84,7 +84,7 @@ const getIdentity = (username: string, role?: string, hideRole = false) => {
     return (
         <div className="flex items-center gap-1.5 ml-1.5 flex-shrink-0">
             {(isOwner || isAdmin) && (
-                <i style={{ animationDelay: `-${delay}s` }} className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] fez-verified-badge`}></i>
+                <i style={{ animationDelay: `-${delay}s` }} className={`fa-solid fa-circle-check ${isOwner ? 'text-[#ff0000]' : 'text-[#3b82f6]'} text-[12px] md:text-[14px] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] fez-verified-badge`}></i>
             )}
             {!hideRole && (
               <span className={`text-[7px] md:text-[8px] font-black px-1.5 py-0.5 rounded border leading-none tracking-[0.1em] ${
@@ -358,7 +358,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               <p className="text-sm text-zinc-500 mb-6">Send a message to start a chat.</p>
               <button 
                 onClick={handleStartNewMessage}
-                className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors active:scale-95"
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors active:scale-95 shadow-lg shadow-red-600/20"
               >
                 Send message
               </button>
@@ -421,7 +421,7 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                                 <span className="text-[10px] font-black text-white uppercase tracking-tight truncate leading-none">{msg.senderName}</span>
                               </div>
                           )}
-                          <div className={`px-4 py-2.5 rounded-2xl text-[13px] md:text-sm border font-medium leading-relaxed ${isMe ? 'bg-[#3797f0] border-[#3797f0] text-white rounded-br-none' : (isOwner ? 'bg-[#262626] border-red-600/40 text-white rounded-bl-none' : 'bg-[#262626] border-white/5 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
+                          <div className={`px-4 py-2.5 rounded-2xl text-[13px] md:text-sm border font-medium leading-relaxed ${isMe ? 'bg-red-600 border-red-600 text-white rounded-br-none shadow-lg shadow-red-600/10' : (isOwner ? 'bg-[#262626] border-red-600/40 text-white rounded-bl-none' : 'bg-[#262626] border-white/5 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>{msg.text}</div>
                         </div>
                       </div>
                     );
@@ -433,8 +433,8 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
               {/* Message Input Container */}
               <div className="p-4 md:p-6 bg-black border-t border-white/10 flex-shrink-0">
                 {isSignedIn ? (
-                  <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-zinc-500">
-                    <button type="button" className="p-2 text-white hover:opacity-70"><i className="fa-regular fa-face-smile text-xl"></i></button>
+                  <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-center gap-3 p-1.5 border border-white/20 rounded-3xl transition-all focus-within:border-red-600/50">
+                    <button type="button" className="p-2 text-white hover:text-red-500 transition-colors"><i className="fa-regular fa-face-smile text-xl"></i></button>
                     <input 
                       value={inputValue} 
                       onChange={e => setInputValue(e.target.value)} 
@@ -442,19 +442,19 @@ export const CommunityChat: React.FC<{ onShowProfile?: (id: string, username?: s
                       className="flex-1 bg-transparent px-2 py-2 text-sm text-white outline-none min-w-0 placeholder-zinc-500" 
                     />
                     {inputValue.trim() ? (
-                        <button type="submit" className="text-[#0095f6] hover:text-white font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>
+                        <button type="submit" className="text-red-600 hover:text-red-500 font-bold px-4 py-2 text-sm transition-colors active:scale-90">Send</button>
                     ) : (
                         <div className="flex items-center gap-3 pr-2 text-white">
-                            <button type="button" className="hover:opacity-70 transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button>
-                            <button type="button" className="hover:opacity-70 transition-opacity"><i className="fa-regular fa-image text-lg"></i></button>
-                            <button type="button" className="hover:opacity-70 transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button>
+                            <button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-solid fa-microphone text-lg"></i></button>
+                            <button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-image text-lg"></i></button>
+                            <button type="button" className="hover:text-red-500 transition-opacity"><i className="fa-regular fa-heart text-xl"></i></button>
                         </div>
                     )}
                   </form>
                 ) : (
                   <div className="py-4 text-center">
                     <SignInButton mode="modal">
-                        <button className="bg-[#0095f6] hover:bg-[#1877f2] text-white font-bold py-3 px-12 rounded-lg text-sm transition-all active:scale-95 shadow-xl">
+                        <button className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-12 rounded-lg text-sm transition-all active:scale-95 shadow-xl shadow-red-600/20">
                             Log In to Chat
                         </button>
                     </SignInButton>
