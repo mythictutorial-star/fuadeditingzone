@@ -244,9 +244,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     <img src={siteConfig.branding.logoUrl} className="w-9 h-9" alt="" />
                 </button>
                 <div className="flex flex-col gap-6">
-                    <button onClick={onBack} className="p-3.5 rounded-2xl text-white opacity-40 hover:opacity-100 hover:bg-white/5 transition-all" title="Home">
-                        <HomeIcon className="w-6 h-6" />
-                    </button>
                     <button className="p-3.5 rounded-2xl bg-white text-black scale-110 shadow-lg" title="Marketplace">
                         <MarketIcon className="w-6 h-6" />
                     </button>
@@ -259,24 +256,24 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                 </div>
             </nav>
 
-            {/* Main Centered Masonry Flow */}
-            <div className="flex-1 flex flex-col lg:ml-20 overflow-y-auto custom-scrollbar no-scrollbar w-full relative px-4 md:px-8">
-                <div className="w-full flex flex-col pb-48 max-w-[1400px] mx-auto">
+            {/* Main Full-Width Masonry Flow */}
+            <div className="flex-1 flex flex-col lg:ml-20 overflow-y-auto custom-scrollbar no-scrollbar w-full relative px-4 md:px-10 lg:px-14">
+                <div className="w-full flex flex-col pb-48">
                     
                     {/* Aligned Header Block centered with the content */}
                     <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8 px-2 md:px-0">
-                        <div className="flex items-center gap-3">
-                            <button onClick={onBack} className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group"><ArrowLeft className="w-5 h-5 group-hover:scale-110 transition-transform" /></button>
-                            <h1 className="text-sm md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90">Marketplace</h1>
+                        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                            <button onClick={onBack} className="p-2 md:p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group flex-shrink-0"><ArrowLeft className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" /></button>
+                            <h1 className="text-[10px] md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90 truncate">Marketplace</h1>
                         </div>
-                        <div className="relative w-40 md:w-80 lg:w-[450px]">
-                            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-4 h-4" />
-                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search creative works..." className="w-full bg-white/5 border border-white/10 rounded-full py-2.5 pl-11 pr-5 text-[10px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
+                        <div className="relative w-32 md:w-80 lg:w-[450px]">
+                            <SearchIcon className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-3 h-3 md:w-4 md:h-4" />
+                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/5 border border-white/10 rounded-full py-2 md:py-2.5 pl-9 md:pl-11 pr-3 md:pr-5 text-[9px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
                         </div>
                     </div>
                     
-                    {/* Masonry Effect: 5 columns on large desktop, 3 on tablet, 2 on mobile */}
-                    <div className="columns-2 sm:columns-3 lg:columns-5 gap-4 md:gap-6 px-2 md:px-0 w-full">
+                    {/* Masonry Effect */}
+                    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-8 gap-4 md:gap-6 px-2 md:px-0 w-full">
                         {filteredPosts.map((post, idx) => (
                             <PostItem 
                                 key={post.id} 
@@ -298,8 +295,17 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             
             <CreatePostModal isOpen={isPostModalOpen} onClose={() => setIsPostModalOpen(false)} isMarketplaceContext={true} />
 
-            {/* Restricted FAB */}
-            {isSignedIn && (<motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPostModalOpen(true)} className="hidden md:flex fixed bottom-12 right-12 z-[110] w-16 h-16 bg-red-600 text-white rounded-2xl items-center justify-center shadow-lg border-2 border-white/20 group"><span className="text-4xl font-light transition-transform">+</span></motion.button>)}
+            {/* Restricted FAB - Bottom Right for Marketplace */}
+            {isSignedIn && (
+                <motion.button 
+                    whileHover={{ scale: 1.1 }} 
+                    whileTap={{ scale: 0.9 }} 
+                    onClick={() => setIsPostModalOpen(true)} 
+                    className="fixed bottom-24 md:bottom-12 right-6 md:right-12 z-[250] w-14 h-14 md:w-16 md:h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-[0_15px_40px_rgba(220,38,38,0.4)] border-2 border-white/20 active:bg-red-700 transition-colors"
+                >
+                    <span className="text-3xl md:text-4xl font-light">+</span>
+                </motion.button>
+            )}
         </div>
     );
 };

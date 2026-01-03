@@ -439,10 +439,12 @@ export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNa
                 }}
                 className="pointer-events-auto bg-black backdrop-blur-2xl rounded-t-[2rem] h-20 flex justify-around items-center shadow-2xl border-t border-white/5 px-6 z-[100]"
             >
-                <button onClick={() => onScrollTo('home')} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'home' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
-                    <HomeIcon className="w-5 h-5" />
-                    <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
-                </button>
+                {activeRoute !== 'marketplace' && (
+                    <button onClick={() => onScrollTo('home')} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'home' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
+                        <HomeIcon className="w-5 h-5" />
+                        <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
+                    </button>
+                )}
                 <button onClick={onNavigateMarketplace} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'marketplace' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
                     <MarketIcon className="w-5 h-5" />
                     <span className="text-[8px] font-black uppercase tracking-widest">Market</span>

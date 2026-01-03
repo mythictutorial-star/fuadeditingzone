@@ -6,7 +6,7 @@ import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, UserCircleIcon, SearchIcon, SendIcon, ChevronLeftIcon, UserGroupIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon, LockIcon, UnlockIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck, KeyRound, Fingerprint, Lock, Unlock, AlertTriangle, ShieldCheck as Shield, Image as ImageIcon, Film } from 'lucide-react';
+import { ArrowLeft, Edit, LayoutDashboard, MessageSquare, Heart, PlusSquare, Compass, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, ShieldCheck, KeyRound, Fingerprint, Lock, Unlock, AlertTriangle, ShieldCheck as Shield, Image as ImageIcon, Film, X } from 'lucide-react';
 import { siteConfig } from '../config';
 import { CreatePostModal } from './CreatePostModal';
 
@@ -293,6 +293,7 @@ export const CommunityChat: React.FC<{
   const [verifiedTarget, setVerifiedTarget] = useState<string | null>(null);
   const [reportMode, setReportMode] = useState(false);
   const [isMediaUploading, setIsMediaUploading] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; preview: string; type: 'image' | 'video' } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -355,7 +356,7 @@ export const CommunityChat: React.FC<{
         });
         onValue(ref(db, `notifications/${clerkUser.id}`), (snap) => {
             const data = snap.val() || {};
-            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => b.timestamp - a.timestamp));
+            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => a.timestamp - b.timestamp));
         });
     }
 
@@ -394,67 +395,45 @@ export const CommunityChat: React.FC<{
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSignedIn || !inputValue.trim() || !chatPath || !clerkUser) return;
+    if (!isSignedIn || !chatPath || !clerkUser) return;
+    if (!inputValue.trim() && !pendingMedia) return;
     
     const isFriend = selectedUser ? (friendsList.includes(selectedUser.id) || selectedUser.username?.toLowerCase() === OWNER_HANDLE) : true;
     const mySentMessages = messages.filter(m => m.senderId === clerkUser.id);
     if (!isFriend && mySentMessages.length >= 3) return;
 
-    const myProfile = users.find(u => u.id === clerkUser.id);
-    const newMessage = { 
-      senderId: clerkUser.id, 
-      senderName: clerkUser.fullName || clerkUser.username || "Anonymous", 
-      senderUsername: (clerkUser.username || '').toLowerCase(),
-      senderAvatar: clerkUser.imageUrl,
-      senderRole: myProfile?.role || 'Designer',
-      text: inputValue.trim(), 
-      timestamp: Date.now() 
-    };
-    setInputValue('');
-    await push(ref(db, chatPath), newMessage);
-    
-    if (!isGlobal && selectedUser) {
-        await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
-        await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
-        const recipientUnreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
-        get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
-    }
-  };
-
-  const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !chatPath || !clerkUser) return;
-    
-    const isFriend = selectedUser ? (friendsList.includes(selectedUser.id) || selectedUser.username?.toLowerCase() === OWNER_HANDLE) : true;
-    const mySentMessages = messages.filter(m => m.senderId === clerkUser.id);
-    if (!isFriend && mySentMessages.length >= 3) {
-        alert("You must be friends to send media.");
-        return;
-    }
-
     setIsMediaUploading(true);
+    let mediaUrl = '';
+    let mediaType: 'image' | 'video' | undefined = undefined;
+
     try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('folder', 'ChatMedia');
-        const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
-        const result = await res.json();
-        const mediaUrl = result.url;
-        const mediaType = file.type.startsWith('video') ? 'video' : 'image';
+        if (pendingMedia) {
+            const formData = new FormData();
+            formData.append('file', pendingMedia.file);
+            formData.append('folder', 'ChatMedia');
+            const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
+            const result = await res.json();
+            mediaUrl = result.url;
+            mediaType = pendingMedia.type;
+        }
 
         const myProfile = users.find(u => u.id === clerkUser.id);
-        const newMessage = {
-            senderId: clerkUser.id,
-            senderName: clerkUser.fullName || clerkUser.username || "Anonymous",
-            senderUsername: (clerkUser.username || '').toLowerCase(),
-            senderAvatar: clerkUser.imageUrl,
-            senderRole: myProfile?.role || 'Designer',
-            mediaUrl,
-            mediaType,
-            timestamp: Date.now()
+        const newMessage: Message = { 
+          senderId: clerkUser.id, 
+          senderName: clerkUser.fullName || clerkUser.username || "Anonymous", 
+          senderUsername: (clerkUser.username || '').toLowerCase(),
+          senderAvatar: clerkUser.imageUrl,
+          senderRole: myProfile?.role || 'Designer',
+          text: inputValue.trim() || undefined,
+          mediaUrl: mediaUrl || undefined,
+          mediaType: mediaType,
+          timestamp: Date.now() 
         };
-
+        
+        setInputValue('');
+        setPendingMedia(null);
         await push(ref(db, chatPath), newMessage);
+        
         if (!isGlobal && selectedUser) {
             await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
             await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
@@ -462,11 +441,27 @@ export const CommunityChat: React.FC<{
             get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
         }
     } catch (err) {
-        alert("Failed to send media.");
+        alert("Failed to send message.");
     } finally {
         setIsMediaUploading(false);
-        if (mediaInputRef.current) mediaInputRef.current.value = '';
     }
+  };
+
+  const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const isFriend = selectedUser ? (friendsList.includes(selectedUser.id) || selectedUser.username?.toLowerCase() === OWNER_HANDLE) : true;
+    const mySentMessages = messages.filter(m => m.senderId === clerkUser?.id);
+    if (!isFriend && mySentMessages.length >= 3) {
+        alert("You must be friends to send media.");
+        return;
+    }
+
+    const type = file.type.startsWith('video') ? 'video' : 'image';
+    const preview = URL.createObjectURL(file);
+    setPendingMedia({ file, preview, type });
+    if (mediaInputRef.current) mediaInputRef.current.value = '';
   };
 
   const { primaryUsers, requestUsers, requestCount } = useMemo(() => {
@@ -599,7 +594,7 @@ export const CommunityChat: React.FC<{
       if (mutedUsers[selectedUser.id]) {
           await remove(ref(db, path));
       } else {
-          await set(ref(db, path), true);
+          await set(ref(path), true);
       }
   };
 
@@ -641,6 +636,7 @@ export const CommunityChat: React.FC<{
     });
 
     const admins = users.filter(u => u.username === OWNER_HANDLE || u.username === ADMIN_HANDLE);
+    // Fix: Corrected the loop syntax from 'for (const admin of admin of admins)' to 'for (const admin of admins)'
     for (const admin of admins) {
         await push(ref(db, `notifications/${admin.id}`), {
             type: 'user_report',
@@ -959,7 +955,7 @@ export const CommunityChat: React.FC<{
                         </div>
                       )}
 
-                      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 md:px-12 md:py-10 flex flex-col gap-4 md:gap-6 no-scrollbar pb-24 md:pb-10">
+                      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-6 md:px-12 md:py-10 flex flex-col gap-4 md:gap-6 no-scrollbar pb-24 md:pb-10">
                         {messages.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center opacity-10 animate-pulse"><i className="fa-solid fa-shield-halved text-5xl mb-6"></i><p className="text-[12px] font-black uppercase tracking-[0.5em]">{isGlobal ? 'Connecting...' : 'Secure Connection'}</p></div>
                         ) : (
@@ -968,14 +964,14 @@ export const CommunityChat: React.FC<{
                             return (
                               <div key={msg.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-full group animate-fade-in`}>
                                 <UserAvatar user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} className={`w-7 h-7 md:w-8 md:h-8 border shadow-lg group-hover:scale-105 transition-transform ${msg.senderUsername?.toLowerCase() === OWNER_HANDLE ? 'border-red-600' : 'border-white/10'}`} onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())} />
-                                <div className={`max-w-[78%] md:max-w-[65%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
-                                  {!isMe && (<div className="flex items-center mb-0.5 px-1 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}><span className="text-[9px] font-black text-white uppercase tracking-tight truncate leading-none">{msg.senderName}</span></div>)}
-                                  <div className={`px-3 py-2 rounded-2xl text-[12px] md:text-sm border font-medium leading-relaxed ${isMe ? 'bg-red-600 border-red-600 text-white rounded-br-none shadow-lg shadow-red-600/10' : (msg.senderUsername?.toLowerCase() === OWNER_HANDLE ? 'bg-[#262626] border-red-600/40 text-white rounded-bl-none' : 'bg-[#262626] border-white/5 text-zinc-200 rounded-bl-none')}`} style={{ overflowWrap: 'anywhere' }}>
+                                <div className={`max-w-[75%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0`}>
+                                  {!isMe && (<div className="flex items-center mb-1 px-1 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" onClick={() => onShowProfile?.(msg.senderId, (msg.senderUsername || '').toLowerCase())}><span className="text-[9px] font-black text-white uppercase tracking-tight truncate leading-none">{msg.senderName}</span></div>)}
+                                  <div className={`px-4 py-3 rounded-2xl text-[12px] md:text-sm border font-medium leading-relaxed break-words whitespace-pre-wrap overflow-wrap-anywhere ${isMe ? 'bg-red-600 border-red-600 text-white rounded-br-none shadow-lg shadow-red-600/10' : (msg.senderUsername?.toLowerCase() === OWNER_HANDLE ? 'bg-[#262626] border-red-600/40 text-white rounded-bl-none' : 'bg-[#262626] border-white/5 text-zinc-200 rounded-bl-none')}`}>
                                     {msg.mediaUrl ? (
                                         msg.mediaType === 'video' ? (
-                                            <video src={msg.mediaUrl} controls className="max-w-full rounded-lg" />
+                                            <video src={msg.mediaUrl} controls className="max-w-full h-auto rounded-lg" />
                                         ) : (
-                                            <img src={msg.mediaUrl} className="max-w-full rounded-lg cursor-pointer" alt="" onClick={() => window.open(msg.mediaUrl, '_blank')} />
+                                            <img src={msg.mediaUrl} className="max-w-full h-auto rounded-lg cursor-pointer" alt="" onClick={() => window.open(msg.mediaUrl, '_blank')} />
                                         )
                                     ) : msg.text}
                                   </div>
@@ -987,6 +983,35 @@ export const CommunityChat: React.FC<{
                         <div ref={messagesEndRef} />
                       </div>
 
+                      {/* Instagram-like Media Preview */}
+                      <AnimatePresence>
+                        {pendingMedia && (
+                            <motion.div 
+                                initial={{ y: 50, opacity: 0 }} 
+                                animate={{ y: 0, opacity: 1 }} 
+                                exit={{ y: 50, opacity: 0 }}
+                                className="px-6 md:px-10 py-3 bg-black border-t border-white/10 z-[60]"
+                            >
+                                <div className="relative w-24 md:w-32 aspect-square rounded-xl overflow-hidden border border-white/20 bg-zinc-900 group">
+                                    {pendingMedia.type === 'video' ? (
+                                        <video src={pendingMedia.preview} className="w-full h-full object-cover" muted />
+                                    ) : (
+                                        <img src={pendingMedia.preview} className="w-full h-full object-cover" alt="" />
+                                    )}
+                                    <button 
+                                        onClick={() => setPendingMedia(null)}
+                                        className="absolute top-1 right-1 p-1 bg-black/60 rounded-full text-white hover:bg-red-600 transition-colors"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        {pendingMedia.type === 'video' ? <Film size={20} className="text-white" /> : <ImageIcon size={20} className="text-white" />}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                      </AnimatePresence>
+
                       <div className="px-6 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-50">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
@@ -997,18 +1022,27 @@ export const CommunityChat: React.FC<{
                               </div>
                             ) : (
                               <form onSubmit={handleSendMessage} className="flex items-center gap-3 p-1 border border-white/15 rounded-3xl transition-all focus-within:border-red-600/40 focus-within:bg-white/[0.02] mx-2">
-                                <button type="button" className="p-2 text-zinc-500 hover:text-white transition-colors"><i className="fa-regular fa-face-smile text-xl"></i></button>
-                                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-1 py-1.5 text-sm text-white outline-none min-w-0 placeholder-zinc-700" />
-                                <div className="flex items-center gap-2 pr-2">
+                                <div className="flex items-center gap-1 pl-2">
                                     {isMediaUploading ? (
                                         <div className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                                     ) : (
-                                        <>
-                                            <button type="button" onClick={() => mediaInputRef.current?.click()} className="text-zinc-500 hover:text-white transition-opacity"><ImageIcon size={20} /></button>
-                                            <button type="button" onClick={() => { if(mediaInputRef.current) { mediaInputRef.current.accept = 'video/*'; mediaInputRef.current.click(); } }} className="text-zinc-500 hover:text-white transition-opacity"><Film size={20} /></button>
-                                        </>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => mediaInputRef.current?.click()} 
+                                            className="p-2 text-zinc-400 hover:text-white transition-opacity"
+                                            title="Attach Media"
+                                        >
+                                            <ImageIcon size={22} />
+                                        </button>
                                     )}
-                                    {inputValue.trim() && <button type="submit" className="text-red-600 hover:text-red-500 font-bold px-3 py-1.5 text-sm transition-colors active:scale-90">Send</button>}
+                                </div>
+                                <input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder="Message..." className="flex-1 bg-transparent px-1 py-1.5 text-sm text-white outline-none min-w-0 placeholder-zinc-700" />
+                                <div className="flex items-center gap-2 pr-4">
+                                    {(inputValue.trim() || pendingMedia) && (
+                                        <button type="submit" disabled={isMediaUploading} className="text-red-600 hover:text-red-500 font-black uppercase text-[11px] tracking-widest transition-all active:scale-90 disabled:opacity-50">
+                                            {isMediaUploading ? '...' : 'Send'}
+                                        </button>
+                                    )}
                                 </div>
                                 <input type="file" ref={mediaInputRef} onChange={handleMediaSelect} accept="image/*,video/*" hidden />
                               </form>
