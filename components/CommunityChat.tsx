@@ -215,7 +215,7 @@ export const CommunityChat: React.FC<{
           senderName: clerkUser.fullName || clerkUser.username || "User", 
           senderUsername: (clerkUser.username || '').toLowerCase(),
           senderAvatar: clerkUser.imageUrl,
-          senderRole: currentUser?.role || 'Member',
+          senderRole: currentUser?.role || 'Client',
           text: text,
           timestamp: Date.now() 
         };
@@ -346,7 +346,7 @@ export const CommunityChat: React.FC<{
                 </aside>
 
                 {/* Main Chat Content */}
-                <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-black relative min-h-0`}>
+                <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-black relative min-w-0 min-h-0`}>
                     {!isGlobal && !selectedUser ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-20"><MessageSquare size={100}/><p className="mt-4 font-black uppercase tracking-widest text-center">Protocol Synchronized</p></div>
                     ) : (
@@ -375,12 +375,12 @@ export const CommunityChat: React.FC<{
                                             <UserAvatar user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} className="w-8 h-8 mt-6" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)} />
                                             <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                                                 <div className="flex items-center gap-1.5 mb-1 px-1 cursor-pointer" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)}>
-                                                    <span className="text-[10px] font-black text-white uppercase tracking-tight truncate max-w-[120px]">
+                                                    <span className="text-[10px] font-black text-white uppercase tracking-tight truncate max-w-[100px]">
                                                         {msg.senderName}
                                                     </span>
                                                     {getIdentity(msg.senderUsername || '')}
                                                     <span className="text-[7px] font-black text-red-600/60 uppercase tracking-widest bg-red-600/5 px-1.5 py-0.5 rounded border border-red-600/10 flex-shrink-0">
-                                                        {msg.senderRole || 'Member'}
+                                                        {msg.senderRole || 'Client'}
                                                     </span>
                                                 </div>
                                                 <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isMe ? 'bg-red-600 text-white rounded-tr-none' : 'bg-[#1a1a1a] text-zinc-200 rounded-tl-none border border-white/5'}`}>{msg.text}</div>
@@ -391,11 +391,11 @@ export const CommunityChat: React.FC<{
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            {/* Sticky Input Container optimized for mobile */}
-                            <div className="px-4 pt-4 pb-4 md:px-10 md:pb-8 bg-black border-t border-white/5 flex-shrink-0 z-50">
-                                <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto flex items-end gap-3 p-1.5 bg-[#0a0a0a] border border-white/10 rounded-3xl min-h-[54px] focus-within:border-red-600/40 transition-all w-full">
-                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} placeholder="Type message..." rows={1} className="flex-1 bg-transparent px-4 py-3 text-sm text-white outline-none resize-none placeholder-zinc-700 max-h-32" />
-                                    <button type="submit" disabled={!inputValue.trim()} className="px-6 py-3 text-red-600 font-black uppercase text-[10px] tracking-widest disabled:opacity-20 transition-all flex-shrink-0">Send</button>
+                            {/* Minimized Bottom Container for Chat Input */}
+                            <div className="px-3 pt-3 pb-3 md:px-10 md:pb-8 bg-black border-t border-white/5 flex-shrink-0 z-50">
+                                <form onSubmit={handleSendMessage} className="w-full max-w-4xl mx-auto flex items-end gap-2 p-1.5 bg-[#0a0a0a] border border-white/10 rounded-2xl min-h-[50px] focus-within:border-red-600/40 transition-all">
+                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} placeholder="Type message..." rows={1} className="flex-1 bg-transparent px-4 py-2.5 text-sm text-white outline-none resize-none placeholder-zinc-700 max-h-32" />
+                                    <button type="submit" disabled={!inputValue.trim()} className="px-5 py-2.5 text-red-600 font-black uppercase text-[10px] tracking-widest disabled:opacity-20 transition-all flex-shrink-0">Send</button>
                                 </form>
                             </div>
                         </>
