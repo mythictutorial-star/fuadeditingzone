@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-// Added ChevronRightIcon to imports
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
 import { Phone, Video, Image as ImageIcon, Lock, Bell, Mic, Camera, PhoneOff, User, ShieldCheck, Check, Info, MoreHorizontal, Slash, ShieldAlert } from 'lucide-react';
 import { siteConfig } from '../config';
@@ -75,7 +74,7 @@ const CallOverlay: React.FC<{
           </>
         ) : (
           <>
-            <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-green-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
+            <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-red-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
           </>
         )}
       </div>
@@ -449,13 +448,22 @@ export const CommunityChat: React.FC<{
                                 {messages.map((m, i) => {
                                     const isMe = m.senderId === clerkUser?.id;
                                     const isMsgRestricted = m.senderUsername === RESTRICTED_HANDLE && !isOwner;
-                                    const sender = isMsgRestricted ? { name: 'Community Member', username: 'guest', avatar: undefined } : { name: m.senderName || 'Guest', username: m.senderUsername || 'guest', avatar: m.senderAvatar };
+                                    
+                                    // DYNAMIC PROFILE LOOKUP: Pull current data from users list instead of static message snapshot
+                                    const currentSender = users.find(u => u.id === m.senderId);
+                                    const sender = isMsgRestricted 
+                                        ? { name: 'Community Member', username: 'guest', avatar: undefined } 
+                                        : { 
+                                            name: currentSender?.name || m.senderName || 'Guest', 
+                                            username: currentSender?.username || m.senderUsername || 'guest', 
+                                            avatar: currentSender?.avatar || m.senderAvatar 
+                                          };
                                     
                                     return (
                                         <div key={m.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group`}>
-                                            <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, m.senderUsername || 'guest'); }} />
+                                            <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username); }} />
                                             <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                                <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, m.senderUsername || 'guest'); }}>
+                                                <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username); }}>
                                                     <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] group-hover/msg:text-white transition-colors">{sender.username?.toLowerCase()}</span>
                                                     <VerificationBadge username={sender.username} />
                                                 </div>
@@ -503,14 +511,14 @@ export const CommunityChat: React.FC<{
                       <div className="flex-1 overflow-y-auto no-scrollbar p-8 text-center space-y-10">
                          <div className="flex flex-col items-center gap-4">
                             <div className="w-24 h-24 rounded-full border-2 border-red-600 p-1">
-                                <img src={selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
+                                <img src={users.find(u => u.id === selectedUser.id)?.avatar || selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
                             </div>
                             <div>
                                <div className="flex items-center justify-center gap-1">
-                                  <h3 className="text-lg font-black text-white uppercase tracking-tighter">{selectedUser.name}</h3>
-                                  <VerificationBadge username={selectedUser.username} />
+                                  <h3 className="text-lg font-black text-white uppercase tracking-tighter">{users.find(u => u.id === selectedUser.id)?.name || selectedUser.name}</h3>
+                                  <VerificationBadge username={users.find(u => u.id === selectedUser.id)?.username || selectedUser.username} />
                                </div>
-                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{selectedUser.username?.toLowerCase()}</p>
+                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{ (users.find(u => u.id === selectedUser.id)?.username || selectedUser.username)?.toLowerCase() }</p>
                             </div>
                             <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">View Profile</button>
                          </div>
