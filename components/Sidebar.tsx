@@ -12,7 +12,6 @@ import { getDatabase, ref, onValue, set, remove, push, update, get } from 'https
 import { siteConfig } from '../config';
 import { HomeIcon, BriefcaseIcon, VfxIcon, UserCircleIcon, ChatBubbleIcon, SparklesIcon, CloseIcon, CheckCircleIcon, GlobeAltIcon, UserPlusIcon, SendIcon, MarketIcon, ShoppingCartIcon, SearchIcon, ChevronRightIcon } from './Icons';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { BellRing, Trash2 } from 'lucide-react'; // Added Trash2 icon for clear notifications
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -27,21 +26,11 @@ const db = getDatabase(app);
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
-const RESTRICTED_HANDLE = 'jiya';
-
-// Define ChatUser type (minimal for NotificationHub usage)
-interface ChatUser {
-  id: string;
-  name: string;
-  username: string;
-  avatar?: string;
-  profile?: { profession?: string };
-}
 
 const getBadge = (u: string) => {
   const low = u?.toLowerCase();
   const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
-  if (low === OWNER_HANDLE || low === RESTRICTED_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
+  if (low === OWNER_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
   if (low === ADMIN_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>;
   return null;
 };
@@ -50,7 +39,7 @@ interface NavProps {
   onScrollTo: (section: string) => void;
   onNavigateMarketplace?: () => void;
   onNavigateCommunity?: () => void;
-  onOpenChatWithUser?: (userId: string | null) => void; // Updated to accept null
+  onOpenChatWithUser?: (userId: string) => void;
   onOpenProfile?: (userId: string) => void;
   activeRoute?: string;
   onOpenPost?: (postId: string, commentId?: string) => void;
@@ -120,14 +109,12 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
             await remove(ref(db, `social/${targetId}/requests/sent/${user.id}`));
             await set(ref(db, `social/${user.id}/friends/${targetId}`), true);
             await set(ref(db, `social/${targetId}/friends/${user.id}`), true);
-            
-            // Notification: @username accepted your request
             await push(ref(db, `notifications/${targetId}`), {
                 type: 'friend_accepted',
                 fromId: user.id,
                 fromName: (user.username || user.fullName || '').toLowerCase(),
                 fromAvatar: user.imageUrl,
-                text: `@${(user.username || user.fullName || '').toLowerCase()} accepted your request!`, // Updated text
+                text: `@${(user.username || user.fullName || '').toLowerCase()} accepted your friend request!`,
                 timestamp: Date.now(),
                 read: false
             });
@@ -226,22 +213,10 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
     );
 };
 
-const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; onShowUser: (id: string) => void; onGoToInbox: (id: string | null) => void; onOpenPost?: (postId: string, commentId?: string) => void }> = ({ isOpen, setIsOpen, onShowUser, onGoToInbox, onOpenPost }) => {
+const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; onShowUser: (id: string) => void; onGoToInbox: (id: string) => void; onOpenPost?: (postId: string, commentId?: string) => void }> = ({ isOpen, setIsOpen, onShowUser, onGoToInbox, onOpenPost }) => {
     const { user } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
-    const [pendingMessageRequests, setPendingMessageRequests] = useState<ChatUser[]>([]); 
-
-    // Temporary: Function to delete all notifications for the current user
-    const handleClearAllNotifications = async () => {
-        // FIX: Compare `user.username?.toLowerCase()` with string literals, not boolean results of negation
-        if (!user || (user.username?.toLowerCase() !== OWNER_HANDLE && user.username?.toLowerCase() !== ADMIN_HANDLE)) return; // Only owner/admin can clear
-        if (window.confirm("Are you sure you want to delete ALL your notifications? This cannot be undone.")) {
-            await remove(ref(db, `notifications/${user.id}`));
-            alert("All notifications cleared.");
-            setNotifications([]);
-            setPendingMessageRequests([]);
-        }
-    };
+    const [hasPendingMsgRequests, setHasPendingMsgRequests] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -250,10 +225,9 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         
         onValue(notifyRef, (snap) => {
             const data = snap.val() || {};
-            // Filter out 'friend_accepted', 'friend_request' and 'message' types from the main list for sleek UI
             const list = Object.entries(data)
                 .map(([id, info]: [string, any]) => ({ id, ...info }))
-                .filter(n => n.type !== 'friend_request' && n.type !== 'friend_accepted' && n.type !== 'message');
+                .filter(n => n.type !== 'friend_request');
             
             onValue(globalRef, (gSnap) => {
               const gData = gSnap.val() || {};
@@ -262,26 +236,16 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
             });
         });
 
+        // Check for pending message requests logic
         const unreadRef = ref(db, `users/${user.id}/unread`);
         const friendsRef = ref(db, `social/${user.id}/friends`);
-        
-        onValue(unreadRef, async (snap) => {
+        onValue(unreadRef, (snap) => {
             const unreads = snap.val() || {};
-            const friendsSnap = await get(friendsRef);
-            const friends = friendsSnap.exists() ? Object.keys(friendsSnap.val()) : [];
-            
-            // Identify users who sent unread messages and are not friends (i.e., conversation status is 'requested')
-            const requesterIds = Object.keys(unreads).filter(id => unreads[id] > 0 && !friends.includes(id) && id !== OWNER_HANDLE);
-
-            if (requesterIds.length > 0) {
-                const fetchedUsers = await Promise.all(requesterIds.map(async (id) => {
-                    const uSnap = await get(ref(db, `users/${id}`));
-                    return { id, ...uSnap.val() };
-                }));
-                setPendingMessageRequests(fetchedUsers.filter(u => u.id)); // Ensure users exist
-            } else {
-                setPendingMessageRequests([]);
-            }
+            get(friendsRef).then(fSnap => {
+                const friends = fSnap.exists() ? Object.keys(fSnap.val()) : [];
+                const requestIds = Object.keys(unreads).filter(id => unreads[id] > 0 && !friends.includes(id) && id !== OWNER_HANDLE);
+                setHasPendingMsgRequests(requestIds.length > 0);
+            });
         });
     }, [user]);
 
@@ -298,14 +262,11 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         setIsOpen(false);
     };
 
-    const isOwnerOrAdmin = user?.username?.toLowerCase() === OWNER_HANDLE || user?.username?.toLowerCase() === ADMIN_HANDLE;
-
     return (
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Notifications">
                 <i className="fa-solid fa-bell text-[14px]"></i>
-                {/* Updated indicator for any unread notifications or pending message requests */}
-                {(notifications.some(n => !n.read && !n.isGlobal) || pendingMessageRequests.length > 0) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
+                {(notifications.some(n => !n.read && !n.isGlobal) || hasPendingMsgRequests) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
             </button>
             <AnimatePresence>
                 {isOpen && (
@@ -315,35 +276,17 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                                 <i className="fa-solid fa-bell text-2xl text-red-600"></i>
                                 <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
                             </div>
-                            <div className="flex items-center gap-4">
-                                {isOwnerOrAdmin && (
-                                    <button 
-                                        onClick={handleClearAllNotifications} 
-                                        className="p-2 bg-white/5 rounded-full hover:bg-red-600 transition-all text-zinc-500"
-                                        title="Clear All Notifications (Admin)"
-                                    >
-                                        <Trash2 className="w-5 h-5"/>
-                                    </button>
-                                )}
-                                <button onClick={() => setIsOpen(false)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
-                            </div>
+                            <button onClick={() => setIsOpen(false)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-20 max-w-4xl mx-auto w-full space-y-4">
-                            {/* Conditional Message Request Card */}
-                            {pendingMessageRequests.length > 0 && (
-                                <div onClick={() => { setIsOpen(false); onGoToInbox(pendingMessageRequests[0]?.id || null); }} className="p-6 rounded-[2rem] cursor-pointer transition-all border bg-red-600/10 border-red-600/30 group animate-pulse">
+                            {hasPendingMsgRequests && (
+                                <div onClick={() => { setIsOpen(false); onGoToInbox(''); }} className="p-6 rounded-[2rem] cursor-pointer transition-all border bg-red-600/10 border-red-600/30 group animate-pulse">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 bg-red-600 text-white rounded-2xl flex items-center justify-center"><ChatBubbleIcon className="w-6 h-6" /></div>
                                             <div>
-                                                <p className="text-sm md:text-lg font-black text-white uppercase tracking-tight">
-                                                    {pendingMessageRequests.length === 1 
-                                                        ? `@${(pendingMessageRequests[0].username || 'someone').toLowerCase()} requested to send a message` 
-                                                        : `New message requests (${pendingMessageRequests.length})`}
-                                                </p>
-                                                <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">
-                                                    {pendingMessageRequests.length === 1 ? `Connect to chat` : `Multiple non-friends are trying to reach you`}
-                                                </p>
+                                                <p className="text-sm md:text-lg font-black text-white uppercase tracking-tight">New Message Requests</p>
+                                                <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Non-friends are trying to reach you</p>
                                             </div>
                                         </div>
                                         <ChevronRightIcon className="w-5 h-5 text-red-600" />
@@ -351,21 +294,27 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                                 </div>
                             )}
                             
-                            {notifications.length === 0 && pendingMessageRequests.length === 0 ? (
+                            {notifications.length === 0 && !hasPendingMsgRequests ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-20">
                                      <i className="fa-solid fa-bell-slash text-6xl mb-8"></i>
                                      <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em] text-zinc-600">No Activity Yet</p>
                                 </div>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-6 rounded-[2rem] cursor-pointer transition-all border group relative bg-black/80 ${!n.read && !n.isGlobal ? 'border-red-600/20' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-6 rounded-[2rem] cursor-pointer transition-all border group relative ${!n.read && !n.isGlobal ? 'bg-red-600/5 border-red-600/20' : 'bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]'}`}>
                                         <div className="flex gap-5 items-center">
                                             <div className="relative flex-shrink-0">
-                                                <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center"><BellRing className="w-6 h-6 text-zinc-500" /></div> {/* Generic Bell Icon */}
+                                                {n.fromAvatar ? (
+                                                  <img src={n.fromAvatar} className="w-14 h-14 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" alt="" />
+                                                ) : (
+                                                  <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center"><i className="fa-solid fa-user text-xl text-zinc-500"></i></div>
+                                                )}
                                                 {!n.read && !n.isGlobal && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border-2 border-black"></div>}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm md:text-lg leading-snug text-white font-medium">{n.text}</p> {/* Only show text */}
+                                                <p className="text-sm md:text-lg leading-snug text-gray-200">
+                                                    <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.type === 'post_like' ? 'liked your post.' : n.type === 'post_comment' ? 'commented on your post.' : n.type === 'comment_reply' ? 'replied to your comment.' : n.text}
+                                                </p>
                                                 <p className="text-[10px] text-zinc-600 font-bold uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleString()}</p>
                                             </div>
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRightIcon className="w-5 h-5 text-red-600" /></div>
@@ -463,13 +412,15 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
     );
 };
 
-export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean; isHidden?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized, isHidden }) => {
+export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean; hideFAB?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized, hideFAB }) => {
     const { isSignedIn } = useUser();
-    if (isMinimized || isHidden) return null;
+    // Hide footer completely when modal is open
+    if (isMinimized) return null;
 
     return (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
-            {activeRoute !== 'home' && isSignedIn && (
+            {/* Floating Action Button for Create Post - Hide on Home route and if not signed in or FAB hidden explicitly */}
+            {activeRoute !== 'home' && isSignedIn && !hideFAB && (
                 <div className="flex justify-end p-6 pointer-events-auto">
                     <motion.button 
                         whileHover={{ scale: 1.1 }}

@@ -1,5 +1,4 @@
 
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -41,7 +40,7 @@ interface ProfileModalProps {
   onClose: () => void;
   viewingUserId?: string | null;
   onOpenModal?: (items: any[], index: number) => void;
-  onMessageUser?: (userId: string | null) => void; // Updated to accept null
+  onMessageUser?: (userId: string) => void;
   onShowProfile?: (userId: string, username?: string) => void;
 }
 
@@ -235,16 +234,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             } else if (socialState.friendStatus === 'none') {
                 await set(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`), { timestamp: Date.now() });
                 await set(ref(viewingUserId ? db : null, `social/${viewingUserId}/requests/received/${clerkUser.id}`), { timestamp: Date.now() });
-                
-                // Notification: @username requested to message you
                 await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'friend_request', 
-                    fromId: clerkUser.id, 
-                    fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), 
-                    fromAvatar: clerkUser.imageUrl, 
-                    text: `@${(clerkUser.username || clerkUser.fullName || '').toLowerCase()} requested to message you.`, // Updated text
-                    timestamp: Date.now(), 
-                    read: false 
+                    type: 'friend_request', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
                 });
             }
         }

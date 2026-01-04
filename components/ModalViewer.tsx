@@ -22,22 +22,20 @@ interface ModalViewerProps {
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
-const RESTRICTED_HANDLE = 'jiya';
 
 const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
     if (!username) return null;
     const low = username.toLowerCase();
     const isOwner = low === OWNER_HANDLE;
     const isAdmin = low === ADMIN_HANDLE;
-    const isJiya = low === RESTRICTED_HANDLE;
-    if (!isOwner && !isAdmin && !isJiya) return null;
+    if (!isOwner && !isAdmin) return null;
     
     const delay = (username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
     
     return (
         <i 
             style={{ animationDelay: `-${delay}s` }} 
-            className={`fa-solid fa-circle-check ${isAdmin ? 'text-blue-500' : 'text-red-600'} text-[10px] md:text-[12px] ml-1.5 fez-verified-badge`}
+            className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1 fez-verified-badge`}
         ></i>
     );
 };

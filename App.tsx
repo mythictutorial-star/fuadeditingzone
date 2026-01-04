@@ -41,6 +41,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getDatabase(app);
 const messaging = getMessaging(app);
 
+// Actual VAPID key provided by user
 const VAPID_KEY = "BE7pik37RZvIuKStwPfrAucx4DhCTQ3BK9ehWMpThmtxKaKZfGkurRqWGECejo8Wu_LqHh-k5JMnGetyEJ4Uukc"; 
 
 const OWNER_HANDLE = 'fuadeditingzone';
@@ -76,12 +77,15 @@ export default function App() {
   
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
-  
-  const [activeToast, setActiveToast] = useState<{ senderName: string; senderAvatar?: string; texts: string[]; isLocked: boolean; senderId: string } | null>(null);
+
+  // In-app Notification state
+  const [activeToast, setActiveToast] = useState<{ senderName: string; senderAvatar?: string; text: string; isLocked: boolean; senderId: string } | null>(null);
   const lastProcessedNotificationId = useRef<string | null>(null);
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Tracking if a message thread is active to hide footer components
   const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
 
+  // Auto-sync Clerk user to Firebase
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
       const userRef = ref(db, `users/${user.id}`);
@@ -92,15 +96,20 @@ export default function App() {
         avatar: user.imageUrl,
         lastActive: Date.now()
       };
+      
       get(userRef).then((snapshot) => {
         const currentData = snapshot.val();
-        if (!currentData || currentData.name !== userData.name || currentData.username !== userData.username || currentData.avatar !== userData.avatar) {
+        if (!currentData || 
+            currentData.name !== userData.name || 
+            currentData.username !== userData.username ||
+            currentData.avatar !== userData.avatar) {
           update(userRef, userData);
         }
       });
     }
   }, [isLoaded, isSignedIn, user]);
 
+  // FCM Setup logic
   useEffect(() => {
     const handleRequestToken = async () => {
       if (!isSignedIn || !user) return;
@@ -116,50 +125,49 @@ export default function App() {
         console.error("FCM Token acquisition failed:", err);
       }
     };
-    
-    if (isLoaded && isSignedIn && user && Notification.permission === 'default') {
-        handleRequestToken();
-    }
-    
-    window.addEventListener('request-fcm-token', handleRequestToken);
-    return () => window.removeEventListener('request-fcm-token', handleRequestToken);
-  }, [isSignedIn, user, isLoaded]);
 
+    window.addEventListener('request-fcm-token', handleRequestToken);
+    
+    // Foreground message handler
+    const unsubOnMessage = onMessage(messaging, (payload) => {
+      // Logic for foreground messaging can go here if needed
+      // Currently handled by the database listener for higher reliability
+    });
+
+    return () => {
+      window.removeEventListener('request-fcm-token', handleRequestToken);
+      unsubOnMessage();
+    };
+  }, [isSignedIn, user]);
+
+  // Message Notification Listener (In-App)
   useEffect(() => {
     if (!isSignedIn || !user || route === 'community') {
       setActiveToast(null);
       return;
     }
+
     const notificationsRef = query(ref(db, `notifications/${user.id}`), limitToLast(1));
     const unsub = onValue(notificationsRef, async (snap) => {
       const data = snap.val();
       if (!data) return;
+
       const entries = Object.entries(data);
       const [id, info]: [string, any] = entries[0];
-      
+
       if (info.type === 'message' && !info.read && id !== lastProcessedNotificationId.current) {
         lastProcessedNotificationId.current = id;
-        
-        setActiveToast(prev => {
-            if (prev && prev.senderId === info.fromId) {
-                return {
-                    ...prev,
-                    texts: [...prev.texts, info.text].slice(-3)
-                };
-            }
-            return {
-                senderName: info.fromName,
-                senderAvatar: info.fromAvatar,
-                texts: [info.text],
-                isLocked: info.isLocked || false,
-                senderId: info.fromId
-            };
+        setActiveToast({
+          senderName: info.fromName,
+          senderAvatar: info.fromAvatar,
+          text: info.text,
+          isLocked: info.isLocked || false,
+          senderId: info.fromId
         });
-
-        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-        toastTimeoutRef.current = setTimeout(() => setActiveToast(null), 5000);
+        setTimeout(() => setActiveToast(null), 5000);
       }
     });
+
     return () => unsub();
   }, [isSignedIn, user, route]);
 
@@ -167,6 +175,7 @@ export default function App() {
     if (path.startsWith('/@')) {
       const handle = path.substring(2).toLowerCase();
       if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return false;
+
       const usersSnap = await get(ref(db, 'users'));
       const usersData = usersSnap.val();
       if (usersData) {
@@ -196,6 +205,7 @@ export default function App() {
       const path = window.location.pathname;
       const searchParams = new URLSearchParams(window.location.search);
       const commentId = searchParams.get('commentId');
+
       if (path.startsWith('/work/')) {
         const id = path.split('/')[2];
         const allWorks = [...siteConfig.content.portfolio.graphicWorks, ...siteConfig.content.portfolio.vfxEdits];
@@ -300,17 +310,13 @@ export default function App() {
     setViewingProfileId(null);
   };
 
-  const handleOpenChatWithUser = async (userId: string | null) => {
-    if (!userId) { // For the "New message requests" card, if no specific user, try opening with the first pending one.
-        setTargetUserId(null); // Clear specific target
-    } else {
-        const snap = await get(ref(db, `users/${userId}`));
-        const handle = snap.val()?.username?.toLowerCase();
-        if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-        setTargetUserId(userId);
-    }
+  const handleOpenChatWithUser = async (userId: string) => {
+    const snap = await get(ref(db, `users/${userId}`));
+    const handle = snap.val()?.username?.toLowerCase();
+    if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
+    setTargetUserId(userId);
     setViewingProfileId(null);
-    navigateTo('community'); // Always navigate to community
+    navigateTo('community');
   };
 
   const handleScrollTo = (target: string) => {
@@ -356,10 +362,12 @@ export default function App() {
     <ParallaxProvider>
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
+          
           <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} onOpenPost={handleOpenPost} />
             <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} onOpenPost={handleOpenPost} onOpenMobileSearch={handleOpenMobileSearch} />
           </div>
+          
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
             <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth ${route !== 'home' ? 'hidden' : 'block'}`}>
                 <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
@@ -367,10 +375,12 @@ export default function App() {
                 <Contact onStartOrder={() => {}} />
                 <AboutAndFooter />
             </div>
+
             <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto custom-scrollbar no-scrollbar ${route !== 'marketplace' ? 'hidden' : 'block'}`}>
                 <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} onBack={() => navigateTo('home')} />
             </div>
-            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${route !== 'community' ? 'hidden' : 'flex'} ${isMessageThreadActive ? '' : 'pb-24'} md:pb-0`}>
+
+            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0 ${route !== 'community' ? 'hidden' : 'flex'}`}>
                 <CommunityChat 
                   onShowProfile={handleOpenProfile} 
                   initialTargetUserId={targetUserId} 
@@ -379,26 +389,55 @@ export default function App() {
                   forceSearchTab={mobileSearchTriggered} 
                   onSearchTabConsumed={() => setMobileSearchTriggered(false)}
                   onThreadStateChange={(active) => setIsMessageThreadActive(active)}
-                  onOpenChatWithUser={handleOpenChatWithUser} // Pass the handler
                 />
             </div>
           </main>
+
           <MessageNotificationToast 
               isVisible={!!activeToast}
               senderName={activeToast?.senderName || ''}
               senderAvatar={activeToast?.senderAvatar}
-              texts={activeToast?.texts || []}
+              text={activeToast?.text || ''}
               isLocked={activeToast?.isLocked || false}
               onClose={() => setActiveToast(null)}
-              onClick={() => { if (activeToast) { handleOpenChatWithUser(activeToast.senderId); setActiveToast(null); } }}
+              onClick={() => {
+                  if (activeToast) {
+                      handleOpenChatWithUser(activeToast.senderId);
+                      setActiveToast(null);
+                  }
+              }}
           />
-          <ProfileModal isOpen={!!viewingProfileId} onClose={handleCloseProfile} viewingUserId={viewingProfileId} onOpenModal={handleSetModal} onMessageUser={handleOpenChatWithUser} onShowProfile={handleOpenProfile} />
-          {modalState && <ModalViewer state={{ ...modalState, items: normalizedModalItems }} onClose={handleCloseModal} onNext={(idx) => handleSetModal(modalState.items, idx)} onPrev={(idx) => handleSetModal(modalState.items, idx)} highlightCommentId={highlightCommentId} />}
+
+          <ProfileModal 
+            isOpen={!!viewingProfileId} 
+            onClose={handleCloseProfile} 
+            viewingUserId={viewingProfileId} 
+            onOpenModal={handleSetModal} 
+            onMessageUser={handleOpenChatWithUser}
+            onShowProfile={handleOpenProfile}
+          />
+          {modalState && (
+              <ModalViewer 
+                state={{ ...modalState, items: normalizedModalItems }} 
+                onClose={handleCloseModal} 
+                onNext={(idx) => handleSetModal(modalState.items, idx)} 
+                onPrev={(idx) => handleSetModal(modalState.items, idx)} 
+                highlightCommentId={highlightCommentId}
+              />
+          )}
           {isServicesPopupOpen && <ServicesListPopup onClose={() => setIsServicesPopupOpen(false)} />}
           {isYouTubeRedirectOpen && <YouTubeRedirectPopup onClose={() => setIsYouTubeRedirectOpen(false)} onConfirm={() => { setIsYouTubeRedirectOpen(false); handleScrollTo('portfolio'); }} />}
           {pipVideo && <VideoPipPlayer video={pipVideo} onClose={() => setPipVideo(null)} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />}
           <PwaInstallPrompt />
-          <MobileFooterNav onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onCreatePost={() => setIsCreatePostOpen(true)} activeRoute={route} isMinimized={isCreatePostOpen} isHidden={isMessageThreadActive} />
+          <MobileFooterNav 
+            onScrollTo={handleScrollTo} 
+            onNavigateMarketplace={() => navigateTo('marketplace')} 
+            onNavigateCommunity={() => navigateTo('community')} 
+            onCreatePost={() => setIsCreatePostOpen(true)}
+            activeRoute={route} 
+            isMinimized={isCreatePostOpen}
+            hideFAB={isMessageThreadActive}
+          />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
       </div>
     </ParallaxProvider>

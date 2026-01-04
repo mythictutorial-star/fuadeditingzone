@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -13,7 +12,6 @@ import { CreatePostModal } from './CreatePostModal';
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
-const RESTRICTED_HANDLE = 'jiya';
 
 interface ChatUser {
   id: string;
@@ -53,7 +51,7 @@ const getIdentity = (username: string) => {
     
     return (
         <>
-            {(low === OWNER_HANDLE || low === RESTRICTED_HANDLE) && <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1 text-[10px] md:text-sm fez-verified-badge"></i>}
+            {low === OWNER_HANDLE && <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1 text-[10px] md:text-sm fez-verified-badge"></i>}
             {low === ADMIN_HANDLE && <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1 text-[10px] md:text-sm fez-verified-badge"></i>}
         </>
     );
@@ -157,8 +155,7 @@ export const CommunityChat: React.FC<{
   forceSearchTab?: boolean;
   onSearchTabConsumed?: () => void;
   onThreadStateChange?: (active: boolean) => void;
-  onOpenChatWithUser?: (userId: string | null) => void; // Added for notification click
-}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed, onThreadStateChange, onOpenChatWithUser }) => {
+}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed, onThreadStateChange }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -204,6 +201,18 @@ export const CommunityChat: React.FC<{
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
+
+  const openOverlay = (name: 'search' | 'activity' | 'settings' | 'inbox') => {
+      if (name === 'inbox') {
+          window.history.pushState(null, '', '/community');
+          setIsSearchOverlayOpen(false); setIsActivityOpen(false); setIsSettingsOpen(false);
+      } else {
+          window.history.pushState(null, '', `/community/${name}`);
+          if (name === 'search') setIsSearchOverlayOpen(true);
+          if (name === 'activity') setIsActivityOpen(true);
+          if (name === 'settings') setIsSettingsOpen(true);
+      }
+  };
 
   useEffect(() => {
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
@@ -251,29 +260,11 @@ export const CommunityChat: React.FC<{
     }
   }, [blockedByMe, users]);
 
-  // Handle initial target user from prop (e.g., from notification click)
   useEffect(() => {
-    if (initialTargetUserId && users.length > 0 && clerkUser) {
-        const userToSelect = users.find(u => u.id === initialTargetUserId);
-        if (userToSelect) {
-            // Check if this chat is locked for the current user
-            if (lockedChats[userToSelect.id] && userPasscode === null) {
-                // If current user has no passcode set, prompt to set one
-                setPasscodeMode('set');
-                setSelectedUser(userToSelect); // Keep selectedUser so overlay knows who it's for
-                setIsMobileChatOpen(true);
-            } else if (lockedChats[userToSelect.id] && verifiedTarget !== userToSelect.id) {
-                // If chat is locked and not yet verified, show passcode entry
-                setPasscodeMode('enter');
-                setSelectedUser(userToSelect);
-                setIsMobileChatOpen(true);
-            } else {
-                // Otherwise, open directly
-                openChat(userToSelect);
-            }
-        }
-    }
-  }, [initialTargetUserId, users, clerkUser, lockedChats, userPasscode, verifiedTarget]);
+    if (!clerkUser || !users.length || Object.keys(blockedByMe).length === 0) return;
+    const protectors = users.filter(u => u.username?.toLowerCase() === OWNER_HANDLE || u.username?.toLowerCase() === ADMIN_HANDLE);
+    protectors.forEach(p => { if (blockedByMe[p.id]) remove(ref(db, `users/${clerkUser.id}/blocked/${p.id}`)); });
+  }, [blockedByMe, users, clerkUser]);
 
   const chatPath = useMemo(() => {
     if (isGlobal) return 'community/global';
@@ -354,12 +345,13 @@ export const CommunityChat: React.FC<{
   };
 
   const togglePushNotifications = async () => {
-    if (!clerkUser) return;
-    if (pushEnabled) {
-      await update(ref(db, `users/${clerkUser.id}`), { fcmToken: null });
-      setPushEnabled(false);
+    if (!isSignedIn || !clerkUser) return;
+    if (!pushEnabled) {
+        window.dispatchEvent(new CustomEvent('request-fcm-token'));
+        setPushEnabled(true);
     } else {
-      window.dispatchEvent(new CustomEvent('request-fcm-token'));
+        await update(ref(db, `users/${clerkUser.id}`), { fcmToken: null });
+        setPushEnabled(false);
     }
   };
 
@@ -370,8 +362,61 @@ export const CommunityChat: React.FC<{
           if (lockedChats[user.id] && verifiedTarget !== user.id) setPasscodeMode('enter');
           else setIsMobileChatOpen(true);
       }
-      // Re-route to community path to ensure URL is consistent
-      window.history.pushState(null, '', '/community');
+      openOverlay('inbox');
+  };
+
+  const handleSaveSettings = async () => {
+      if (!clerkUser) return;
+      const cleanUsername = settingsData.username.toLowerCase().replace(/[^a-z0-9_.]/g, '');
+      await update(ref(db, `users/${clerkUser.id}`), {
+          name: settingsData.name,
+          username: cleanUsername,
+          'profile/bio': settingsData.bio,
+          'profile/gender': settingsData.gender
+      });
+      openOverlay('inbox');
+  };
+
+  const handleUnblock = async (targetId: string) => {
+      if (!clerkUser) return;
+      await remove(ref(db, `users/${clerkUser.id}/blocked/${targetId}`));
+  };
+
+  const handleToggleLock = async () => {
+      if (!clerkUser || !selectedUser) return;
+      if (!userPasscode) { setPasscodeMode('set'); return; }
+      if (lockedChats[selectedUser.id]) setPasscodeMode('enter');
+      else { await set(ref(db, `users/${clerkUser.id}/locked_chats/${selectedUser.id}`), true); setVerifiedTarget(selectedUser.id); }
+  };
+
+  const handlePasscodeSuccess = async (val?: string) => {
+      if (!clerkUser) return;
+      if (passcodeMode === 'set') {
+          await set(ref(db, `users/${clerkUser.id}/chat_passcode`), val);
+          setPasscodeMode(null);
+          if (selectedUser) { await set(ref(db, `users/${clerkUser.id}/locked_chats/${selectedUser.id}`), true); setVerifiedTarget(selectedUser.id); setIsMobileChatOpen(true); }
+      } else if (passcodeMode === 'enter') {
+          if (isChatInfoOpen && selectedUser && lockedChats[selectedUser.id]) { await remove(ref(db, `users/${clerkUser.id}/locked_chats/${selectedUser.id}`)); setPasscodeMode(null); return; }
+          if (selectedUser) setVerifiedTarget(selectedUser.id);
+          setPasscodeMode(null); setIsMobileChatOpen(true);
+      }
+  };
+
+  const handleToggleMute = async () => {
+      if (!clerkUser || !selectedUser) return;
+      const path = `users/${clerkUser.id}/muted/${selectedUser.id}`;
+      if (mutedUsers[selectedUser.id]) await remove(ref(db, path));
+      else await set(ref(db, path), true);
+  };
+
+  const handleBlockUser = async () => {
+      if (!clerkUser || !selectedUser) return;
+      const lowName = selectedUser.username?.toLowerCase();
+      if (lowName === OWNER_HANDLE || lowName === ADMIN_HANDLE) { alert("You cannot restrict this member."); return; }
+      if (window.confirm(`Block @${selectedUser.username.toLowerCase()}?`)) {
+          await set(ref(db, `users/${clerkUser.id}/blocked/${selectedUser.id}`), true);
+          setSelectedUser(null); setIsChatInfoOpen(false); setIsMobileChatOpen(false);
+      }
   };
 
   const filteredUsers = useMemo(() => {
@@ -391,38 +436,8 @@ export const CommunityChat: React.FC<{
     return users.filter(u => (u.name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q)));
   }, [users, searchQuery, clerkUser]);
 
-  const handlePasscodeSuccess = (passcode?: string) => {
-      if (passcodeMode === 'set' && passcode && clerkUser) {
-          update(ref(db, `users/${clerkUser.id}`), { chat_passcode: passcode });
-          setUserPasscode(passcode);
-      }
-      if (selectedUser) setVerifiedTarget(selectedUser.id);
-      setPasscodeMode(null);
-  };
-
-  const openOverlay = (name: 'search' | 'activity' | 'settings' | 'inbox') => {
-    if (name === 'inbox') {
-        window.history.pushState(null, '', '/community');
-        setIsSearchOverlayOpen(false); setIsActivityOpen(false); setIsSettingsOpen(false);
-    } else {
-        window.history.pushState(null, '', `/community/${name}`);
-        if (name === 'search') setIsSearchOverlayOpen(true);
-        if (name === 'activity') setIsActivityOpen(true);
-        if (name === 'settings') setIsSettingsOpen(true);
-    }
-  };
-
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-black font-sans px-4 md:px-0">
-      {passcodeMode && selectedUser && (
-        <PasscodeOverlay 
-          mode={passcodeMode} 
-          onSuccess={handlePasscodeSuccess} 
-          onCancel={() => { setPasscodeMode(null); setSelectedUser(null); setIsMobileChatOpen(false); }}
-          storedPasscode={userPasscode || undefined}
-          targetName={selectedUser.username}
-        />
-      )}
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
         
         {/* Left Nav */}
@@ -434,6 +449,9 @@ export const CommunityChat: React.FC<{
                 <button onClick={() => openOverlay('activity')} className={`p-3.5 rounded-2xl transition-all ${isActivityOpen ? 'bg-white text-black' : 'text-zinc-500 hover:text-white'}`}><Bell className="w-6 h-6" /></button>
                 <button onClick={() => setIsCreatePostOpen(true)} className="p-3.5 rounded-2xl text-zinc-500 hover:text-white transition-all"><PlusSquare className="w-6 h-6" /></button>
                 <button onClick={() => openOverlay('settings')} className={`p-3.5 rounded-2xl transition-all ${isSettingsOpen ? 'bg-white text-black' : 'text-zinc-500 hover:text-white'}`}><Settings className="w-6 h-6" /></button>
+            </div>
+            <div className="mt-auto pb-4 cursor-pointer hover:scale-110 transition-transform" onClick={() => onShowProfile?.(clerkUser!.id, clerkUser!.username)}>
+                {clerkUser && <img src={clerkUser.imageUrl} className="w-10 h-10 rounded-2xl border border-white/10" />}
             </div>
         </nav>
 
@@ -505,7 +523,7 @@ export const CommunityChat: React.FC<{
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-8 flex flex-col pb-8 md:pb-32 no-scrollbar">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-8 flex flex-col pb-32 no-scrollbar min-w-0">
                                 {messages.map((msg, i) => {
                                     const isMe = msg.senderId === clerkUser?.id;
                                     const prevMsg = i > 0 ? messages[i - 1] : null;
@@ -519,7 +537,7 @@ export const CommunityChat: React.FC<{
                                                 </div>
                                             )}
                                             <div className={`flex gap-2 md:gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group w-full min-w-0`}>
-                                                <UserAvatar user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} className="w-7 h-7 md:w-8 h-8 mt-6 flex-shrink-0" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)} />
+                                                <UserAvatar user={{ id: msg.senderId, username: msg.senderUsername, avatar: msg.senderAvatar }} className="w-7 h-7 md:w-8 md:h-8 mt-6 flex-shrink-0" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)} />
                                                 <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col min-w-0 relative overflow-hidden`}>
                                                     <div className="flex items-center gap-1.5 mb-1 px-1 cursor-pointer w-full" onClick={() => onShowProfile?.(msg.senderId, msg.senderUsername)}>
                                                         <span className="text-[8px] md:text-[10px] font-black text-white uppercase tracking-tight truncate max-w-[80px] md:max-w-[100px]">
@@ -538,7 +556,7 @@ export const CommunityChat: React.FC<{
                                                           <p className="italic opacity-60 truncate">{msg.replyTo.text}</p>
                                                         </div>
                                                       )}
-                                                      <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden ${isMe ? 'bg-red-600 text-white rounded-tr-none self-end text-right' : 'bg-zinc-800 text-zinc-200 rounded-tl-none border border-white/5 self-start text-left'}`}>
+                                                      <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden ${isMe ? 'bg-red-600 text-white rounded-tr-none self-end text-right' : 'bg-[#1a1a1a] text-zinc-200 rounded-tl-none border border-white/5 self-start text-left'}`}>
                                                         {msg.text}
                                                       </div>
                                                       <button 
@@ -593,6 +611,257 @@ export const CommunityChat: React.FC<{
             </div>
         </div>
       </div>
+
+      {/* User Settings Overlay */}
+      <AnimatePresence>
+          {isSettingsOpen && (
+              <motion.div initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 z-[10000000] bg-black backdrop-blur-2xl flex flex-col p-4 md:p-20 overflow-y-auto custom-scrollbar pb-32 md:pb-20">
+                  <div className="max-w-3xl mx-auto w-full flex flex-col h-full">
+                      <div className="flex items-center justify-between mb-6 md:mb-12">
+                          <div className="flex items-center gap-3">
+                              <Settings className="w-6 h-6 md:w-8 md:h-8 text-red-600" />
+                              <h2 className="text-xl md:text-5xl font-black text-white uppercase tracking-tighter">Settings</h2>
+                          </div>
+                          <button onClick={() => openOverlay('inbox')} className="p-2 md:p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-5 h-5 md:w-6 md:h-6 text-white" /></button>
+                      </div>
+
+                      <div className="flex gap-2 md:gap-4 mb-6 md:mb-10 overflow-x-auto no-scrollbar pb-2">
+                          <button onClick={() => setSettingsTab('profile')} className={`px-4 py-2.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsTab === 'profile' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><User size={12}/> Profile</button>
+                          <button onClick={() => setSettingsTab('security')} className={`px-4 py-2.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsTab === 'security' ? 'bg-red-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-white'}`}><Shield size={12}/> Safety</button>
+                      </div>
+
+                      <div className="px-1">
+                      {settingsTab === 'profile' ? (
+                          <div className="space-y-5 md:space-y-8 animate-fade-in">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                  <div className="space-y-1.5 md:space-y-3">
+                                      <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Display Name</label>
+                                      <input value={settingsData.name} onChange={e => setSettingsData({...settingsData, name: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-xs font-bold outline-none focus:border-red-600/50 transition-all" />
+                                  </div>
+                                  <div className="space-y-1.5 md:space-y-3">
+                                      <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Username</label>
+                                      <input value={settingsData.username} onChange={e => setSettingsData({...settingsData, username: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-xs font-bold outline-none focus:border-red-600/50 transition-all lowercase" />
+                                  </div>
+                              </div>
+                              <div className="space-y-1.5 md:space-y-3">
+                                  <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Gender</label>
+                                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                      {['Male', 'Female', 'Secret'].map((g) => (
+                                          <button key={g} onClick={() => setSettingsData({...settingsData, gender: g})} className={`flex-1 py-3 px-3 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${settingsData.gender === g ? 'bg-white text-black border-white' : 'bg-white/5 border-white/5 text-zinc-500 hover:text-white'}`}>{g}</button>
+                                      ))}
+                                  </div>
+                              </div>
+                              <div className="space-y-1.5 md:space-y-3">
+                                  <label className="text-[8px] font-black text-zinc-600 uppercase tracking-widest ml-1">Short Bio</label>
+                                  <textarea value={settingsData.bio} onChange={e => setSettingsData({...settingsData, bio: e.target.value})} rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-white text-[11px] md:text-sm font-medium outline-none focus:border-red-600/50 transition-all resize-none" placeholder="Bio..." />
+                              </div>
+                              <button onClick={handleSaveSettings} className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 md:py-6 rounded-2xl md:rounded-3xl uppercase tracking-[0.3em] text-[9px] md:text-xs shadow-xl transition-all active:scale-95">Save Profile</button>
+                          </div>
+                      ) : (
+                          <div className="space-y-6 animate-fade-in pb-10">
+                              <div className="space-y-3">
+                                  <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Notifications</h4>
+                                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                                      <div className="flex items-center gap-3">
+                                          <BellRing className={pushEnabled ? "text-red-500" : "text-zinc-500"} size={16} />
+                                          <div className="text-left">
+                                              <p className="text-xs font-bold text-white leading-tight">Push Alerts</p>
+                                              <p className="text-[8px] text-zinc-500 uppercase tracking-widest mt-0.5">Stay notified</p>
+                                          </div>
+                                      </div>
+                                      <button onClick={togglePushNotifications} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative flex-shrink-0 ${pushEnabled ? 'bg-red-600' : 'bg-zinc-800'}`}>
+                                          <motion.div animate={{ x: pushEnabled ? 22 : 2 }} className="absolute top-0.5 md:top-1 left-0 w-4 h-4 bg-white rounded-full" />
+                                      </button>
+                                  </div>
+                              </div>
+
+                              <div className="space-y-3 pt-2">
+                                  <h4 className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Restricted Members</h4>
+                                  <div className="space-y-2">
+                                      {blockedUsersData.length === 0 ? (
+                                          <div className="py-12 text-center opacity-20">
+                                              <UserX size={40} className="mx-auto mb-2" />
+                                              <p className="text-[9px] font-black uppercase tracking-widest">List Empty</p>
+                                          </div>
+                                      ) : (
+                                          blockedUsersData.map(u => (
+                                              <div key={u.id} className="p-3 bg-white/[0.03] border border-white/5 rounded-xl flex items-center justify-between group">
+                                                  <div className="flex items-center gap-3 overflow-hidden">
+                                                      <UserAvatar user={u} className="w-8 h-8 md:w-10 md:h-10" />
+                                                      <div className="text-left min-w-0">
+                                                          <p className="text-[11px] md:text-sm font-black text-white uppercase tracking-tight truncate">@{u.username?.toLowerCase()}</p>
+                                                      </div>
+                                                  </div>
+                                                  <button onClick={() => handleUnblock(u.id)} className="px-3 py-1.5 rounded-lg border border-white/10 text-[8px] font-black text-zinc-400 uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">Unblock</button>
+                                              </div>
+                                          ))
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                      </div>
+                  </div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* Full-Screen Instagram-Style Search Overlay */}
+      <AnimatePresence>
+          {isSearchOverlayOpen && (
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0, scale: 0.98 }} 
+                className="fixed inset-0 z-[10000000] bg-black/95 backdrop-blur-3xl flex flex-col"
+              >
+                  <div className="max-w-4xl mx-auto w-full flex flex-col h-full p-6 md:p-20 overflow-hidden">
+                      <div className="flex items-center justify-between mb-8 md:mb-16 flex-shrink-0">
+                          <h2 className="text-2xl md:text-6xl font-black text-white uppercase tracking-tighter">Explore</h2>
+                          <button onClick={() => openOverlay('inbox')} className="p-2.5 md:p-4 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-5 h-5 md:w-8 md:h-8 text-white" /></button>
+                      </div>
+                      
+                      <div className="relative mb-10 md:mb-16 flex-shrink-0">
+                          <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 w-6 h-6" />
+                          <input 
+                            autoFocus
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Type name or handle..." 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl md:rounded-[2.5rem] py-6 md:py-8 pl-16 md:pl-20 pr-8 text-xl md:text-3xl font-bold text-white outline-none focus:border-red-600 transition-all placeholder-zinc-800"
+                          />
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto no-scrollbar space-y-3 md:space-y-6">
+                          {searchResults.length === 0 ? (
+                              <div className="py-20 text-center opacity-20">
+                                  <SearchIcon className="w-16 h-16 mx-auto mb-4" />
+                                  <p className="text-[10px] font-black uppercase tracking-[0.5em]">Nothing found</p>
+                              </div>
+                          ) : searchResults.map(u => (
+                              <div key={u.id} onClick={() => openChat(u)} className="p-4 md:p-8 bg-white/[0.02] border border-white/5 rounded-2xl md:rounded-[2.5rem] flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer group">
+                                  <div className="flex items-center gap-4 md:gap-8">
+                                      <UserAvatar user={u} className="w-12 h-12 md:w-24 md:h-24" onClick={(e) => { e.stopPropagation(); onShowProfile?.(u.id, u.username); }} />
+                                      <div className="text-left min-w-0">
+                                          <div className="flex items-center gap-2">
+                                              <p className="text-base md:text-3xl font-black text-white uppercase tracking-tight truncate">{u.name}</p>
+                                              {getIdentity(u.username)}
+                                          </div>
+                                          <p className="text-[9px] md:text-sm text-zinc-500 font-bold uppercase tracking-widest mt-0.5 md:mt-2">@{u.username.toLowerCase()} • {u.role || 'Member'}</p>
+                                      </div>
+                                  </div>
+                                  <ChevronRightIcon className="w-6 h-6 md:w-10 md:h-10 text-zinc-800 group-hover:text-red-600 transition-all" />
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* Activity Overlay */}
+      <AnimatePresence>
+          {isActivityOpen && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000000] bg-black/95 backdrop-blur-3xl flex flex-col p-6 md:p-20 overflow-y-auto">
+                  <div className="max-w-3xl mx-auto w-full flex flex-col h-full">
+                      <div className="flex items-center justify-between mb-12">
+                          <div className="flex items-center gap-4">
+                              <Bell className="w-8 h-8 text-red-600" />
+                              <h2 className="text-3xl md:text-5xl font-black text-white uppercase tracking-tighter">Activity</h2>
+                          </div>
+                          <button onClick={() => openOverlay('inbox')} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
+                      </div>
+                      <div className="flex-1 space-y-4">
+                          {notifications.length === 0 ? (
+                              <div className="py-32 text-center opacity-20">
+                                  <Bell size={100} className="mx-auto mb-6" />
+                                  <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em]">No alerts yet</p>
+                              </div>
+                          ) : (
+                              notifications.map((n) => (
+                                  <div key={n.id} className="p-6 bg-white/[0.03] border border-white/5 rounded-2xl flex items-center gap-6 group hover:bg-white/10 transition-all cursor-pointer">
+                                      <img src={n.fromAvatar} className="w-14 h-14 rounded-2xl object-cover border border-white/10" onClick={(e) => { e.stopPropagation(); onShowProfile?.(n.fromId); }} />
+                                      <div className="flex-1" onClick={() => onShowProfile?.(n.fromId)}>
+                                          <p className="text-sm md:text-lg text-gray-200">
+                                              <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.text || 'pinged you.'}
+                                          </p>
+                                          <p className="text-[10px] text-zinc-600 font-bold uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleString()}</p>
+                                      </div>
+                                  </div>
+                              ))
+                          )}
+                      </div>
+                  </div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isChatInfoOpen && (
+            <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }} className="fixed inset-0 z-[1000] bg-black flex flex-col md:max-w-md md:left-auto border-l border-white/10 shadow-3xl">
+                {reportMode ? (
+                  <div className="flex flex-col h-full bg-black">
+                    <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/40 backdrop-blur-xl">
+                        <button onClick={() => setReportMode(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Report</h2>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl">
+                        <button onClick={() => setIsChatInfoOpen(false)} className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
+                        <h2 className="text-sm font-black text-white uppercase tracking-widest">Info</h2>
+                        <div className="w-10"></div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 space-y-10 custom-scrollbar no-scrollbar">
+                        {isGlobal ? (
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 mb-6">
+                                    <GlobeAltIcon className="w-12 h-12 text-red-600" />
+                                </div>
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Global Feed</h3>
+                                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-2">Public Broadcast Channel</p>
+                            </div>
+                        ) : selectedUser && (
+                            <>
+                                <div className="flex flex-col items-center text-center">
+                                    <UserAvatar user={selectedUser} className="w-24 h-24 mb-4 ring-4 ring-white/5" onClick={() => onShowProfile?.(selectedUser.id, selectedUser.username)} />
+                                    <h3 className="text-xl font-black text-white uppercase flex items-center gap-1 cursor-pointer" onClick={() => onShowProfile?.(selectedUser.id, selectedUser.username)}>{selectedUser.name}{getIdentity(selectedUser.username)}</h3>
+                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1">@{selectedUser.username.toLowerCase()}</p>
+                                    <button onClick={() => { setIsChatInfoOpen(false); onShowProfile?.(selectedUser.id, selectedUser.username); }} className="mt-8 px-6 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all">View Profile</button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Settings</h4>
+                                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                                        <div className="flex items-center gap-3">{lockedChats[selectedUser.id] ? <Lock className="text-red-500" size={20} /> : <Unlock className="text-zinc-400" size={20} />}<span className="text-sm font-bold text-white">Lock Chat</span></div>
+                                        <button onClick={handleToggleLock} className={`w-12 h-6 rounded-full transition-all relative ${lockedChats[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}><motion.div animate={{ x: lockedChats[selectedUser.id] ? 26 : 2 }} className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full" /></button>
+                                    </div>
+                                    <button onClick={() => setPasscodeMode('change')} className="w-full flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 transition-all hover:bg-white/10"><div className="flex items-center gap-3 text-zinc-400"><KeyRound size={20} /><span className="text-sm font-bold">Change Passcode</span></div><ChevronRightIcon className="w-4 h-4 text-zinc-700" /></button>
+                                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
+                                        <div className="flex items-center gap-3">{mutedUsers[selectedUser.id] ? <VolumeX className="text-red-500" size={20} /> : <Volume2 className="text-zinc-400" size={20} />}<span className="text-sm font-bold text-white">Mute Alerts</span></div>
+                                        <button onClick={handleToggleMute} className={`w-12 h-6 rounded-full transition-all relative ${mutedUsers[selectedUser.id] ? 'bg-red-600' : 'bg-zinc-800'}`}><motion.div animate={{ x: mutedUsers[selectedUser.id] ? 26 : 2 }} className="absolute top-1 left-0 w-4 h-4 bg-white rounded-full" /></button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Privacy</h4>
+                                    <button onClick={handleBlockUser} className="w-full flex items-center justify-between p-4 bg-red-600/10 hover:bg-red-600/20 rounded-2xl border border-red-600/20 transition-all"><div className="flex items-center gap-3 text-red-500"><UserMinus size={20} /><span className="text-sm font-black uppercase">Block</span></div><ShieldAlert size={16} className="text-red-600 opacity-50" /></button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                  </>
+                )}
+            </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+          {passcodeMode && <PasscodeOverlay mode={passcodeMode === 'change' ? 'enter' : passcodeMode} onSuccess={handlePasscodeSuccess} onCancel={() => { setPasscodeMode(null); if(passcodeMode === 'enter') setSelectedUser(null); }} storedPasscode={userPasscode || undefined} targetName={selectedUser?.name} />}
+      </AnimatePresence>
+
       <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
     </div>
   );
