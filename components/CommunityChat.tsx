@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff, Fingerprint } from 'lucide-react';
+import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff, Fingerprint, LockKeyhole } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -42,7 +42,6 @@ const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewe
     const isAdmin = low === ADMIN_HANDLE;
     const isJiya = low === RESTRICTED_HANDLE;
 
-    // Private Relationship Roles
     if (vLow === RESTRICTED_HANDLE && low === OWNER_HANDLE) {
         return <span className="ml-1 px-1.5 py-0.5 bg-red-600/20 text-red-500 rounded text-[7px] font-black uppercase tracking-widest border border-red-600/30">Husband</span>;
     }
@@ -103,16 +102,23 @@ export const CommunityChat: React.FC<{
   const [passcodeErrorCount, setPasscodeErrorCount] = useState(0);
   const [showResetFlow, setShowResetFlow] = useState(false);
   const [localSettings, setLocalSettings] = useState<any>({ locked: false, muted: false, blocked: false });
+  const [allChatSettings, setAllChatSettings] = useState<Record<string, any>>({});
   const [passcodeInput, setPasscodeInput] = useState('');
+  
+  // Locked Vault State
+  const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
+  const [vaultPasscodeModalOpen, setVaultPasscodeModalOpen] = useState(false);
+  const [vaultPullY, setVaultPullY] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
+  const vaultHiddenInputRef = useRef<HTMLInputElement>(null);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const lastSentTimeRef = useRef<number>(0);
   const typingTimeoutRef = useRef<any>(null);
 
   const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
-  const isAdminViewer = clerkUser?.username?.toLowerCase() === ADMIN_HANDLE || isOwner;
 
   useEffect(() => {
     if (forceSearchTab) {
@@ -153,12 +159,13 @@ export const CommunityChat: React.FC<{
             setNotifications(rawList.sort((a, b) => b.timestamp - a.timestamp));
         });
         
-        if (selectedUser) {
-            onValue(ref(db, `users/${clerkUser.id}/chat_settings/${selectedUser.id}`), (snap) => {
-                const settings = snap.val() || { locked: false, muted: false, blocked: false };
-                setLocalSettings(settings);
-            });
-        }
+        onValue(ref(db, `users/${clerkUser.id}/chat_settings`), (snap) => {
+            const settings = snap.val() || {};
+            setAllChatSettings(settings);
+            if (selectedUser) {
+                setLocalSettings(settings[selectedUser.id] || { locked: false, muted: false, blocked: false });
+            }
+        });
     }
     return () => unsubUsers();
   }, [clerkUser, initialTargetUserId, selectedUser?.id]);
@@ -199,7 +206,8 @@ export const CommunityChat: React.FC<{
 
   useEffect(() => {
       if (passcodeInput.length === 4) {
-          verifyPasscode();
+          if (vaultPasscodeModalOpen) verifyVaultPasscode();
+          else verifyPasscode();
       }
   }, [passcodeInput]);
 
@@ -268,23 +276,39 @@ export const CommunityChat: React.FC<{
           const errors = passcodeErrorCount + 1;
           setPasscodeErrorCount(errors);
           setPasscodeInput('');
-          if (errors >= 5) {
-            setShowResetFlow(true);
-          } else {
-            alert(`Incorrect code. Attempt ${errors}/5`);
-          }
+          if (errors >= 5) setShowResetFlow(true);
+          else alert(`Incorrect code. Attempt ${errors}/5`);
+      }
+  };
+
+  const verifyVaultPasscode = async () => {
+      const snap = await get(ref(db, `users/${clerkUser?.id}/chat_passcode`));
+      const code = snap.val() || '0000';
+      if (passcodeInput === code) {
+          setIsVaultUnlocked(true);
+          setVaultPasscodeModalOpen(false);
+          setPasscodeErrorCount(0);
+          setPasscodeInput('');
+      } else {
+          const errors = passcodeErrorCount + 1;
+          setPasscodeErrorCount(errors);
+          setPasscodeInput('');
+          if (errors >= 5) setShowResetFlow(true);
+          else alert(`Incorrect code. Attempt ${errors}/5`);
       }
   };
 
   const handlePasscodeReset = async () => {
-      const confirmed = window.confirm("Security Protocol: Incorrect attempts exceeded. To override the lock, we require your Google/Clerk email verification. Proceed?");
+      const confirmed = window.confirm("Security Protocol: Identity verification required to override the passcode vault. Proceed?");
       if (confirmed) {
           const newCode = prompt("IDENTITY VALIDATED. Enter a new 4-digit passcode:");
           if (newCode && /^\d{4}$/.test(newCode)) {
               await set(ref(db, `users/${clerkUser?.id}/chat_passcode`), newCode);
-              setPasscodeVerified(true);
+              if (vaultPasscodeModalOpen) setIsVaultUnlocked(true);
+              else setPasscodeVerified(true);
               setPasscodeErrorCount(0);
               setShowResetFlow(false);
+              setVaultPasscodeModalOpen(false);
               setPasscodeInput('');
           }
       }
@@ -337,8 +361,13 @@ export const CommunityChat: React.FC<{
       const pool = inboxView === 'primary' 
         ? users.filter(u => friendsList.includes(u.id) || u.username === OWNER_HANDLE || u.id === clerkUser?.id)
         : users.filter(u => unreadCounts[u.id] > 0 && !friendsList.includes(u.id));
-      return pool.map(maskUser);
-  }, [users, sidebarTab, inboxView, sidebarSearchQuery, friendsList, clerkUser?.id, isOwner, unreadCounts]);
+      
+      return pool.map(maskUser).filter(u => {
+          const isLocked = allChatSettings[u.id]?.locked;
+          if (isLocked) return isVaultUnlocked;
+          return true;
+      });
+  }, [users, sidebarTab, inboxView, sidebarSearchQuery, friendsList, clerkUser?.id, isOwner, unreadCounts, allChatSettings, isVaultUnlocked]);
 
   const targetRealUser = useMemo(() => {
       if (!selectedUser) return null;
@@ -376,27 +405,66 @@ export const CommunityChat: React.FC<{
                         </div>
                     )}
                 </div>
-                <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
+
+                <div 
+                    ref={sidebarScrollRef} 
+                    onScroll={(e) => {
+                        const target = e.currentTarget;
+                        if (target.scrollTop < -20 && !isVaultUnlocked) {
+                           setVaultPullY(Math.min(Math.abs(target.scrollTop), 100));
+                        } else {
+                           setVaultPullY(0);
+                        }
+                    }}
+                    className="flex-1 overflow-y-auto no-scrollbar space-y-1 relative overscroll-contain"
+                >
+                    {/* Vault Reveal Area */}
+                    {!isVaultUnlocked && inboxView === 'primary' && sidebarTab === 'messages' && (
+                        <motion.div 
+                            style={{ height: vaultPullY }}
+                            className="w-full flex items-center justify-center overflow-hidden bg-white/[0.02] border-b border-white/5"
+                        >
+                            <button 
+                                onClick={() => { setVaultPasscodeModalOpen(true); setPasscodeInput(''); }}
+                                className={`transition-all duration-300 ${vaultPullY > 60 ? 'scale-110 text-red-600' : 'scale-90 text-zinc-700 opacity-40'}`}
+                            >
+                                <LockKeyhole size={24} />
+                            </button>
+                        </motion.div>
+                    )}
+
+                    {isVaultUnlocked && (
+                        <div className="bg-red-600/5 border-b border-white/5 p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <LockKeyhole size={14} className="text-red-600" />
+                                <span className="text-[10px] font-black text-white uppercase tracking-widest">Locked Archive</span>
+                            </div>
+                            <button onClick={() => setIsVaultUnlocked(false)} className="text-[8px] font-black text-zinc-500 uppercase tracking-widest hover:text-white border border-white/10 px-2 py-1 rounded">Lock</button>
+                        </div>
+                    )}
+
                     {!sidebarSearchQuery && (
                         <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
                             <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
                             <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
                         </button>
                     )}
+                    
                     {filteredUsers.map(u => {
                         const isBlocked = localSettings.blocked && selectedUser?.id === u.id;
                         if (isBlocked) return null;
                         return (
                             <button 
-                            key={u.id} 
-                            onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} 
-                            className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}
+                                key={u.id} 
+                                onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} 
+                                className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'} ${allChatSettings[u.id]?.locked ? 'bg-red-600/[0.03]' : ''}`}
                             >
                                 <UserAvatar user={u} className="w-12 h-12" />
                                 <div className="text-left flex-1 min-w-0">
                                     <div className="flex items-center gap-1">
                                         <p className="text-sm font-bold text-white truncate">{u.name}</p>
                                         <VerificationBadge username={u.username} custom_badge={u.custom_badge} viewer={clerkUser?.username} />
+                                        {allChatSettings[u.id]?.locked && <Lock size={8} className="text-zinc-600 ml-auto" />}
                                     </div>
                                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
                                 </div>
@@ -637,6 +705,51 @@ export const CommunityChat: React.FC<{
             </main>
         </div>
       </div>
+
+      {/* Vault Passcode Modal */}
+      <AnimatePresence>
+        {vaultPasscodeModalOpen && (
+          <div className="fixed inset-0 z-[6000000] flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVaultPasscodeModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12">
+               <div className="w-20 h-20 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2">
+                   <Lock size={32} />
+               </div>
+               <div>
+                   <h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Locked Archive</h3>
+                   <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest opacity-60">Identity verification required to reveal locked threads.</p>
+               </div>
+
+               <div className="relative" onClick={() => vaultHiddenInputRef.current?.focus()}>
+                    <div className="flex gap-6 items-center">
+                        {[...Array(4)].map((_, i) => (
+                            <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>
+                        ))}
+                    </div>
+                    <input 
+                        ref={vaultHiddenInputRef}
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        value={passcodeInput}
+                        onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
+                        className="absolute inset-0 opacity-0 cursor-default"
+                        autoFocus
+                    />
+               </div>
+
+               {showResetFlow && (
+                   <button onClick={handlePasscodeReset} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                       <KeyRound size={14}/> Reset via Identity Hub
+                   </button>
+               )}
+
+               <button onClick={() => setVaultPasscodeModalOpen(false)} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
