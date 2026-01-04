@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Phone, Video, Image as ImageIcon, Lock, Bell, Mic, Camera, PhoneOff, User, ShieldCheck, Check, Info, MoreHorizontal, Slash, ShieldAlert } from 'lucide-react';
+import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -44,44 +44,6 @@ const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
     );
 };
 
-const CallOverlay: React.FC<{ 
-  user: Partial<ChatUser>; 
-  type: 'audio' | 'video'; 
-  isIncoming?: boolean;
-  onEnd: () => void; 
-  onAccept?: () => void;
-}> = ({ user, type, isIncoming, onEnd, onAccept }) => {
-  return (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center">
-      <div className="relative mb-8">
-        <div className="w-32 h-32 rounded-full border-4 border-red-600 p-1 animate-pulse shadow-[0_0_40px_rgba(220,38,38,0.4)]">
-          <img src={user.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
-        </div>
-        <div className="absolute -bottom-2 right-4 bg-red-600 text-white p-2 rounded-full shadow-lg">
-          {type === 'audio' ? <Mic size={18} /> : <Camera size={18} />}
-        </div>
-      </div>
-      <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">@{user.username || 'user'}</h2>
-      <p className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em] mb-12 animate-pulse">
-        {isIncoming ? `Incoming ${type} Call...` : `Calling via Secure Node...`}
-      </p>
-      
-      <div className="flex gap-8">
-        {isIncoming ? (
-          <>
-            <button onClick={onEnd} className="w-16 h-16 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-zinc-400 hover:bg-zinc-800 transition-all"><PhoneOff size={24} /></button>
-            <button onClick={onAccept} className="w-20 h-20 bg-green-600 hover:bg-green-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-green-600/20 active:scale-95 transition-all"><Phone size={32} /></button>
-          </>
-        ) : (
-          <>
-            <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-red-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
-          </>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
 interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; }
 interface Message { id?: string; senderId: string; senderName: string; senderUsername?: string; senderAvatar?: string; text?: string; mediaUrl?: string; mediaType?: 'image' | 'video'; timestamp: number; }
 
@@ -111,12 +73,7 @@ export const CommunityChat: React.FC<{
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<string>(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
   const [isMediaUploading, setIsMediaUploading] = useState(false);
-  const [showLockAlert, setShowLockAlert] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-
-  // Call States
-  const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; user: Partial<ChatUser>; meetingId: string } | null>(null);
-  const [incomingCall, setIncomingCall] = useState<{ fromId: string; fromUsername: string; fromAvatar: string; type: 'audio' | 'video'; meetingId: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -129,18 +86,6 @@ export const CommunityChat: React.FC<{
         onSearchTabConsumed?.();
     }
   }, [forceSearchTab, onSearchTabConsumed]);
-
-  // Listen for incoming 1v1 calls
-  useEffect(() => {
-    if (!clerkUser?.id) return;
-    const callRef = ref(db, `calls/${clerkUser.id}`);
-    const unsub = onValue(callRef, (snap) => {
-        const data = snap.val();
-        if (data) setIncomingCall(data);
-        else setIncomingCall(null);
-    });
-    return () => unsub();
-  }, [clerkUser?.id]);
 
   useEffect(() => {
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
@@ -234,47 +179,6 @@ export const CommunityChat: React.FC<{
     }
   };
 
-  const initiateCall = async (type: 'audio' | 'video') => {
-    if (isSelectedFriend && selectedUser && clerkUser) {
-        const meetingId = `1v1_${[clerkUser.id, selectedUser.id].sort().join('_')}`;
-        const callInvite = {
-          fromId: clerkUser.id,
-          fromUsername: clerkUser.username || 'user',
-          fromAvatar: clerkUser.imageUrl,
-          type,
-          meetingId,
-          timestamp: Date.now()
-        };
-        
-        await set(ref(db, `calls/${selectedUser.id}`), callInvite);
-        setActivePreset('03a2f6a5-954a-4e10-8364-b0892044cedf'); 
-        setActiveCall({ type, user: selectedUser, meetingId });
-    } else {
-        setShowLockAlert(true);
-        setTimeout(() => setShowLockAlert(false), 3000);
-    }
-  };
-
-  const handleAcceptCall = async () => {
-    if (!incomingCall || !clerkUser) return;
-    const { type, meetingId, fromId, fromUsername, fromAvatar } = incomingCall;
-    await remove(ref(db, `calls/${clerkUser.id}`));
-    setActivePreset('084c0e88-fa5c-478d-b921-26697bdae794'); 
-    setActiveCall({ 
-      type, 
-      user: { id: fromId, username: fromUsername, avatar: fromAvatar }, 
-      meetingId 
-    });
-    setIncomingCall(null);
-  };
-
-  const handleEndCall = async () => {
-    if (activeCall && selectedUser) await remove(ref(db, `calls/${selectedUser.id}`));
-    if (clerkUser) await remove(ref(db, `calls/${clerkUser.id}`));
-    setActiveCall(null);
-    setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
-  };
-
   const openChat = (user: ChatUser | null) => {
       setIsDetailsOpen(false);
       if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }
@@ -332,7 +236,6 @@ export const CommunityChat: React.FC<{
                 <div className="p-6 space-y-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <button onClick={onBack} className="md:hidden p-2 bg-white/5 rounded-lg text-white hover:text-red-500 transition-colors"><HomeIcon className="w-5 h-5"/></button>
                             <h2 className="text-xl font-black text-white lowercase">{(clerkUser?.username || 'user')}</h2>
                         </div>
                         <button onClick={() => setSidebarTab(sidebarTab === 'search' ? 'messages' : 'search')} className={`transition-all ${sidebarTab === 'search' ? 'text-red-600 rotate-90 scale-110' : 'text-white hover:text-red-500'}`}><SearchIcon className="w-5 h-5" /></button>
@@ -371,25 +274,6 @@ export const CommunityChat: React.FC<{
 
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-row min-h-0 bg-black relative`}>
                 <div className="flex-1 flex flex-col min-h-0 relative">
-                    <AnimatePresence>
-                        {incomingCall && (
-                          <CallOverlay 
-                            key="incoming" 
-                            user={{ username: incomingCall.fromUsername, avatar: incomingCall.fromAvatar }} 
-                            type={incomingCall.type} 
-                            isIncoming 
-                            onEnd={async () => { await remove(ref(db, `calls/${clerkUser?.id}`)); setIncomingCall(null); }} 
-                            onAccept={handleAcceptCall}
-                          />
-                        )}
-                        {activeCall && <CallOverlay key="active" user={activeCall.user} type={activeCall.type} onEnd={handleEndCall} />}
-                        {showLockAlert && (
-                            <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute top-24 right-6 z-[60] bg-red-600/90 backdrop-blur-xl border border-red-500 p-4 rounded-2xl shadow-2xl">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-white">Connect to Unlock Calls</p>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
                     {isActivityOpen ? (
                         <div className="flex-1 flex flex-col h-full bg-black">
                             <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0">
@@ -397,8 +281,8 @@ export const CommunityChat: React.FC<{
                                 <button onClick={() => setIsActivityOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors"><CloseIcon className="w-6 h-6 text-white" /></button>
                             </div>
                             <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
-                                {notifications.length === 0 ? <div className="h-full flex items-center justify-center opacity-20"><p className="text-sm uppercase font-black tracking-[0.5em]">No Activity</p></div> : notifications.map(n => (
-                                    <div key={n.id} onClick={() => n.fromId && navigateToProfile(n.fromId, n.fromName)} className="p-8 border-b border-white/5 bg-black hover:bg-zinc-900 cursor-pointer">
+                                {notifications.length === 0 ? <div className="h-full flex flex-col items-center justify-center opacity-20"><p className="text-sm uppercase font-black tracking-[0.5em]">No Activity</p></div> : notifications.map(n => (
+                                    <div key={n.id} onClick={() => n.fromId && navigateToProfile(n.fromId, (users.find(u => u.id === n.fromId)?.username || n.fromName || 'guest'))} className="p-8 border-b border-white/5 bg-black hover:bg-zinc-900 cursor-pointer">
                                         <p className="text-sm md:text-lg text-white font-bold">{n.text}</p>
                                         <p className="text-[10px] text-zinc-600 uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleTimeString()}</p>
                                     </div>
@@ -412,21 +296,21 @@ export const CommunityChat: React.FC<{
                         </div>
                     ) : (
                         <div className="flex-1 flex flex-col min-h-0 h-full">
-                            {/* Instagram Style Header */}
+                            {/* Header */}
                             <div className="p-4 md:p-6 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl z-10 px-2.5">
                                 <div className="flex items-center gap-4">
                                     <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeftIcon className="w-5 h-5 text-white" /></button>
-                                    <div onClick={() => { if (!isGlobal && selectedUser) navigateToProfile(selectedUser.id, selectedUser.username); }} className="flex items-center gap-3 cursor-pointer group">
-                                        {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={maskUser(selectedUser!)} className="w-10 h-10" />}
+                                    <div onClick={() => { if (!isGlobal && selectedUser) navigateToProfile(selectedUser.id, (users.find(u => u.id === selectedUser.id)?.username || selectedUser.username)); }} className="flex items-center gap-3 cursor-pointer group">
+                                        {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={users.find(u => u.id === selectedUser?.id) || selectedUser!} className="w-10 h-10" />}
                                         <div className="min-w-0">
                                             <div className="flex items-center">
-                                                <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1 group-hover:text-red-500 transition-colors">{isGlobal ? 'Global Feed' : maskUser(selectedUser!).username?.toLowerCase()}</h3>
-                                                {!isGlobal && <VerificationBadge username={maskUser(selectedUser!).username} />}
+                                                <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1 group-hover:text-red-500 transition-colors">{isGlobal ? 'Global Feed' : (users.find(u => u.id === selectedUser?.id)?.username || selectedUser?.username)?.toLowerCase()}</h3>
+                                                {!isGlobal && <VerificationBadge username={users.find(u => u.id === selectedUser?.id)?.username || selectedUser?.username} />}
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${isGlobal || maskUser(selectedUser!).online ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${isGlobal || (users.find(u => u.id === selectedUser?.id)?.online) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div>
                                                 <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
-                                                  {isGlobal ? 'Open Public Network' : (maskUser(selectedUser!).online ? 'Active' : `Active ${getTimeAgo(maskUser(selectedUser!).lastActive)}`)}
+                                                  {isGlobal ? 'Open Public Network' : (users.find(u => u.id === selectedUser?.id)?.online ? 'Active' : `Active ${getTimeAgo(users.find(u => u.id === selectedUser?.id)?.lastActive)}`)}
                                                 </p>
                                             </div>
                                         </div>
@@ -434,11 +318,7 @@ export const CommunityChat: React.FC<{
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     {!isGlobal && (
-                                        <>
-                                            <button onClick={() => initiateCall('audio')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Phone size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
-                                            <button onClick={() => initiateCall('video')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Video size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
-                                            <button onClick={() => setIsDetailsOpen(!isDetailsOpen)} className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${isDetailsOpen ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}><Info size={20} /></button>
-                                        </>
+                                        <button onClick={() => setIsDetailsOpen(!isDetailsOpen)} className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${isDetailsOpen ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}><Info size={20} /></button>
                                     )}
                                 </div>
                             </div>
@@ -449,7 +329,6 @@ export const CommunityChat: React.FC<{
                                     const isMe = m.senderId === clerkUser?.id;
                                     const isMsgRestricted = m.senderUsername === RESTRICTED_HANDLE && !isOwner;
                                     
-                                    // DYNAMIC PROFILE LOOKUP: Pull current data from users list instead of static message snapshot
                                     const currentSender = users.find(u => u.id === m.senderId);
                                     const sender = isMsgRestricted 
                                         ? { name: 'Community Member', username: 'guest', avatar: undefined } 
@@ -461,9 +340,9 @@ export const CommunityChat: React.FC<{
                                     
                                     return (
                                         <div key={m.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group`}>
-                                            <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username); }} />
+                                            <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username!); }} />
                                             <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                                <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username); }}>
+                                                <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username!); }}>
                                                     <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] group-hover/msg:text-white transition-colors">{sender.username?.toLowerCase()}</span>
                                                     <VerificationBadge username={sender.username} />
                                                 </div>
@@ -477,17 +356,24 @@ export const CommunityChat: React.FC<{
                             </div>
 
                             {/* Input Area */}
-                            <div className="p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-20 md:pb-6">
+                            <div className="p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-24 md:pb-6">
                                 {!isGlobal && !isSelectedFriend ? (
                                     <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] text-center md:text-left">Thread Connection Required</p>
                                         <button className="w-full md:w-auto bg-red-600 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-600/20">Connect</button>
                                     </div>
                                 ) : (
-                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto">
-                                        <button type="button" className="p-2 text-zinc-500 hover:text-white transition-colors"><ImageIcon size={20}/></button>
-                                        <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-1.5 outline-none resize-none max-h-32" />
-                                        <button type="submit" disabled={isMediaUploading || !inputValue.trim()} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20"><SendIcon className="w-5 h-5" /></button>
+                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto w-full">
+                                        <textarea 
+                                          ref={textareaRef} 
+                                          value={inputValue} 
+                                          onChange={e => setInputValue(e.target.value)} 
+                                          onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
+                                          placeholder="Type a message..." 
+                                          rows={1} 
+                                          className="flex-1 bg-transparent border-none text-sm text-white py-2 px-2 outline-none resize-none max-h-32 min-h-[40px]" 
+                                        />
+                                        <button type="submit" disabled={isMediaUploading || !inputValue.trim()} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20 flex-shrink-0"><SendIcon className="w-5 h-5" /></button>
                                     </form>
                                 )}
                             </div>
