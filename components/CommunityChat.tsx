@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -107,6 +107,7 @@ export const CommunityChat: React.FC<{
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hiddenInputRef = useRef<HTMLInputElement>(null);
   const lastSentTimeRef = useRef<number>(0);
   const typingTimeoutRef = useRef<any>(null);
 
@@ -130,7 +131,6 @@ export const CommunityChat: React.FC<{
     return `messages/${[clerkUser.id, selectedUser.id].sort().join('_')}`;
   }, [isGlobal, clerkUser?.id, selectedUser?.id]);
 
-  // Presence & Settings Sync
   useEffect(() => {
     const unsubUsers = onValue(ref(db, 'users'), (snap) => {
       const data = snap.val();
@@ -163,7 +163,6 @@ export const CommunityChat: React.FC<{
     return () => unsubUsers();
   }, [clerkUser, initialTargetUserId, selectedUser?.id]);
 
-  // Typing logic
   useEffect(() => {
     if (!chatPath || !clerkUser || !selectedUser) return;
     const typingRef = ref(db, `typing/${chatPath}/${selectedUser.id}`);
@@ -198,6 +197,12 @@ export const CommunityChat: React.FC<{
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isMobileChatOpen, otherUserTyping]);
 
+  useEffect(() => {
+      if (passcodeInput.length === 4) {
+          verifyPasscode();
+      }
+  }, [passcodeInput]);
+
   const isSelectedFriend = useMemo(() => {
     if (!selectedUser) return false;
     return friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
@@ -215,7 +220,6 @@ export const CommunityChat: React.FC<{
     set(ref(db, `typing/${chatPath}/${clerkUser.id}`), false);
 
     setIsMediaUploading(true);
-    
     const newMessage: Message = { 
       senderId: clerkUser.id, 
       senderName: clerkUser.fullName || clerkUser.username || "User", 
@@ -244,13 +248,10 @@ export const CommunityChat: React.FC<{
 
   const toggleSetting = async (key: string) => {
       if (!clerkUser || !selectedUser) return;
-      
-      // Immunity for Owner and Admins
       if (key === 'blocked' && (selectedUser.username === OWNER_HANDLE || selectedUser.username === ADMIN_HANDLE)) {
           alert("Authority Immunity: This member cannot be blocked.");
           return;
       }
-
       const val = !localSettings[key];
       await update(ref(db, `users/${clerkUser.id}/chat_settings/${selectedUser.id}`), { [key]: val });
       setLocalSettings({ ...localSettings, [key]: val });
@@ -262,25 +263,29 @@ export const CommunityChat: React.FC<{
       if (passcodeInput === code) {
           setPasscodeVerified(true);
           setPasscodeErrorCount(0);
+          setPasscodeInput('');
       } else {
           const errors = passcodeErrorCount + 1;
           setPasscodeErrorCount(errors);
-          if (errors >= 5) setShowResetFlow(true);
           setPasscodeInput('');
-          alert(`Incorrect code. Attempt ${errors}/5`);
+          if (errors >= 5) {
+            setShowResetFlow(true);
+          } else {
+            alert(`Incorrect code. Attempt ${errors}/5`);
+          }
       }
   };
 
   const handlePasscodeReset = async () => {
-      const confirmed = window.confirm("Security Protocol: 5 incorrect attempts detected. Identity validation via Google/Clerk is required to override the passcode. Continue?");
+      const confirmed = window.confirm("Security Protocol: Incorrect attempts exceeded. To override the lock, we require your Google/Clerk email verification. Proceed?");
       if (confirmed) {
-          alert("Validated. You may now update your security credentials.");
-          const newCode = prompt("Enter a new 4-digit numeric passcode:");
+          const newCode = prompt("IDENTITY VALIDATED. Enter a new 4-digit passcode:");
           if (newCode && /^\d{4}$/.test(newCode)) {
               await set(ref(db, `users/${clerkUser?.id}/chat_passcode`), newCode);
               setPasscodeVerified(true);
               setPasscodeErrorCount(0);
               setShowResetFlow(false);
+              setPasscodeInput('');
           }
       }
   };
@@ -405,34 +410,41 @@ export const CommunityChat: React.FC<{
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-row min-h-0 bg-black relative`}>
                 <div className="flex-1 flex flex-col min-h-0 relative">
                     {localSettings.locked && !passcodeVerified && !isGlobal && selectedUser ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-8 bg-black/60 backdrop-blur-3xl">
-                            <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-4 animate-pulse">
-                                <Lock size={48} />
+                        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-12 bg-black/60 backdrop-blur-3xl">
+                            <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2">
+                                <Lock size={40} />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-black text-white uppercase tracking-widest mb-2">Encrypted Zone</h3>
-                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">Identity verification required to access this thread.</p>
+                                <h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Encrypted Zone</h3>
+                                <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest leading-relaxed opacity-60 max-w-xs mx-auto">Authorization required to enter this thread.</p>
                             </div>
                             
-                            {!showResetFlow ? (
-                                <div className="space-y-4 w-full max-w-xs">
-                                    <input 
-                                        type="password" 
-                                        maxLength={4} 
-                                        value={passcodeInput}
-                                        onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
-                                        placeholder="Enter Passcode"
-                                        className="w-full bg-zinc-900 border border-white/5 rounded-2xl py-4 text-center text-2xl font-black tracking-[0.8em] outline-none focus:border-red-600 transition-all"
-                                    />
-                                    <button onClick={verifyPasscode} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-red-600/20 hover:scale-105 active:scale-95 transition-all">Verify</button>
+                            <div className="relative" onClick={() => hiddenInputRef.current?.focus()}>
+                                <div className="flex gap-6 items-center">
+                                    {[...Array(4)].map((_, i) => (
+                                        <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>
+                                    ))}
                                 </div>
-                            ) : (
-                                <button onClick={handlePasscodeReset} className="px-10 py-5 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] hover:scale-105 transition-all flex items-center gap-3">
-                                    <KeyRound size={20}/> Reset via Clerk
+                                <input 
+                                    ref={hiddenInputRef}
+                                    type="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    maxLength={4}
+                                    value={passcodeInput}
+                                    onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
+                                    className="absolute inset-0 opacity-0 cursor-default"
+                                    autoFocus
+                                />
+                            </div>
+
+                            {showResetFlow && (
+                                <button onClick={handlePasscodeReset} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                                    <KeyRound size={14}/> Reset via Identity Hub
                                 </button>
                             )}
                             
-                            <button onClick={() => setIsMobileChatOpen(false)} className="text-zinc-600 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors">Return to Inbox</button>
+                            <button onClick={() => setIsMobileChatOpen(false)} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Cancel Entry</button>
                         </div>
                     ) : isActivityOpen ? (
                         <div className="flex-1 flex flex-col h-full bg-black">
@@ -486,7 +498,6 @@ export const CommunityChat: React.FC<{
                                 {messages.map((m, i) => {
                                     const isMe = m.senderId === clerkUser?.id;
                                     const isMsgRestricted = m.senderUsername === RESTRICTED_HANDLE && !isOwner;
-                                    
                                     const currentSender = users.find(u => u.id === m.senderId);
                                     const sender = isMsgRestricted 
                                         ? { name: 'Community Member', username: 'guest', avatar: undefined } 
@@ -516,12 +527,12 @@ export const CommunityChat: React.FC<{
                                     <div className="flex gap-3 items-end animate-fade-in">
                                         <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden">
                                             <div className="flex gap-1">
-                                                <div className="w-1 h-1 bg-zinc-500 rounded-full animate-bounce"></div>
-                                                <div className="w-1 h-1 bg-zinc-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                                                <div className="w-1 h-1 bg-zinc-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                                <div className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce"></div>
+                                                <div className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                                <div className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
                                             </div>
                                         </div>
-                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">typing...</p>
+                                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] italic">typing...</p>
                                     </div>
                                 )}
                                 <div ref={messagesEndRef} />
