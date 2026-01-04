@@ -71,7 +71,16 @@ export const siteConfig = {
     api: {
         youtubeApiKey: 'AIzaSyCC3wbQp5713OqHlf1jLZabA0VClDstfKY',
         channelId: 'UCFhqRIXlw0XGh3NOOvbhl6A',
-        formspreeEndpoint: 'https://formspree.io/f/xvzovned'
+        formspreeEndpoint: 'https://formspree.io/f/xvzovned',
+        realtimeKit: {
+            appId: '8bed7449-e49c-4ab5-8a5d-9e168ea9b260',
+            presets: {
+                LIVESTREAM_VIEWER: '5bbb03f5-b251-4c40-846b-11bf19548dc9',
+                LIVESTREAM_HOST: 'cb75dd90-b58c-4b7c-9023-ab7840c37a3d',
+                GROUP_GUEST: '084c0e88-fa5c-478d-b921-26697bdae794',
+                GROUP_HOST: '03a2f6a5-954a-4e10-8364-b0892044cedf'
+            }
+        }
     },
     seo: {
         title: "Fuad Editing Zone | Graphic Designer & VFX Editor | From Sylhet",

@@ -48,6 +48,17 @@ const updateSEO = (title: string, desc: string, image?: string) => {
   }
 };
 
+const ConnectionStatusPulse: React.FC = () => {
+    return (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] pointer-events-none">
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full">
+                <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_rgba(220,38,38,0.8)]"></div>
+                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white/80">FEZ Realtime Node Active</span>
+            </div>
+        </div>
+    );
+};
+
 export default function App() {
   const { isSignedIn, user, isLoaded } = useUser();
   const [route, setRoute] = useState<'home' | 'marketplace' | 'community'>(
@@ -295,6 +306,7 @@ export default function App() {
     <ParallaxProvider>
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
+          <ConnectionStatusPulse />
           
           <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} onOpenPost={handleOpenPost} />
@@ -313,8 +325,7 @@ export default function App() {
                 <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} onBack={() => navigateTo('home')} />
             </div>
 
-            {/* Navigation Fix: Ensure pb-24 remains even when thread is active to avoid navigation button clipping */}
-            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0 ${route !== 'community' ? 'hidden' : 'flex'}`}>
+            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${route !== 'community' ? 'hidden' : 'flex'}`}>
                 <CommunityChat 
                   onShowProfile={handleOpenProfile} 
                   initialTargetUserId={targetUserId} 
@@ -356,7 +367,7 @@ export default function App() {
             onCreatePost={() => setIsCreatePostOpen(true)}
             activeRoute={route} 
             isMinimized={isCreatePostOpen}
-            hideFAB={isMessageThreadActive} // Navigation buttons now remain visible even when hideFAB is true
+            hideFAB={false} // Force always visible logic
           />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
       </div>

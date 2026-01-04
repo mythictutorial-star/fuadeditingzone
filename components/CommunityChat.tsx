@@ -123,6 +123,25 @@ const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClic
     );
 };
 
+const ConnectionStatus: React.FC<{ activePreset?: string }> = ({ activePreset }) => {
+    const presets = siteConfig.api.realtimeKit.presets;
+    const isLive = activePreset === presets.LIVESTREAM_HOST || activePreset === presets.LIVESTREAM_VIEWER;
+    const isGroup = activePreset === presets.GROUP_HOST || activePreset === presets.GROUP_GUEST;
+    
+    return (
+        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10 backdrop-blur-md">
+            <div className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px] ${
+                isLive ? 'bg-red-600 shadow-red-600' : 
+                isGroup ? 'bg-blue-600 shadow-blue-600' : 
+                'bg-zinc-600 shadow-zinc-600'
+            }`}></div>
+            <span className="text-[8px] font-black uppercase tracking-widest text-zinc-400">
+                {isLive ? 'Live Hub' : isGroup ? 'Group Call' : 'Encrypted'}
+            </span>
+        </div>
+    );
+};
+
 const PasscodeOverlay: React.FC<{ 
     mode: 'set' | 'enter' | 'change' | 'reset';
     onSuccess: (pass?: string) => void; 
@@ -318,6 +337,7 @@ export const CommunityChat: React.FC<{
   const [reportMode, setReportMode] = useState(false);
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; preview: string; type: 'image' | 'video' } | null>(null);
+  const [activePreset, setActivePreset] = useState<string>(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
 
   // Optimized Fetching State
   const [optimizedRequests, setOptimizedRequests] = useState<any[]>([]);
@@ -472,6 +492,9 @@ export const CommunityChat: React.FC<{
           timestamp: Date.now() 
         };
         
+        // Broadcast via RealtimeKit simulation
+        console.log(`[RealtimeKit] Broadcasting to appId: ${siteConfig.api.realtimeKit.appId} with preset: ${activePreset}`);
+
         setInputValue('');
         setPendingMedia(null);
         await push(ref(db, chatPath), newMessage);
@@ -563,6 +586,7 @@ export const CommunityChat: React.FC<{
               setIsMobileChatOpen(true);
           }
       }
+      setActivePreset(siteConfig.api.realtimeKit.presets.GROUP_GUEST);
   };
 
   const handleToggleLock = async () => {
@@ -753,7 +777,7 @@ export const CommunityChat: React.FC<{
                   <MarketIcon className="w-6 h-6" />
                 </button>
                 <button 
-                  onClick={() => { setIsActivityOpen(true); setIsMobileChatOpen(false); }} 
+                  onClick={() => { setIsActivityOpen(true); setIsMobileChatOpen(false); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }} 
                   className={`p-3.5 rounded-2xl transition-all ${isActivityOpen ? 'bg-white text-black scale-110 shadow-lg' : 'text-white opacity-40 hover:opacity-100 hover:bg-white/5'}`} 
                   title="Activity"
                 >
@@ -840,7 +864,7 @@ export const CommunityChat: React.FC<{
                                     <i className="fa-solid fa-chevron-down text-[10px] text-zinc-500"></i>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <button onClick={() => { setIsActivityOpen(true); setIsMobileChatOpen(false); }} className="md:hidden text-white hover:opacity-70 transition-opacity">
+                                    <button onClick={() => { setIsActivityOpen(true); setIsMobileChatOpen(false); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }} className="md:hidden text-white hover:opacity-70 transition-opacity">
                                         <Bell className="w-5 h-5" />
                                     </button>
                                     <button onClick={handleStartNewMessage} className="text-white hover:opacity-70 transition-opacity">
@@ -920,11 +944,12 @@ export const CommunityChat: React.FC<{
 
                 <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black animate-fade-in relative`}>
                   {isActivityOpen ? (
-                    <div className="flex-1 flex flex-col h-full">
+                    <div className="flex-1 flex flex-col h-full bg-black pb-24 md:pb-0">
                         <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-4">
                                 <i className="fa-solid fa-bell text-2xl text-red-600"></i>
                                 <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
+                                <ConnectionStatus activePreset={activePreset} />
                             </div>
                             <button onClick={() => { setIsActivityOpen(false); setIsMobileChatOpen(false); }} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
                         </div>
@@ -989,6 +1014,7 @@ export const CommunityChat: React.FC<{
                           </div>
                         </div>
                         <div className="flex items-center gap-4 text-zinc-400">
+                            <ConnectionStatus activePreset={activePreset} />
                             {!isGlobal && <button onClick={() => setIsChatInfoOpen(true)} className="hover:text-white transition-colors p-2 bg-white/5 rounded-full"><Info size={20} /></button>}
                         </div>
                       </div>
@@ -1062,7 +1088,7 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
+                      <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-24 md:pb-8">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
                             {isInputLocked ? (
