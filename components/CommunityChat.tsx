@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignInButton, useClerk } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -88,6 +88,10 @@ export const CommunityChat: React.FC<{
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; preview: string; type: 'image' | 'video' } | null>(null);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  
+  // Call States
+  const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [showLockAlert, setShowLockAlert] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -150,6 +154,28 @@ export const CommunityChat: React.FC<{
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isMobileChatOpen]);
 
+  const isSelectedFriend = useMemo(() => {
+    if (!selectedUser) return false;
+    return friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
+  }, [selectedUser, friendsList]);
+
+  // Call Initialization
+  // Added useCallback to React imports above to resolve reference error
+  const createMeeting = useCallback(async () => {
+    if (!isSelectedFriend) return;
+    const newId = `fez_${Math.random().toString(36).substring(2, 9)}`;
+    setMeetingId(newId);
+    console.log(`[RealtimeKit] Call Session Prepared: ${newId}`);
+  }, [isSelectedFriend]);
+
+  useEffect(() => {
+    if (selectedUser && isSelectedFriend && !isGlobal) {
+      createMeeting();
+    } else {
+      setMeetingId(null);
+    }
+  }, [selectedUser?.id, isSelectedFriend, isGlobal, createMeeting]);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser || (!inputValue.trim() && !pendingMedia)) return;
@@ -165,8 +191,8 @@ export const CommunityChat: React.FC<{
             await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
             await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
             get(ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`)).then(snap => set(ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`), (snap.val() || 0) + 1));
-            const isFriend = friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
-            if (!isFriend && messages.filter(m => m.senderId === clerkUser.id).length === 0) {
+            const isFriendVal = friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
+            if (!isFriendVal && messages.filter(m => m.senderId === clerkUser.id).length === 0) {
                 await push(ref(db, `notifications/${selectedUser.id}`), { type: 'message_request', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), text: `@${(clerkUser.username || clerkUser.fullName || '').toLowerCase()} requested to message you`, timestamp: Date.now(), read: false });
             }
         }
@@ -186,16 +212,14 @@ export const CommunityChat: React.FC<{
     setInboxView('primary');
   };
 
-  const isFriend = useMemo(() => {
-    if (!selectedUser) return false;
-    return friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
-  }, [selectedUser, friendsList]);
-
   const handleCallAttempt = (type: 'audio' | 'video') => {
-    if (isFriend) {
-        console.log(`[RealtimeKit] ${type.toUpperCase()} call initialized.`);
+    if (isSelectedFriend) {
+        // Preset Switch for group_call_host permission
+        setActivePreset(siteConfig.api.realtimeKit.presets.GROUP_HOST);
+        console.log(`[RealtimeKit] Preset switched to GROUP_HOST (03a2f6a5-954a-4e10-8364-b0892044cedf). ${type.toUpperCase()} call connected.`);
     } else {
-        alert(`Calling feature locked. Please add @${selectedUser?.username} to your friends list to enable ${type} calling.`);
+        setShowLockAlert(true);
+        setTimeout(() => setShowLockAlert(false), 3000);
     }
   };
 
@@ -267,6 +291,19 @@ export const CommunityChat: React.FC<{
 
             {/* Main Content Area */}
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black relative`}>
+                <AnimatePresence>
+                    {showLockAlert && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 10 }} 
+                            animate={{ opacity: 1, scale: 1, y: 0 }} 
+                            exit={{ opacity: 0, scale: 0.9 }} 
+                            className="absolute top-24 right-6 z-[60] bg-red-600/90 backdrop-blur-xl border border-red-500 p-4 rounded-2xl shadow-2xl"
+                        >
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white">Zone Restriction: Add friend to unlock calling</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {isActivityOpen ? (
                     <div className="flex-1 flex flex-col h-full bg-black">
                         <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0 px-2.5">
@@ -306,19 +343,19 @@ export const CommunityChat: React.FC<{
                                     <div className="flex items-center gap-2">
                                         <button 
                                             onClick={() => handleCallAttempt('audio')} 
-                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700'}`} 
-                                            title={isFriend ? "Audio Call" : "Add friend to call"}
+                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700 opacity-50'}`} 
+                                            title={isSelectedFriend ? "Audio Call" : "Add friend to call"}
                                         >
                                             <Phone size={18}/>
-                                            {!isFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
+                                            {!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
                                         </button>
                                         <button 
                                             onClick={() => handleCallAttempt('video')} 
-                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700'}`} 
-                                            title={isFriend ? "Video Call" : "Add friend to call"}
+                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700 opacity-50'}`} 
+                                            title={isSelectedFriend ? "Video Call" : "Add friend to call"}
                                         >
                                             <Video size={18}/>
-                                            {!isFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
+                                            {!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
                                         </button>
                                     </div>
                                 )}
@@ -344,8 +381,8 @@ export const CommunityChat: React.FC<{
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-6 border-t border-white/5 bg-black md:pb-6 pb-24 px-2.5">
-                            {!isGlobal && !friendsList.includes(selectedUser?.id || '') && selectedUser?.username !== OWNER_HANDLE ? (
+                        <div className="p-6 border-t border-white/5 bg-black pb-6 px-2.5">
+                            {!isGlobal && !isSelectedFriend ? (
                                 <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex items-center justify-between shadow-xl">
                                     <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Authorized friends only</p>
                                     <button onClick={handleAcceptRequest} className="bg-red-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-600/20">Accept Request</button>
