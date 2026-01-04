@@ -54,7 +54,7 @@ const ConnectionStatus: React.FC<{ activePreset?: string }> = ({ activePreset })
     const isLive = activePreset === presets.LIVESTREAM_HOST || activePreset === presets.LIVESTREAM_VIEWER;
     const isGroup = activePreset === presets.GROUP_HOST || activePreset === presets.GROUP_GUEST;
     return (
-        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10" title={isLive ? 'Live Hub' : isGroup ? 'Group Node' : 'Secure Node'}>
+        <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/10">
             <div className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px] ${isLive ? 'bg-red-600 shadow-red-600' : isGroup ? 'bg-blue-600 shadow-blue-600' : 'bg-zinc-600 shadow-zinc-600'}`}></div>
         </div>
     );
@@ -186,16 +186,16 @@ export const CommunityChat: React.FC<{
     setInboxView('primary');
   };
 
-  const isSelectedFriend = useMemo(() => {
+  const isFriend = useMemo(() => {
     if (!selectedUser) return false;
     return friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
   }, [selectedUser, friendsList]);
 
   const handleCallAttempt = (type: 'audio' | 'video') => {
-    if (isSelectedFriend) {
-        console.log(`[RealtimeKit] ${type.toUpperCase()} call initiated.`);
+    if (isFriend) {
+        console.log(`[RealtimeKit] ${type.toUpperCase()} call initialized.`);
     } else {
-        alert(`Calling is locked. Add @${selectedUser?.username} to your friend list to start ${type} calls.`);
+        alert(`Calling feature locked. Please add @${selectedUser?.username} to your friends list to enable ${type} calling.`);
     }
   };
 
@@ -241,7 +241,7 @@ export const CommunityChat: React.FC<{
                         </div>
                         <button onClick={() => setSidebarTab(sidebarTab === 'search' ? 'messages' : 'search')} className="text-white hover:text-red-500 transition-colors"><SearchIcon className="w-5 h-5" /></button>
                     </div>
-                    {sidebarTab === 'search' && <input ref={searchInputRef} value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Type to search..." className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-xs outline-none focus:ring-1 focus:ring-red-600/30" />}
+                    {sidebarTab === 'search' && <input ref={searchInputRef} value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Type to search members..." className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-[10px] outline-none focus:ring-1 focus:ring-red-600/30" />}
                     <div className="flex gap-6 border-b border-white/5">
                         <button onClick={() => setInboxView('primary')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all ${inboxView === 'primary' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Primary</button>
                         <button onClick={() => setInboxView('requests')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${inboxView === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Requests {filteredUsers.length > 0 && inboxView === 'requests' && <span className="ml-1 bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full animate-pulse">{filteredUsers.length}</span>}</button>
@@ -262,9 +262,6 @@ export const CommunityChat: React.FC<{
                             {unreadCounts[u.id] > 0 && <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red]"></div>}
                         </button>
                     ))}
-                    {sidebarTab === 'search' && sidebarSearchQuery.trim() !== '' && filteredUsers.length === 0 && (
-                        <div className="p-10 text-center opacity-20"><p className="text-[10px] font-black uppercase tracking-widest">No members found</p></div>
-                    )}
                 </div>
             </aside>
 
@@ -309,26 +306,26 @@ export const CommunityChat: React.FC<{
                                     <div className="flex items-center gap-2">
                                         <button 
                                             onClick={() => handleCallAttempt('audio')} 
-                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700'}`} 
-                                            title={isSelectedFriend ? "Audio Call" : "Add friend to call"}
+                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700'}`} 
+                                            title={isFriend ? "Audio Call" : "Add friend to call"}
                                         >
                                             <Phone size={18}/>
-                                            {!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
+                                            {!isFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
                                         </button>
                                         <button 
                                             onClick={() => handleCallAttempt('video')} 
-                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700'}`} 
-                                            title={isSelectedFriend ? "Video Call" : "Add friend to call"}
+                                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isFriend ? 'bg-white/5 hover:bg-blue-600 text-zinc-400 hover:text-white shadow-lg' : 'bg-white/5 text-zinc-700'}`} 
+                                            title={isFriend ? "Video Call" : "Add friend to call"}
                                         >
                                             <Video size={18}/>
-                                            {!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
+                                            {!isFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}
                                         </button>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* Message List - Min-h-0 and Flex-1 to prevent clipping */}
+                        {/* Message List */}
                         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6 space-y-6 px-2.5 md:px-10">
                             {messages.map((m, i) => {
                                 const isMe = m.senderId === clerkUser?.id;
@@ -346,9 +343,9 @@ export const CommunityChat: React.FC<{
                             <div ref={messagesEndRef} />
                         </div>
 
-                        {/* Input Area - Padding adjusted for mobile navigation visibility */}
+                        {/* Input Area */}
                         <div className="p-6 border-t border-white/5 bg-black md:pb-6 pb-24 px-2.5">
-                            {!isGlobal && !isSelectedFriend ? (
+                            {!isGlobal && !friendsList.includes(selectedUser?.id || '') && selectedUser?.username !== OWNER_HANDLE ? (
                                 <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex items-center justify-between shadow-xl">
                                     <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Authorized friends only</p>
                                     <button onClick={handleAcceptRequest} className="bg-red-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-600/20">Accept Request</button>

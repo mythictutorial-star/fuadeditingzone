@@ -227,7 +227,7 @@ export default function App() {
             onNavigateCommunity={() => navigateTo('community')} 
             onCreatePost={() => setIsCreatePostOpen(true)}
             activeRoute={route} 
-            isMinimized={isCreatePostOpen}
+            isMinimized={isCreatePostOpen || isMessageThreadActive}
             hideFAB={false} 
           />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
