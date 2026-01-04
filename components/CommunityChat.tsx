@@ -21,7 +21,6 @@ const db = getDatabase();
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
-const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
 
 const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ user, className = "w-10 h-10", onClick }) => {
     const username = user.username || 'guest';
@@ -38,10 +37,7 @@ const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewe
     const low = username.toLowerCase();
     const vLow = viewer?.toLowerCase();
     
-    const isOwner = low === OWNER_HANDLE;
-    const isAdmin = low === ADMIN_HANDLE;
-    const isJiya = low === RESTRICTED_HANDLE;
-
+    // Exclusive Relationship Roles
     if (vLow === RESTRICTED_HANDLE && low === OWNER_HANDLE) {
         return <span className="ml-1 px-1.5 py-0.5 bg-red-600/20 text-red-500 rounded text-[7px] font-black uppercase tracking-widest border border-red-600/30">Husband</span>;
     }
@@ -49,9 +45,10 @@ const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewe
         return <span className="ml-1 px-1.5 py-0.5 bg-red-600/20 text-red-500 rounded text-[7px] font-black uppercase tracking-widest border border-red-600/30">Wife</span>;
     }
 
-    if (isOwner) return <i className="fa-solid fa-circle-check text-red-600 text-[10px] ml-1 fez-verified-badge"></i>;
-    if (isAdmin) return <i className="fa-solid fa-circle-check text-blue-500 text-[10px] ml-1 fez-verified-badge"></i>;
-    if (isJiya && (vLow === OWNER_HANDLE || vLow === RESTRICTED_HANDLE)) {
+    if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 text-[10px] ml-1 fez-verified-badge"></i>;
+    if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 text-[10px] ml-1 fez-verified-badge"></i>;
+    
+    if (low === RESTRICTED_HANDLE && (vLow === OWNER_HANDLE || vLow === RESTRICTED_HANDLE)) {
         return (
             <span className="relative inline-flex items-center ml-1 fez-verified-badge">
                 <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>
@@ -66,7 +63,7 @@ const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewe
 };
 
 interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; custom_badge?: any; }
-interface Message { id?: string; senderId: string; senderName: string; senderUsername?: string; senderAvatar?: string; text?: string; mediaUrl?: string; mediaType?: 'image' | 'video'; timestamp: number; }
+interface Message { id?: string; senderId: string; senderName: string; senderUsername?: string; senderAvatar?: string; text?: string; timestamp: number; }
 
 export const CommunityChat: React.FC<{ 
   onShowProfile?: (id: string, username?: string) => void; 
@@ -204,12 +201,28 @@ export const CommunityChat: React.FC<{
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isMobileChatOpen, otherUserTyping]);
 
+  // Handle Passcode input logic
   useEffect(() => {
       if (passcodeInput.length === 4) {
           if (vaultPasscodeModalOpen) verifyVaultPasscode();
           else verifyPasscode();
       }
   }, [passcodeInput]);
+
+  // Aggressive focus for device compatibility
+  useEffect(() => {
+    if (localSettings.locked && !passcodeVerified && !isGlobal && selectedUser) {
+        const timer = setTimeout(() => hiddenInputRef.current?.focus(), 500);
+        return () => clearTimeout(timer);
+    }
+  }, [localSettings.locked, passcodeVerified, isGlobal, selectedUser]);
+
+  useEffect(() => {
+    if (vaultPasscodeModalOpen) {
+        const timer = setTimeout(() => vaultHiddenInputRef.current?.focus(), 500);
+        return () => clearTimeout(timer);
+    }
+  }, [vaultPasscodeModalOpen]);
 
   const isSelectedFriend = useMemo(() => {
     if (!selectedUser) return false;
@@ -299,7 +312,7 @@ export const CommunityChat: React.FC<{
   };
 
   const handlePasscodeReset = async () => {
-      const confirmed = window.confirm("Security Protocol: Identity verification required to override the passcode vault. Proceed?");
+      const confirmed = window.confirm("Security Protocol: Verification required to reset vault. Continue?");
       if (confirmed) {
           const newCode = prompt("IDENTITY VALIDATED. Enter a new 4-digit passcode:");
           if (newCode && /^\d{4}$/.test(newCode)) {
@@ -418,7 +431,6 @@ export const CommunityChat: React.FC<{
                     }}
                     className="flex-1 overflow-y-auto no-scrollbar space-y-1 relative overscroll-contain"
                 >
-                    {/* Vault Reveal Area */}
                     {!isVaultUnlocked && inboxView === 'primary' && sidebarTab === 'messages' && (
                         <motion.div 
                             style={{ height: vaultPullY }}
@@ -478,7 +490,10 @@ export const CommunityChat: React.FC<{
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-row min-h-0 bg-black relative`}>
                 <div className="flex-1 flex flex-col min-h-0 relative">
                     {localSettings.locked && !passcodeVerified && !isGlobal && selectedUser ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-12 bg-black/60 backdrop-blur-3xl">
+                        <div 
+                          className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-12 bg-black/60 backdrop-blur-3xl cursor-pointer"
+                          onClick={() => hiddenInputRef.current?.focus()}
+                        >
                             <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2">
                                 <Lock size={40} />
                             </div>
@@ -487,7 +502,7 @@ export const CommunityChat: React.FC<{
                                 <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest leading-relaxed opacity-60 max-w-xs mx-auto">Authorization required to enter this thread.</p>
                             </div>
                             
-                            <div className="relative" onClick={() => hiddenInputRef.current?.focus()}>
+                            <div className="relative">
                                 <div className="flex gap-6 items-center">
                                     {[...Array(4)].map((_, i) => (
                                         <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>
@@ -501,18 +516,18 @@ export const CommunityChat: React.FC<{
                                     maxLength={4}
                                     value={passcodeInput}
                                     onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
-                                    className="absolute inset-0 opacity-0 cursor-default"
+                                    className="absolute inset-0 opacity-0 cursor-default h-full w-full"
                                     autoFocus
                                 />
                             </div>
 
                             {showResetFlow && (
-                                <button onClick={handlePasscodeReset} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                                <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
                                     <KeyRound size={14}/> Reset via Identity Hub
                                 </button>
                             )}
                             
-                            <button onClick={() => setIsMobileChatOpen(false)} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Cancel Entry</button>
+                            <button onClick={(e) => { e.stopPropagation(); setIsMobileChatOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Cancel Entry</button>
                         </div>
                     ) : isActivityOpen ? (
                         <div className="flex-1 flex flex-col h-full bg-black">
@@ -657,7 +672,9 @@ export const CommunityChat: React.FC<{
                             </div>
                             <div className="mt-2 px-4 py-1.5 bg-white/5 rounded-lg border border-white/10">
                                 <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">Role</p>
-                                <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">{targetRealUser?.role || 'Community Member'}</p>
+                                <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">
+                                  {targetRealUser?.username === OWNER_HANDLE ? 'Selected Legend' : (targetRealUser?.username === ADMIN_HANDLE ? 'VFX Admin' : 'Community Member')}
+                                </p>
                             </div>
                             <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">View Profile</button>
                          </div>
@@ -711,7 +728,13 @@ export const CommunityChat: React.FC<{
         {vaultPasscodeModalOpen && (
           <div className="fixed inset-0 z-[6000000] flex items-center justify-center p-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVaultPasscodeModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.9, opacity: 0 }} 
+              className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12 cursor-pointer"
+              onClick={() => vaultHiddenInputRef.current?.focus()}
+            >
                <div className="w-20 h-20 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2">
                    <Lock size={32} />
                </div>
@@ -720,7 +743,7 @@ export const CommunityChat: React.FC<{
                    <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest opacity-60">Identity verification required to reveal locked threads.</p>
                </div>
 
-               <div className="relative" onClick={() => vaultHiddenInputRef.current?.focus()}>
+               <div className="relative">
                     <div className="flex gap-6 items-center">
                         {[...Array(4)].map((_, i) => (
                             <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>
@@ -734,18 +757,18 @@ export const CommunityChat: React.FC<{
                         maxLength={4}
                         value={passcodeInput}
                         onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
-                        className="absolute inset-0 opacity-0 cursor-default"
+                        className="absolute inset-0 opacity-0 cursor-default h-full w-full"
                         autoFocus
                     />
                </div>
 
                {showResetFlow && (
-                   <button onClick={handlePasscodeReset} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                   <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
                        <KeyRound size={14}/> Reset via Identity Hub
                    </button>
                )}
 
-               <button onClick={() => setVaultPasscodeModalOpen(false)} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button>
+               <button onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button>
             </motion.div>
           </div>
         )}
