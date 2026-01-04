@@ -14,7 +14,6 @@ import { CreatePostModal } from './CreatePostModal';
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
-const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev'; // R2 Worker URL
 
 interface ChatUser {
   id: string;
@@ -45,9 +44,6 @@ interface Message {
     text: string;
     senderName: string;
   };
-  // New fields for media messages
-  mediaUrl?: string;
-  mediaType?: 'image' | 'video';
 }
 
 const getIdentity = (username: string) => {
@@ -196,12 +192,6 @@ export const CommunityChat: React.FC<{
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for hidden file input
-
-  // Media upload states
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -306,29 +296,11 @@ export const CommunityChat: React.FC<{
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      e.target.value = ''; // Clear input for next selection
-    }
-  };
-
-  const clearSelectedFile = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setSelectedFile(null);
-    setPreviewUrl(null);
-  };
-
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = inputValue.trim();
-    if (!isSignedIn || !chatPath || !clerkUser || (!text && !selectedFile)) return;
+    if (!isSignedIn || !chatPath || !clerkUser || !text) return;
     
-    setIsUploadingMedia(true); // Start uploading indicator
-
     try {
         const now = Date.now();
         const currentUser = users.find(u => u.id === clerkUser.id);
@@ -338,7 +310,7 @@ export const CommunityChat: React.FC<{
           senderUsername: (currentUser?.username || clerkUser.username || '').toLowerCase(),
           senderAvatar: clerkUser.imageUrl,
           senderRole: currentUser?.role || 'Client',
-          text: text, // Text as caption or main message
+          text: text,
           timestamp: now 
         };
 
@@ -351,29 +323,8 @@ export const CommunityChat: React.FC<{
           setReplyingTo(null);
         }
 
-        // Handle media upload if a file is selected
-        if (selectedFile) {
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('folder', 'Messages'); // Upload to /Messages/ folder
-
-            const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
-            const result = await res.json();
-
-            if (result.url) {
-                newMessage.mediaUrl = result.url;
-                newMessage.mediaType = selectedFile.type.startsWith('video') ? 'video' : 'image';
-            } else {
-                alert("Failed to upload media.");
-                setIsUploadingMedia(false);
-                return;
-            }
-        }
-
         setInputValue('');
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
-        clearSelectedFile(); // Clear selected file after processing
-
         await push(ref(db, chatPath), newMessage);
         
         if (!isGlobal && selectedUser) {
@@ -385,7 +336,7 @@ export const CommunityChat: React.FC<{
                 fromId: clerkUser.id,
                 fromName: currentUser?.name || clerkUser.fullName || clerkUser.username,
                 fromAvatar: clerkUser.imageUrl,
-                text: newMessage.mediaUrl ? (newMessage.text || `[${newMessage.mediaType} sent]`) : newMessage.text, // Notification text reflects media
+                text: text,
                 timestamp: now,
                 read: false,
                 isLocked: !!lockedChats[selectedUser.id]
@@ -399,10 +350,7 @@ export const CommunityChat: React.FC<{
                 get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
             }
         }
-    } catch (err) { alert("Something went wrong with the message."); console.error(err);}
-    finally {
-        setIsUploadingMedia(false); // Stop uploading indicator
-    }
+    } catch (err) { alert("Something went wrong with the message."); }
   };
 
   const togglePushNotifications = async () => {
@@ -590,30 +538,9 @@ export const CommunityChat: React.FC<{
                                                           <p className="italic opacity-60 truncate">{msg.replyTo.text}</p>
                                                         </div>
                                                       )}
-                                                      
-                                                      {/* Render Media if available */}
-                                                      {msg.mediaUrl && (
-                                                        <div className={`my-2 overflow-hidden rounded-xl bg-black ${isMe ? 'self-end' : 'self-start'} shadow-lg border border-white/10 max-w-[280px]`}>
-                                                          {msg.mediaType === 'image' && (
-                                                            <img src={msg.mediaUrl} alt="Shared media" className="w-full h-auto object-cover" />
-                                                          )}
-                                                          {msg.mediaType === 'video' && (
-                                                            <video src={msg.mediaUrl} controls loop muted playsInline className="w-full h-auto object-cover" />
-                                                          )}
-                                                          {msg.text && ( // Show text as caption if media and text exist
-                                                            <p className="p-3 text-[10px] text-zinc-400 leading-snug break-words">
-                                                              {msg.text}
-                                                            </p>
-                                                          )}
-                                                        </div>
-                                                      )}
-
-                                                      {/* Only render text if no media, or if media exists and text is *not* a caption */}
-                                                      {(!msg.mediaUrl || (msg.mediaUrl && !msg.text)) && (
-                                                        <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden ${isMe ? 'bg-red-600 text-white rounded-tr-none self-end text-right' : 'bg-zinc-800 text-zinc-200 rounded-tl-none border border-white/5 self-start text-left'}`}>
-                                                          {msg.text}
-                                                        </div>
-                                                      )}
+                                                      <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden ${isMe ? 'bg-red-600 text-white rounded-tr-none self-end text-right' : 'bg-zinc-800 text-zinc-200 rounded-tl-none border border-white/5 self-start text-left'}`}>
+                                                        {msg.text}
+                                                      </div>
                                                       <button 
                                                         onClick={() => setReplyingTo(msg)}
                                                         className={`absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/5 opacity-0 group-hover/bubble:opacity-100 transition-all hover:bg-white/10 ${isMe ? 'right-full mr-2' : 'left-full ml-2'}`}
@@ -655,51 +582,9 @@ export const CommunityChat: React.FC<{
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
-                                <AnimatePresence>
-                                    {previewUrl && (
-                                        <motion.div
-                                            initial={{ y: 20, opacity: 0 }}
-                                            animate={{ y: 0, opacity: 1 }}
-                                            exit={{ y: 20, opacity: 0 }}
-                                            className="max-w-4xl mx-auto mb-2 p-3 bg-[#111] border border-white/5 rounded-xl flex items-center justify-between"
-                                        >
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
-                                                    {selectedFile?.type.startsWith('video') ? (
-                                                        <video src={previewUrl} className="w-full h-full object-cover" muted playsInline />
-                                                    ) : (
-                                                        <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
-                                                    )}
-                                                </div>
-                                                <p className="text-[11px] text-white truncate">{selectedFile?.name}</p>
-                                            </div>
-                                            <button onClick={clearSelectedFile} className="p-2 text-zinc-600 hover:text-white transition-colors">
-                                                <X size={16} />
-                                            </button>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
                                 <form onSubmit={handleSendMessage} className="w-full max-w-4xl mx-auto flex items-end gap-2 p-1 bg-[#0a0a0a] border border-white/10 rounded-2xl min-h-[46px] md:min-h-[50px] focus-within:border-red-600/40 transition-all overflow-hidden">
-                                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,video/*" hidden />
-                                    <button 
-                                        type="button" 
-                                        onClick={() => fileInputRef.current?.click()} 
-                                        className="p-2.5 md:p-3 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors rounded-xl flex-shrink-0"
-                                        title="Attach media"
-                                    >
-                                        <PlusSquare className="w-5 h-5"/>
-                                    </button>
-                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} placeholder="Type message..." rows={1} className="flex-1 bg-transparent px-4 py-2.5 text-[13px] md:text-sm text-white outline-none resize-none placeholder-zinc-700 max-h-32 min-w-0" disabled={isUploadingMedia} />
-                                    <button type="submit" disabled={isUploadingMedia || (!inputValue.trim() && !selectedFile)} className="px-4 md:px-5 py-2 md:py-2.5 text-red-600 font-black uppercase text-[9px] md:text-[10px] tracking-widest disabled:opacity-20 transition-all flex-shrink-0 flex items-center gap-2">
-                                        {isUploadingMedia ? (
-                                            <>
-                                                <div className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
-                                                Sending...
-                                            </>
-                                        ) : (
-                                            <>Send</>
-                                        )}
-                                    </button>
+                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} placeholder="Type message..." rows={1} className="flex-1 bg-transparent px-4 py-2.5 text-[13px] md:text-sm text-white outline-none resize-none placeholder-zinc-700 max-h-32 min-w-0" />
+                                    <button type="submit" disabled={!inputValue.trim()} className="px-4 md:px-5 py-2 md:py-2.5 text-red-600 font-black uppercase text-[9px] md:text-[10px] tracking-widest disabled:opacity-20 transition-all flex-shrink-0">Send</button>
                                 </form>
                             </div>
                         </>

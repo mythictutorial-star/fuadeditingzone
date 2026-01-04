@@ -56,7 +56,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const [showCopyToast, setShowCopyToast] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
     const [lockCountdown, setLockCountdown] = useState<string | null>(null);
-    const [isUpdatingChats, setIsUpdatingChats] = useState(false); // New state for chat update process
     
     const [socialState, setSocialState] = useState({ 
       isFollowing: false, 
@@ -226,7 +225,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 await set(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`), true);
                 await set(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`), true);
                 await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'friend_accepted', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, text: `@${(clerkUser.username || clerkUser.fullName || '').toLowerCase()} accepted your request!`, timestamp: Date.now(), read: false 
+                    type: 'friend_accepted', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
                 });
             } else if (socialState.friendStatus === 'requested') {
                 if (window.confirm("Cancel friend request?")) {
@@ -252,70 +251,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     };
 
     const handleSaveProfile = async () => {
-        if (isMyOwnProfile && clerkUser) {
-            setIsUpdatingChats(true); // Start updating indicator
-
-            // 1. Update the user's main profile data
-            const updatedProfileData = {
-                name: editData.name || clerkUser.fullName,
-                username: (editData.username || clerkUser.username || 'user').toLowerCase(),
-                avatar: clerkUser.imageUrl, // Assuming avatar updates are handled by Clerk directly
-                profile: { // Update nested profile data
-                    bio: editData.profile?.bio || 'New member.',
-                    origin: editData.profile?.origin || 'Location not set',
-                    profession: editData.profile?.profession || 'Designer',
-                    networks: editData.profile?.networks || [],
-                    skills: editData.profile?.skills || ['Visual Effects', 'Graphic Design'],
-                }
-            };
-            await update(ref(db, `users/${clerkUser.id}`), updatedProfileData);
-
-            // 2. Prepare new sender data for chat messages
-            const newSenderData = {
-                senderName: updatedProfileData.name,
-                senderUsername: updatedProfileData.username,
-                senderAvatar: updatedProfileData.avatar,
-                // senderRole: targetUser?.role || 'Client', // Role is not editable in this modal, keep existing
-            };
-
-            const updates: { [key: string]: any } = {};
-
-            // Function to find and add updates for messages in a given chat path
-            const addChatUpdates = async (chatPath: string) => {
-                const messagesSnap = await get(query(ref(db, chatPath), orderByChild('senderId'), equalTo(clerkUser.id)));
-                if (messagesSnap.exists()) {
-                    messagesSnap.forEach(msgSnap => {
-                        const msgId = msgSnap.key;
-                        updates[`${chatPath}/${msgId}/senderName`] = newSenderData.senderName;
-                        updates[`${chatPath}/${msgId}/senderUsername`] = newSenderData.senderUsername;
-                        updates[`${chatPath}/${msgId}/senderAvatar`] = newSenderData.senderAvatar;
-                        // if (newSenderData.senderRole) { // Only update if role exists
-                        //    updates[`${chatPath}/${msgId}/senderRole`] = newSenderData.senderRole;
-                        // }
-                    });
-                }
-            };
-
-            // Update messages in the global chat
-            await addChatUpdates('community/global');
-
-            // Get all direct conversation IDs for the current user
-            const conversationsSnap = await get(ref(db, `users/${clerkUser.id}/conversations`));
-            const conversationPartnerIds = conversationsSnap.val() ? Object.keys(conversationsSnap.val()) : [];
-
-            // Update messages in each direct conversation
-            for (const partnerId of conversationPartnerIds) {
-                const directChatPath = `messages/${[clerkUser.id, partnerId].sort().join('_')}`;
-                await addChatUpdates(directChatPath);
-            }
-
-            // Execute all collected updates in a single batch operation
-            if (Object.keys(updates).length > 0) {
-                await update(ref(db), updates);
-            }
-
+        if (isMyOwnProfile) {
+            await update(ref(db, `users/${clerkUser?.id}`), editData);
             setIsEditing(false);
-            setIsUpdatingChats(false); // Stop updating indicator
         }
     };
 
@@ -453,24 +391,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             {!showSecurity && isMyOwnProfile && (
                                 <button onClick={() => setShowSecurity(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-all"><ShieldCheck size={20} /></button>
                             )}
-                            {isMyOwnProfile && !showSecurity && (
-                              <button 
-                                onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} 
-                                disabled={isUpdatingChats}
-                                className={`px-5 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${
-                                  isEditing ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
-                                } ${isUpdatingChats ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              >
-                                {isUpdatingChats ? (
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
-                                    Updating...
-                                  </div>
-                                ) : (
-                                  isEditing ? 'Save Profile' : 'Edit Profile'
-                                )}
-                              </button>
-                            )}
+                            {isMyOwnProfile && !showSecurity && <button onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isEditing ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'}`}>{isEditing ? 'Save Profile' : 'Edit Profile'}</button>}
                             <button onClick={onClose} className="p-2.5 bg-red-600 rounded-full text-white shadow-lg hover:scale-110 active:scale-95 transition-all"><CloseIcon className="w-6 h-6" /></button>
                         </div>
                     </div>
