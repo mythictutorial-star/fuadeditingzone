@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useUser, SignIn } from '@clerk/clerk-react';
+import { useUser, SignIn, useClerk } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, onValue, limitToLast, query, get, update, push, set, remove, onDisconnect } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
@@ -42,6 +42,7 @@ const RESTRICTED_HANDLE = 'jiya';
 
 export default function App() {
   const { isSignedIn, user, isLoaded } = useUser();
+  const { signOut } = useClerk();
   const [route, setRoute] = useState<'home' | 'marketplace' | 'community'>(
     window.location.pathname === '/marketplace' ? 'marketplace' : 
     window.location.pathname === '/community' ? 'community' : 'home'
@@ -87,6 +88,23 @@ export default function App() {
           });
         }
       });
+
+      // Passcode Reset Trigger after login verification
+      const checkResetFlag = async () => {
+        const flag = localStorage.getItem('fez_passcode_reset_pending');
+        if (flag === 'true' && user) {
+            const newCode = prompt("SECURITY CLEARANCE GRANTED: Identity verified via Email. Enter your new 4-digit passcode:");
+            if (newCode && /^\d{4}$/.test(newCode)) {
+                await set(ref(db, `users/${user.id}/chat_passcode`), newCode);
+                localStorage.removeItem('fez_passcode_reset_pending');
+                alert("Vault Re-activated: Passcode updated successfully.");
+            } else {
+                alert("Reset Interrupted: Invalid format. Please try again from settings.");
+                localStorage.removeItem('fez_passcode_reset_pending');
+            }
+        }
+      };
+      checkResetFlag();
 
       return () => unsub();
     }

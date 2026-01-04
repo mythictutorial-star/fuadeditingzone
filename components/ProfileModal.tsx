@@ -9,7 +9,7 @@ import {
   ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon, LockIcon
 } from './Icons';
 import { siteConfig } from '../config';
-import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock, Palette, Plus } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock, Palette, Plus, UserMinus, UserX } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -199,6 +199,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     const handleAction = async (type: 'follow' | 'friend') => {
         if (!clerkUser || !viewingUserId) return;
+
+        // Relationship modification requires passcode verification if already connected
+        const myUserSnap = await get(ref(db, `users/${clerkUser.id}`));
+        const myPasscode = myUserSnap.val()?.chat_passcode;
+        const isRemoving = (type === 'follow' && socialState.isFollowing) || (type === 'friend' && socialState.friendStatus === 'accepted');
+
+        if (isRemoving && myPasscode) {
+            const code = prompt("Security check: Enter your 4-digit passcode to modify this relationship:");
+            if (code === null) return;
+            if (code !== myPasscode) {
+                alert("Authorization Denied: Incorrect passcode.");
+                return;
+            }
+        }
+
         if (type === 'follow') {
             const path = `social/${clerkUser.id}/following/${viewingUserId}`;
             const fPath = `social/${viewingUserId}/followers/${clerkUser.id}`;
@@ -214,11 +229,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             }
         } else {
             if (socialState.friendStatus === 'accepted') {
-                if (window.confirm(`Unfriend @${(targetUser?.username || '').toLowerCase()}?`)) {
+                if (window.confirm(`Remove @${(targetUser?.username || '').toLowerCase()} from friends?`)) {
                     await remove(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`));
                     await remove(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`));
-                    await remove(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`));
-                    await remove(ref(db, `social/${viewingUserId}/requests/received/${clerkUser.id}`));
+                    // When unfriend, we also stop following typically
+                    await remove(ref(db, `social/${clerkUser.id}/following/${viewingUserId}`));
+                    await remove(ref(db, `social/${viewingUserId}/followers/${clerkUser.id}`));
                 }
             } else if (socialState.friendStatus === 'pending') {
                 await remove(ref(db, `social/${clerkUser.id}/requests/received/${viewingUserId}`));
@@ -255,7 +271,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         const currentCode = targetUser?.chat_passcode;
         
         if (currentCode) {
-            const old = prompt("Identity Check: Enter your current 4-digit passcode to proceed:");
+            // Updated behavior: Hide accounts again check
+            const shouldRelock = window.confirm("Security Alert: Hide locked profiles and threads again?");
+            if (shouldRelock) {
+                // To "re-hide", we essentially reload or clear local verification states
+                alert("Vault re-locked. Locked content is now hidden again.");
+                window.location.reload(); 
+                return;
+            }
+
+            const old = prompt("Identity Check: Enter your current 4-digit passcode to modify settings:");
             if (old === null) return;
             if (old !== currentCode) { alert("Verification Denied: Incorrect current passcode."); return; }
         }
@@ -401,7 +426,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                    initial={{ opacity: 0, y: 30 }} 
                    animate={{ opacity: 1, y: 0 }} 
                    exit={{ opacity: 0, y: 30 }} 
-                   className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl safe-area-padding"
+                   className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl"
                    style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}
                 >
                     <div className="p-5 md:p-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
@@ -409,7 +434,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             <button onClick={() => { if (userListMode) setUserListMode(null); else if (showSecurity) setShowSecurity(false); else onClose(); }} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
                             <div className="flex items-center">
                                 <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">
-                                    {showSecurity ? 'Privacy & Security' : (targetUser?.username || clerkUser.username || '').toLowerCase()}
+                                    {showSecurity ? 'Security Protocol' : (targetUser?.username || clerkUser.username || '').toLowerCase()}
                                 </h2>
                                 {!showSecurity && getVerifiedBadge(targetUser?.username || clerkUser.username, targetUser?.custom_badge)}
                             </div>
@@ -452,10 +477,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
                         {showSecurity ? (
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-10">
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Passcode Protection</h4>
+                                <div className="space-y-0">
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Vault Authentication</h4>
                                     
-                                    {/* Setup Passcode Button (Only if not set) */}
                                     {!targetUser?.chat_passcode && (
                                         <button 
                                             onClick={handlePasscodeSetupOrChange}
@@ -467,14 +491,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 </div>
                                                 <div className="text-left">
                                                     <p className="text-sm font-black text-white uppercase tracking-widest">Setup Vault Passcode</p>
-                                                    <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Required for locked profiles</p>
+                                                    <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Access Restricted Content</p>
                                                 </div>
                                             </div>
                                             <ArrowRight size={16} className="text-zinc-600" />
                                         </button>
                                     )}
 
-                                    {/* Change Passcode Button (Only if already set) */}
                                     {targetUser?.chat_passcode && (
                                         <button 
                                             onClick={handlePasscodeSetupOrChange}
@@ -486,44 +509,49 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 </div>
                                                 <div className="text-left">
                                                     <p className="text-sm font-black text-white uppercase tracking-widest">Change Passcode</p>
-                                                    <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Passcode is currently Active</p>
+                                                    <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Active Protection Layer</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <span className="text-[9px] font-black text-red-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Change</span>
+                                                <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">Manage</span>
                                                 <ArrowRight size={16} className="text-zinc-600" />
                                             </div>
                                         </button>
                                     )}
                                 </div>
                                 <div className="space-y-4 pt-10 border-t border-white/5">
-                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">System Security</h4>
+                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Identity Hub</h4>
                                     <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">"PASSCODE RECOVERY: To maintain absolute privacy, passcodes are encrypted. If forgotten, identity verification via the hub is mandatory for reset."</p>
+                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">"MODIFICATION NOTICE: Changing relationships or revealing locked content requires absolute identity verification via your encrypted passcode."</p>
                                     </div>
                                 </div>
                             </div>
                         ) : userListMode ? (
-                            <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-6">
-                                <h3 className="text-2xl font-black text-white uppercase tracking-[0.2em] mb-10">{userListMode === 'followers' ? 'Followers' : 'Following'}</h3>
+                            <div className="p-6 md:p-16 max-w-4xl mx-auto space-y-6">
+                                <h3 className="text-2xl font-black text-white uppercase tracking-[0.2em] mb-10 text-center md:text-left">{userListMode === 'followers' ? 'Network Base' : 'Following Zone'}</h3>
                                 {resolvedUserList.length === 0 ? (
-                                    <div className="py-20 text-center opacity-20"><UserCircleIcon className="w-20 h-20 mx-auto mb-6" /><p className="text-sm font-black uppercase tracking-[0.5em]">No users found</p></div>
+                                    <div className="py-20 text-center opacity-20"><UserCircleIcon className="w-20 h-20 mx-auto mb-6" /><p className="text-sm font-black uppercase tracking-[0.5em]">Network Offline</p></div>
                                 ) : (
-                                    resolvedUserList.map(u => (
-                                        <div key={u.id} onClick={() => handleSwitchToOtherProfile(u.id, u.username)} className="flex items-center justify-between p-4 bg-white/10 border border-white/5 rounded-2xl cursor-pointer hover:bg-white/20 transition-all group">
-                                            <div className="flex items-center gap-4">
-                                                <img src={u.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-1">
-                                                        <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{(u.username || '').toLowerCase()}</p>
-                                                        {getVerifiedBadge(u.username, u.custom_badge)}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {resolvedUserList.map(u => (
+                                            <div key={u.id} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl group hover:bg-white/10 transition-all">
+                                                <div className="flex items-center gap-4 cursor-pointer min-w-0" onClick={() => handleSwitchToOtherProfile(u.id, u.username)}>
+                                                    <img src={u.avatar} className="w-14 h-14 rounded-full object-cover border border-white/10 shadow-xl" alt="" />
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1">
+                                                            <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{(u.username || '').toLowerCase()}</p>
+                                                            {getVerifiedBadge(u.username, u.custom_badge)}
+                                                        </div>
+                                                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Member'}</p>
                                                     </div>
-                                                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Designer'}</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => onMessageUser?.(u.id)} className="p-3 bg-white/5 hover:bg-red-600 text-white rounded-xl transition-all"><ChatBubbleIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleSwitchToOtherProfile(u.id, u.username)} className="p-3 bg-white/5 hover:bg-white/10 text-zinc-400 rounded-xl transition-all"><ArrowRight size={16} /></button>
                                                 </div>
                                             </div>
-                                            <ChevronLeftIcon className="w-5 h-5 text-zinc-600 rotate-180 group-hover:text-red-500 transition-all" />
-                                        </div>
-                                    ))
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         ) : (
@@ -540,14 +568,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             </div>
                                             <div className="flex gap-3">
                                                 {isViewingOther ? (
-                                                    <><button disabled={isLocked} onClick={() => handleAction('follow')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.isFollowing ? 'bg-white/10 text-white border border-white/10 hover:text-red-500' : 'bg-red-600 text-white shadow-xl hover:bg-red-700')}`}>{socialState.isFollowing ? 'Following' : 'Follow'}</button>
-                                                      <button disabled={isLocked} onClick={() => handleAction('friend')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.friendStatus === 'accepted' ? 'bg-green-600/20 text-green-500 border border-green-600/30' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10')}`}>{socialState.friendStatus === 'accepted' ? 'Friends' : socialState.friendStatus === 'pending' ? 'Accept?' : socialState.friendStatus === 'requested' ? 'Requested' : 'Add Friend'}</button>
+                                                    <><AnimatePresence>
+                                                        {socialState.friendStatus !== 'accepted' && (
+                                                            <motion.button 
+                                                                initial={{ opacity: 0, scale: 0.9 }} 
+                                                                animate={{ opacity: 1, scale: 1 }} 
+                                                                disabled={isLocked} 
+                                                                onClick={() => handleAction('follow')} 
+                                                                className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.isFollowing ? 'bg-white/10 text-red-500 border border-red-600/30 hover:bg-red-600 hover:text-white' : 'bg-red-600 text-white shadow-xl hover:bg-red-700')}`}
+                                                            >
+                                                                {socialState.isFollowing ? 'Unfollow' : 'Follow'}
+                                                            </motion.button>
+                                                        )}
+                                                      </AnimatePresence>
+                                                      <button disabled={isLocked} onClick={() => handleAction('friend')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.friendStatus === 'accepted' ? 'bg-zinc-800 text-zinc-500 hover:bg-red-600 hover:text-white' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10')}`}>{socialState.friendStatus === 'accepted' ? 'Friends' : socialState.friendStatus === 'pending' ? 'Accept Request' : socialState.friendStatus === 'requested' ? 'Cancel Request' : 'Add Friend'}</button>
                                                       <button disabled={isLocked} onClick={() => onMessageUser?.(viewingUserId!)} className={`p-2.5 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 active:scale-95 transition-all ${isLocked ? 'opacity-20 cursor-not-allowed' : ''}`}><ChatBubbleIcon className="w-5 h-5" /></button></>
-                                                ) : (!isEditing && <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 bg-white/10 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-white hover:bg-white/20 transition-all">Edit Profile</button>)}
+                                                ) : (!isEditing && <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 bg-white/10 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-white hover:bg-white/20 transition-all">Edit Identity</button>)}
                                             </div>
                                         </div>
                                         <div className="flex justify-center md:justify-start gap-8 md:gap-12 mb-8">
-                                            <div className="text-center md:text-left"><p className="text-xl md:text-3xl font-black text-white leading-none">{userPosts.length}</p><p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Posts</p></div>
+                                            <div className="text-center md:text-left"><p className="text-xl md:text-3xl font-black text-white leading-none">{userPosts.length}</p><p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Works</p></div>
                                             <button onClick={() => setUserListMode('followers')} className="text-center md:text-left hover:opacity-80 transition-all group"><p className="text-xl md:text-3xl font-black text-white leading-none group-hover:text-red-500">{socialState.followers.length}</p><p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Followers</p></button>
                                             <button onClick={() => setUserListMode('following')} className="text-center md:text-left hover:opacity-80 transition-all group"><p className="text-xl md:text-3xl font-black text-white leading-none group-hover:text-red-500">{socialState.following.length}</p><p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Following</p></button>
                                         </div>
@@ -555,16 +595,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             {isEditing ? (
                                                 <div className="space-y-4 max-w-lg">
                                                     <input value={editData.name || ''} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Display Name" className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-base md:text-lg outline-none focus:border-red-600" />
-                                                    <textarea value={editData.profile?.bio || ''} onChange={e => setEditData({...editData, profile: {...editData.profile, bio: e.target.value}})} placeholder="About you..." className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-zinc-400 text-xs md:text-sm italic outline-none h-24 resize-none" />
+                                                    <textarea value={editData.profile?.bio || ''} onChange={e => setEditData({...editData, profile: {...editData.profile, bio: e.target.value}})} placeholder="Identity description..." className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-zinc-400 text-xs md:text-sm italic outline-none h-24 resize-none" />
                                                     <div className="grid grid-cols-2 gap-3">
-                                                        <div className="relative"><GlobeAltIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"/><input value={editData.profile?.origin} onChange={e => setEditData({...editData, profile: {...editData.profile, origin: e.target.value}})} placeholder="Location" className="w-full bg-black border border-white/10 pl-9 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-600"/></div>
-                                                        <div className="relative"><BriefcaseIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"/><input value={editData.profile?.profession} onChange={e => setEditData({...editData, profile: {...editData.profile, profession: e.target.value}})} placeholder="Role" className="w-full bg-black border border-white/10 pl-9 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-600"/></div>
+                                                        <div className="relative"><GlobeAltIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"/><input value={editData.profile?.origin} onChange={e => setEditData({...editData, profile: {...editData.profile, origin: e.target.value}})} placeholder="Zone Origin" className="w-full bg-black border border-white/10 pl-9 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-600"/></div>
+                                                        <div className="relative"><BriefcaseIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"/><input value={editData.profile?.profession} onChange={e => setEditData({...editData, profile: {...editData.profile, profession: e.target.value}})} placeholder="Creative Role" className="w-full bg-black border border-white/10 pl-9 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-600"/></div>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div className="space-y-3">
                                                   <p className="text-lg md:text-2xl font-black text-white uppercase tracking-tight leading-none">{targetUser?.name || clerkUser.fullName}</p>
-                                                  <p className="text-zinc-400 text-sm md:text-lg font-medium italic leading-relaxed opacity-80">"{targetUser?.profile?.bio || 'Visual Artist & Designer.'}"</p>
+                                                  <p className="text-zinc-400 text-sm md:text-lg font-medium italic leading-relaxed opacity-80">"{targetUser?.profile?.bio || 'Creative Artist in the Zone.'}"</p>
                                                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 pt-2">
                                                       <div className="flex items-center gap-2 text-zinc-500">
                                                           <BriefcaseIcon className="w-4 h-4 text-red-600 opacity-60" />
@@ -585,10 +625,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             <GalleryIcon className="w-6 h-6 text-zinc-600" />
-                                            <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-[0.4em] font-display">Gallery</h4>
+                                            <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-[0.4em] font-display">Artifacts</h4>
                                         </div>
                                         <div className="h-px bg-white/5 flex-1 mx-8 hidden md:block"></div>
-                                        <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Posts</span>
+                                        <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Entries</span>
                                     </div>
                                     <div className="columns-2 sm:columns-3 gap-3 md:gap-4 no-scrollbar">
                                         {userPosts.map((post, i) => (
@@ -612,7 +652,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         )}
                     </div>
 
-                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5 pb-[env(safe-area-inset-bottom)]">
+                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5">
                         <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Zone Protocol v4.0</p>
                     </div>
                 </motion.div>

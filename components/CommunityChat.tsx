@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useUser } from '@clerk/clerk-react';
+import { useUser, useClerk } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
@@ -88,6 +88,7 @@ export const CommunityChat: React.FC<{
   onOpenPost?: (postId: string, commentId?: string) => void;
 }> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, onThreadStateChange, forceSearchTab, onSearchTabConsumed, onOpenPost }) => {
   const { user: clerkUser, isSignedIn } = useUser();
+  const { signOut } = useClerk();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [isGlobal, setIsGlobal] = useState(false); 
@@ -98,6 +99,7 @@ export const CommunityChat: React.FC<{
   const [inputValue, setInputValue] = useState('');
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false); 
   const [friendsList, setFriendsList] = useState<string[]>([]);
+  const [followingList, setFollowingList] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
@@ -161,6 +163,7 @@ export const CommunityChat: React.FC<{
 
     if (clerkUser) {
         onValue(ref(db, `social/${clerkUser.id}/friends`), (snap) => setFriendsList(snap.exists() ? Object.keys(snap.val()) : []));
+        onValue(ref(db, `social/${clerkUser.id}/following`), (snap) => setFollowingList(snap.exists() ? Object.keys(snap.val()) : []));
         onValue(ref(db, `users/${clerkUser.id}/unread`), (snap) => setUnreadCounts(snap.val() || {}));
         onValue(ref(db, `notifications/${clerkUser.id}`), (snap) => {
             const data = snap.val() || {};
@@ -234,6 +237,11 @@ export const CommunityChat: React.FC<{
     return friendsList.includes(selectedUser.id) || selectedUser.username === OWNER_HANDLE;
   }, [selectedUser, friendsList]);
 
+  const isFollowed = useMemo(() => {
+      if (!selectedUser) return false;
+      return followingList.includes(selectedUser.id);
+  }, [selectedUser, followingList]);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser || !inputValue.trim() || localSettings.blocked) return;
@@ -271,6 +279,11 @@ export const CommunityChat: React.FC<{
           alert("Authority Immunity: This member cannot be blocked.");
           return;
       }
+      if (key === 'locked' && !isFollowed && !isSelectedFriend) {
+          alert("Clearance Denied: You must follow or be friends with this member to lock the thread.");
+          return;
+      }
+
       const val = !localSettings[key];
       await update(ref(db, `users/${clerkUser.id}/chat_settings/${selectedUser.id}`), { [key]: val });
       setLocalSettings({ ...localSettings, [key]: val });
@@ -299,15 +312,11 @@ export const CommunityChat: React.FC<{
   };
 
   const handlePasscodeReset = async () => {
-      const confirmed = window.confirm("Security Protocol: Verification required to reset vault. Continue?");
+      const confirmed = window.confirm("Excessive failed attempts. Security protocol engaged. You must re-authenticate your session via Email login to reset your vault passcode.");
       if (confirmed) {
-          const newCode = prompt("IDENTITY VALIDATED. Enter a new 4-digit passcode:");
-          if (newCode && /^\d{4}$/.test(newCode)) {
-              await set(ref(db, `users/${clerkUser?.id}/chat_passcode`), newCode);
-              if (vaultPasscodeModalOpen) setIsVaultUnlocked(true);
-              else setPasscodeVerified(true);
-              setPasscodeErrorCount(0); setShowResetFlow(false); setVaultPasscodeModalOpen(false); setPasscodeInput('');
-          }
+          localStorage.setItem('fez_passcode_reset_pending', 'true');
+          await signOut();
+          window.location.reload();
       }
   };
 
@@ -317,6 +326,14 @@ export const CommunityChat: React.FC<{
       const currentCode = myUserSnap.val()?.chat_passcode;
       
       if (currentCode) {
+          const shouldRelock = window.confirm("Hide locked accounts again?");
+          if (shouldRelock) {
+              setIsVaultUnlocked(false);
+              setPasscodeVerified(false);
+              alert("Vault secured. Locked threads are now hidden.");
+              return;
+          }
+
           const old = prompt("Identity Check: Enter your current 4-digit passcode to proceed:");
           if (old === null) return;
           if (old !== currentCode) { alert("Verification Denied: Incorrect current passcode."); return; }
@@ -356,15 +373,15 @@ export const CommunityChat: React.FC<{
           return users.filter(u => u.username?.toLowerCase().includes(sidebarSearchQuery.toLowerCase())).map(maskUser);
       }
       const pool = inboxView === 'primary' 
-        ? users.filter(u => friendsList.includes(u.id) || u.username === OWNER_HANDLE || u.id === clerkUser?.id)
-        : users.filter(u => unreadCounts[u.id] > 0 && !friendsList.includes(u.id));
+        ? users.filter(u => friendsList.includes(u.id) || followingList.includes(u.id) || u.username === OWNER_HANDLE || u.id === clerkUser?.id)
+        : users.filter(u => unreadCounts[u.id] > 0 && !friendsList.includes(u.id) && !followingList.includes(u.id));
       
       return pool.map(maskUser).filter(u => {
           const isLocked = allChatSettings[u.id]?.locked;
           if (isLocked) return isVaultUnlocked;
           return true;
       });
-  }, [users, sidebarTab, inboxView, sidebarSearchQuery, friendsList, clerkUser?.id, isOwner, unreadCounts, allChatSettings, isVaultUnlocked]);
+  }, [users, sidebarTab, inboxView, sidebarSearchQuery, friendsList, followingList, clerkUser?.id, isOwner, unreadCounts, allChatSettings, isVaultUnlocked]);
 
   const targetRealUser = useMemo(() => {
       if (!selectedUser) return null;
@@ -449,7 +466,7 @@ export const CommunityChat: React.FC<{
 
                             {!sidebarSearchQuery && (
                                 <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
-                                    <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
+                                    <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-6 h-6" /></div>
                                     <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
                                 </button>
                             )}
@@ -685,36 +702,39 @@ export const CommunityChat: React.FC<{
                          </div>
 
                          <div className="space-y-6 text-left">
-                            <div className="space-y-3">
-                               <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Privacy Controls</p>
-                               <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
-                                  <button onClick={() => toggleSetting('locked')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
-                                     <div className="flex items-center gap-3 text-zinc-300"><Lock size={16} /><span className="text-[10px] font-bold uppercase">Lock Thread</span></div>
-                                     <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.locked ? 'bg-red-600' : 'bg-zinc-800'}`}>
-                                        <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.locked ? 'left-5' : 'left-1'}`}></div>
-                                     </div>
-                                  </button>
-                                  
-                                  {currentUserData?.chat_passcode ? (
-                                    <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
-                                       <div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div>
-                                       <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
-                                    </button>
-                                  ) : (
-                                    <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all border-b border-white/5 group">
-                                       <div className="flex items-center gap-3 text-red-500 group-hover:text-red-400"><Plus size={16} /><span className="text-[10px] font-bold uppercase">Setup Passcode</span></div>
-                                       <ChevronRightIcon className="w-4 h-4 text-red-900" />
-                                    </button>
-                                  )}
+                            {/* Privacy Controls only for Friends/Following - Hidden in Requests View */}
+                            {(isSelectedFriend || isFollowed) && inboxView !== 'requests' && (
+                                <div className="space-y-3">
+                                   <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Privacy Controls</p>
+                                   <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
+                                      <button onClick={() => toggleSetting('locked')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                         <div className="flex items-center gap-3 text-zinc-300"><Lock size={16} /><span className="text-[10px] font-bold uppercase">Lock Thread</span></div>
+                                         <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.locked ? 'bg-red-600' : 'bg-zinc-800'}`}>
+                                            <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.locked ? 'left-5' : 'left-1'}`}></div>
+                                         </div>
+                                      </button>
+                                      
+                                      {currentUserData?.chat_passcode ? (
+                                        <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                           <div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div>
+                                           <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
+                                        </button>
+                                      ) : (
+                                        <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all border-b border-white/5 group">
+                                           <div className="flex items-center gap-3 text-red-500 group-hover:text-red-400"><Plus size={16} /><span className="text-[10px] font-bold uppercase">Setup Passcode</span></div>
+                                           <ChevronRightIcon className="w-4 h-4 text-red-900" />
+                                        </button>
+                                      )}
 
-                                  <button onClick={() => toggleSetting('muted')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
-                                     <div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Channel</span></div>
-                                     <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.muted ? 'bg-red-600' : 'bg-zinc-800'}`}>
-                                        <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.muted ? 'left-5' : 'left-1'}`}></div>
-                                     </div>
-                                  </button>
-                               </div>
-                            </div>
+                                      <button onClick={() => toggleSetting('muted')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
+                                         <div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Channel</span></div>
+                                         <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.muted ? 'bg-red-600' : 'bg-zinc-800'}`}>
+                                            <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.muted ? 'left-5' : 'left-1'}`}></div>
+                                         </div>
+                                      </button>
+                                   </div>
+                                </div>
+                            )}
 
                             <div className="space-y-3">
                                <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Safety</p>
