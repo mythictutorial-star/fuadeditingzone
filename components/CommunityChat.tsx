@@ -221,7 +221,6 @@ export const CommunityChat: React.FC<{
       }
   }, [passcodeInput]);
 
-  // Aggressive focus helpers
   useEffect(() => {
     if ((localSettings.locked && !passcodeVerified && !isGlobal && selectedUser) || vaultPasscodeModalOpen) {
         const timer = setTimeout(() => {
@@ -273,6 +272,15 @@ export const CommunityChat: React.FC<{
     finally { setIsMediaUploading(false); }
   };
 
+  const handlePasscodeReset = async () => {
+      const confirmed = window.confirm("Security Protocol engaged: 5 failed attempts. To maintain absolute vault integrity, you must re-authenticate your account via Email login to reset your passcode.");
+      if (confirmed) {
+          localStorage.setItem('fez_passcode_reset_pending', 'true');
+          await signOut();
+          window.location.reload();
+      }
+  };
+
   const toggleSetting = async (key: string) => {
       if (!clerkUser || !selectedUser) return;
       if (key === 'blocked' && (selectedUser.username === OWNER_HANDLE || selectedUser.username === ADMIN_HANDLE)) {
@@ -280,10 +288,9 @@ export const CommunityChat: React.FC<{
           return;
       }
       if (key === 'locked' && !isFollowed && !isSelectedFriend) {
-          alert("Clearance Denied: You must follow or be friends with this member to lock the thread.");
+          alert("Access Denied: You must follow or be friends with this member to lock the thread.");
           return;
       }
-
       const val = !localSettings[key];
       await update(ref(db, `users/${clerkUser.id}/chat_settings/${selectedUser.id}`), { [key]: val });
       setLocalSettings({ ...localSettings, [key]: val });
@@ -295,8 +302,8 @@ export const CommunityChat: React.FC<{
       if (passcodeInput === code) { setPasscodeVerified(true); setPasscodeErrorCount(0); setPasscodeInput(''); }
       else {
           const errors = passcodeErrorCount + 1; setPasscodeErrorCount(errors); setPasscodeInput('');
-          if (errors >= 5) setShowResetFlow(true);
-          else alert(`Incorrect code. Attempt ${errors}/5`);
+          if (errors >= 5) handlePasscodeReset();
+          else alert(`Incorrect identity code. Attempt ${errors}/5`);
       }
   };
 
@@ -306,17 +313,8 @@ export const CommunityChat: React.FC<{
       if (passcodeInput === code) { setIsVaultUnlocked(true); setVaultPasscodeModalOpen(false); setPasscodeErrorCount(0); setPasscodeInput(''); }
       else {
           const errors = passcodeErrorCount + 1; setPasscodeErrorCount(errors); setPasscodeInput('');
-          if (errors >= 5) setShowResetFlow(true);
-          else alert(`Incorrect code. Attempt ${errors}/5`);
-      }
-  };
-
-  const handlePasscodeReset = async () => {
-      const confirmed = window.confirm("Excessive failed attempts. Security protocol engaged. You must re-authenticate your session via Email login to reset your vault passcode.");
-      if (confirmed) {
-          localStorage.setItem('fez_passcode_reset_pending', 'true');
-          await signOut();
-          window.location.reload();
+          if (errors >= 5) handlePasscodeReset();
+          else alert(`Incorrect identity code. Attempt ${errors}/5`);
       }
   };
 
@@ -324,46 +322,32 @@ export const CommunityChat: React.FC<{
       if (!clerkUser) return;
       const myUserSnap = await get(ref(db, `users/${clerkUser.id}`));
       const currentCode = myUserSnap.val()?.chat_passcode;
-      
       if (currentCode) {
           const shouldRelock = window.confirm("Hide locked accounts again?");
-          if (shouldRelock) {
-              setIsVaultUnlocked(false);
-              setPasscodeVerified(false);
-              alert("Vault secured. Locked threads are now hidden.");
-              return;
-          }
-
-          const old = prompt("Identity Check: Enter your current 4-digit passcode to proceed:");
+          if (shouldRelock) { setIsVaultUnlocked(false); setPasscodeVerified(false); alert("Vault Secured."); return; }
+          const old = prompt("Identity Check: Enter current passcode:");
           if (old === null) return;
-          if (old !== currentCode) { alert("Verification Denied: Incorrect current passcode."); return; }
+          if (old !== currentCode) { alert("Access Denied."); return; }
       }
-
-      const next = prompt(currentCode ? "Verification Approved. Enter your new 4-digit passcode:" : "Secure Vault: Setup a new 4-digit passcode for locked threads:");
+      const next = prompt("Enter NEW 4-digit passcode:");
       if (next && next.length === 4 && /^\d+$/.test(next)) {
           await set(ref(db, `users/${clerkUser.id}/chat_passcode`), next);
-          alert("Security protocol updated: Passcode active.");
-      } else if (next !== null) {
-          alert("Invalid Input: Passcode must be exactly 4 digits.");
+          alert("Passcode Updated.");
       }
   };
 
   const openChat = (user: ChatUser | null) => {
-      setIsDetailsOpen(false); setPasscodeVerified(false); setPasscodeInput(''); setPasscodeErrorCount(0); setShowResetFlow(false);
-      if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }
-      else { setIsGlobal(false); setSelectedUser(user); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.GROUP_GUEST); }
+      setIsDetailsOpen(false); setPasscodeVerified(false); setPasscodeInput(''); setPasscodeErrorCount(0);
+      if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); }
+      else { setIsGlobal(false); setSelectedUser(user); setIsMobileChatOpen(true); }
   };
 
   const navigateToProfile = (userId: string, username: string) => {
-    const handle = username.toLowerCase();
-    window.history.pushState(null, '', `/@${handle}`);
-    onShowProfile?.(userId, handle);
+    onShowProfile?.(userId, username.toLowerCase());
   };
 
   const maskUser = (u: ChatUser) => {
-      if (u.username === RESTRICTED_HANDLE && !isOwner) {
-          return { ...u, name: "Community Member", username: "guest", avatar: undefined };
-      }
+      if (u.username === RESTRICTED_HANDLE && !isOwner) { return { ...u, name: "Community Member", username: "guest", avatar: undefined }; }
       return u;
   };
 
@@ -388,9 +372,7 @@ export const CommunityChat: React.FC<{
       return users.find(u => u.id === selectedUser.id) || selectedUser;
   }, [users, selectedUser]);
 
-  const currentUserData = useMemo(() => {
-      return users.find(u => u.id === clerkUser?.id);
-  }, [users, clerkUser?.id]);
+  const currentUserData = useMemo(() => users.find(u => u.id === clerkUser?.id), [users, clerkUser?.id]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-black font-sans">
@@ -398,26 +380,24 @@ export const CommunityChat: React.FC<{
         <nav className="hidden lg:flex flex-col items-center py-10 gap-10 w-20 border-r border-white/5 bg-black flex-shrink-0">
             <button onClick={onBack} className="hover:scale-110 transition-transform"><img src={siteConfig.branding.logoUrl} className="w-8 h-8" alt="" /></button>
             <button onClick={() => { setIsActivityOpen(false); setIsMobileChatOpen(false); setIsDetailsOpen(false); }} className={`p-3 rounded-2xl ${!isActivityOpen && !selectedUser ? 'bg-white text-black' : 'text-zinc-500'}`}><HomeIcon className="w-6 h-6" /></button>
-            <button onClick={() => { setIsActivityOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }} className={`p-3 rounded-2xl ${isActivityOpen ? 'bg-white text-black' : 'text-zinc-500'}`}><Bell className="w-6 h-6" /></button>
+            <button onClick={() => { setIsActivityOpen(true); }} className={`p-3 rounded-2xl ${isActivityOpen ? 'bg-white text-black' : 'text-zinc-500'}`}><Bell className="w-6 h-6" /></button>
             <button onClick={() => onNavigateMarket()} className="p-3 rounded-2xl text-zinc-500"><MarketIcon className="w-6 h-6" /></button>
         </nav>
 
         <div className="flex-1 flex flex-row overflow-hidden relative">
             <aside className={`${isMobileChatOpen || isActivityOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[320px] flex-col flex-shrink-0 bg-black border-r border-white/5 min-h-0`}>
-                <div className="p-6 space-y-6 flex-shrink-0">
+                <div className="p-6 pb-0 space-y-6 flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-xl font-black text-white lowercase">{(clerkUser?.username || 'user')}</h2>
-                        </div>
+                        <div className="flex items-center gap-3"><h2 className="text-xl font-black text-white lowercase">{(clerkUser?.username || 'user')}</h2></div>
                         <button onClick={() => setSidebarTab(sidebarTab === 'search' ? 'messages' : 'search')} className={`transition-all ${sidebarTab === 'search' ? 'text-red-600 rotate-90 scale-110' : 'text-white hover:text-red-500'}`}><SearchIcon className="w-5 h-5" /></button>
                     </div>
                     {sidebarTab === 'search' ? (
-                        <div className="flex items-center gap-2 animate-fade-in">
-                            <button onClick={() => { setSidebarTab('messages'); setSidebarSearchQuery(''); }} className="p-2 bg-white/5 rounded-xl text-zinc-400 hover:text-white transition-colors"><ChevronLeftIcon className="w-5 h-5" /></button>
-                            <input autoFocus value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Search by name..." className="flex-1 bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-[10px] outline-none focus:ring-1 focus:ring-red-600/30" />
+                        <div className="flex items-center gap-2 pb-6">
+                            <button onClick={() => { setSidebarTab('messages'); setSidebarSearchQuery(''); }} className="p-2 bg-white/5 rounded-xl text-zinc-400"><ChevronLeftIcon className="w-5 h-5" /></button>
+                            <input autoFocus value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Search..." className="flex-1 bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-[10px] outline-none" />
                         </div>
                     ) : (
-                        <div className="flex gap-6 border-b border-white/5">
+                        <div className="flex gap-6">
                             <button onClick={() => setInboxView('primary')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all ${inboxView === 'primary' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Primary</button>
                             <button onClick={() => setInboxView('requests')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${inboxView === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Requests {filteredUsers.length > 0 && inboxView === 'requests' && <span className="ml-1 bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full">{filteredUsers.length}</span>}</button>
                         </div>
@@ -426,81 +406,44 @@ export const CommunityChat: React.FC<{
 
                 <div className="flex-1 relative flex flex-col min-h-0">
                     <motion.div 
-                        drag="y"
-                        dragConstraints={{ top: 0, bottom: 100 }}
-                        onDrag={(e, info) => {
-                           if (inboxView === 'primary' && sidebarTab === 'messages' && !isVaultUnlocked) {
-                               setPullProgress(info.offset.y);
-                               setIsPulling(true);
-                           }
-                        }}
-                        onDragEnd={(e, info) => {
-                           if (info.offset.y > 70) {
-                               setVaultPasscodeModalOpen(true);
-                           }
-                           setPullProgress(0);
-                           setIsPulling(false);
-                        }}
+                        drag="y" dragConstraints={{ top: 0, bottom: 100 }}
+                        onDrag={(e, info) => { if (inboxView === 'primary' && sidebarTab === 'messages' && !isVaultUnlocked) { setPullProgress(info.offset.y); setIsPulling(true); } }}
+                        onDragEnd={(e, info) => { if (info.offset.y > 70) setVaultPasscodeModalOpen(true); setPullProgress(0); setIsPulling(false); }}
                         className="flex-1 flex flex-col min-h-0"
                     >
-                        {/* Pull-to-reveal area */}
-                        <motion.div 
-                           style={{ height: pullProgress, opacity: pullProgress / 80 }}
-                           className="flex items-center justify-center overflow-hidden bg-white/[0.02]"
-                        >
-                           <div className={`transition-all duration-300 ${pullProgress > 60 ? 'scale-110 text-red-600 drop-shadow-[0_0_8px_red]' : 'scale-90 text-zinc-700'}`}>
-                              <LockKeyhole size={28} />
-                           </div>
+                        <motion.div style={{ height: pullProgress, opacity: pullProgress / 80 }} className="flex items-center justify-center overflow-hidden bg-white/[0.02]">
+                           <div className={`transition-all duration-300 ${pullProgress > 60 ? 'scale-110 text-red-600 drop-shadow-[0_0_8px_red]' : 'scale-90 text-zinc-700'}`}><LockKeyhole size={28} /></div>
                         </motion.div>
 
-                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-1 overscroll-contain">
+                        <div className="flex-1 overflow-y-auto no-scrollbar overscroll-contain">
                             {isVaultUnlocked && (
                                 <div className="bg-red-600/5 border-y border-white/5 p-4 flex items-center justify-between animate-fade-in">
-                                    <div className="flex items-center gap-2">
-                                        <LockKeyhole size={14} className="text-red-600" />
-                                        <span className="text-[10px] font-black text-white uppercase tracking-widest">Archive Unlocked</span>
-                                    </div>
+                                    <div className="flex items-center gap-2"><LockKeyhole size={14} className="text-red-600" /><span className="text-[10px] font-black text-white uppercase tracking-widest">Archive Unlocked</span></div>
                                     <button onClick={() => setIsVaultUnlocked(false)} className="text-[8px] font-black text-zinc-500 uppercase tracking-widest hover:text-white border border-white/10 px-2 py-1 rounded">Lock Hub</button>
                                 </div>
                             )}
 
                             {!sidebarSearchQuery && (
                                 <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
-                                    <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-6 h-6" /></div>
+                                    <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
                                     <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
                                 </button>
                             )}
                             
                             {filteredUsers.map(u => {
-                                const isBlocked = localSettings.blocked && selectedUser?.id === u.id;
-                                if (isBlocked) return null;
+                                if (localSettings.blocked && selectedUser?.id === u.id) return null;
                                 const isItemLocked = allChatSettings[u.id]?.locked;
-                                
                                 return (
-                                    <button 
-                                        key={u.id} 
-                                        onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} 
-                                        className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'} ${isItemLocked ? 'bg-red-600/[0.03]' : ''}`}
-                                    >
+                                    <button key={u.id} onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'} ${isItemLocked ? 'bg-red-600/[0.03]' : ''}`}>
                                         <UserAvatar user={u} className="w-12 h-12" />
                                         <div className="text-left flex-1 min-w-0">
                                             <div className="flex items-center gap-1">
                                                 <p className="text-sm font-bold text-white truncate">{u.name}</p>
                                                 <VerificationBadge username={u.username} custom_badge={u.custom_badge} viewer={clerkUser?.username} />
-                                                {isItemLocked && (
-                                                   <span 
-                                                      onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(true); }}
-                                                      className="ml-auto flex items-center justify-center w-6 h-6 bg-red-600 text-white rounded-lg border border-red-500 active:scale-90 transition-transform shadow-lg shadow-red-600/20"
-                                                   >
-                                                      <LockKeyhole size={12} />
-                                                   </span>
-                                                )}
                                             </div>
                                             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
                                         </div>
-                                        {unreadCounts[u.id] > 0 && (
-                                            <div className={`w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red] ${isItemLocked && !isVaultUnlocked ? 'hidden' : ''}`}></div>
-                                        )}
+                                        {unreadCounts[u.id] > 0 && <div className={`w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red] ${isItemLocked && !isVaultUnlocked ? 'hidden' : ''}`}></div>}
                                     </button>
                                 );
                             })}
@@ -512,50 +455,21 @@ export const CommunityChat: React.FC<{
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-row min-h-0 bg-black relative`}>
                 <div className="flex-1 flex flex-col min-h-0 relative">
                     {localSettings.locked && !passcodeVerified && !isGlobal && selectedUser ? (
-                        <div 
-                          className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-12 bg-black/60 backdrop-blur-3xl cursor-pointer"
-                          onClick={() => hiddenInputRef.current?.focus()}
-                        >
-                            <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2">
-                                <Lock size={40} />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Thread Encryption</h3>
-                                <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest leading-relaxed opacity-60 max-w-xs mx-auto">Security clearance required for this conversation.</p>
-                            </div>
-                            
+                        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-12 bg-black/60 backdrop-blur-3xl cursor-pointer" onClick={() => hiddenInputRef.current?.focus()}>
+                            <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2"><Lock size={40} /></div>
+                            <div><h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Thread Encryption</h3><p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest leading-relaxed opacity-60 max-w-xs mx-auto">Security clearance required.</p></div>
                             <div className="relative">
-                                <div className="flex gap-6 items-center">
-                                    {[...Array(4)].map((_, i) => (
-                                        <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>
-                                    ))}
-                                </div>
-                                <input 
-                                    ref={hiddenInputRef}
-                                    type="tel"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    maxLength={4}
-                                    value={passcodeInput}
-                                    onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
-                                    className="absolute inset-0 opacity-0 cursor-default h-full w-full"
-                                    autoFocus
-                                />
+                                <div className="flex gap-6 items-center">{[...Array(4)].map((_, i) => (<div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>))}</div>
+                                <input ref={hiddenInputRef} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={passcodeInput} onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))} className="absolute inset-0 opacity-0 cursor-default h-full w-full" autoFocus />
                             </div>
-
-                            {showResetFlow && (
-                                <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
-                                    <KeyRound size={14}/> Recovery Hub
-                                </button>
-                            )}
-                            
+                            <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"><KeyRound size={14}/> Recovery Hub</button>
                             <button onClick={(e) => { e.stopPropagation(); setIsMobileChatOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Return to Feed</button>
                         </div>
                     ) : isActivityOpen ? (
                         <div className="flex-1 flex flex-col h-full bg-black">
-                            <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0">
+                            <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between flex-shrink-0">
                                 <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
-                                <button onClick={() => setIsActivityOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors"><CloseIcon className="w-6 h-6 text-white" /></button>
+                                <button onClick={() => setIsActivityOpen(false)} className="p-2 hover:bg-white/5 rounded-full"><CloseIcon className="w-6 h-6 text-white" /></button>
                             </div>
                             <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
                                 {notifications.length === 0 ? <div className="h-full flex flex-col items-center justify-center opacity-20"><p className="text-sm uppercase font-black tracking-[0.5em]">No Activity</p></div> : notifications.map(n => (
@@ -567,10 +481,7 @@ export const CommunityChat: React.FC<{
                             </div>
                         </div>
                     ) : !selectedUser && !isGlobal ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-20 text-center">
-                            <ChatBubbleIcon className="w-16 h-16 mb-6" />
-                            <p className="text-xs uppercase font-black tracking-widest">Open a channel to connect</p>
-                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-20 text-center"><ChatBubbleIcon className="w-16 h-16 mb-6" /><p className="text-xs uppercase font-black tracking-widest">Open a channel to connect</p></div>
                     ) : (
                         <div className="flex-1 flex flex-col min-h-0 h-full">
                             <div className="p-4 md:p-6 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl z-10 px-2.5">
@@ -583,85 +494,32 @@ export const CommunityChat: React.FC<{
                                                 <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1 group-hover:text-red-500 transition-colors">{isGlobal ? 'Global Feed' : (targetRealUser?.username || selectedUser?.username)?.toLowerCase()}</h3>
                                                 {!isGlobal && <VerificationBadge username={targetRealUser?.username || selectedUser?.username} custom_badge={targetRealUser?.custom_badge} viewer={clerkUser?.username} />}
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${isGlobal || (targetRealUser?.online) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div>
-                                                <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
-                                                  {isGlobal ? 'Open Public Network' : (targetRealUser?.online ? 'Online' : `Online ${getTimeAgo(targetRealUser?.lastActive)}`)}
-                                                </p>
-                                            </div>
+                                            <div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${isGlobal || (targetRealUser?.online) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div><p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">{isGlobal ? 'Open Public Network' : (targetRealUser?.online ? 'Online' : `Online ${getTimeAgo(targetRealUser?.lastActive)}`)}</p></div>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    {!isGlobal && (
-                                        <button onClick={() => setIsDetailsOpen(!isDetailsOpen)} className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${isDetailsOpen ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}><Info size={20} /></button>
-                                    )}
-                                </div>
+                                <div className="flex items-center gap-1.5">{!isGlobal && (<button onClick={() => setIsDetailsOpen(!isDetailsOpen)} className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${isDetailsOpen ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}><Info size={20} /></button>)}</div>
                             </div>
-
                             <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2.5 pb-10 pt-6 space-y-8">
                                 {messages.map((m, i) => {
                                     const isMe = m.senderId === clerkUser?.id;
-                                    const isMsgRestricted = m.senderUsername === RESTRICTED_HANDLE && !isOwner;
-                                    const currentSender = users.find(u => u.id === m.senderId);
-                                    const sender = isMsgRestricted 
-                                        ? { name: 'Community Member', username: 'guest', avatar: undefined } 
-                                        : { 
-                                            name: currentSender?.name || m.senderName || 'Guest', 
-                                            username: currentSender?.username || m.senderUsername || 'guest', 
-                                            avatar: currentSender?.avatar || m.senderAvatar,
-                                            custom_badge: currentSender?.custom_badge
-                                          };
-                                    
+                                    const sender = users.find(u => u.id === m.senderId) || { name: m.senderName, username: m.senderUsername, avatar: m.senderAvatar };
                                     return (
                                         <div key={m.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group`}>
-                                            <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username!); }} />
+                                            <UserAvatar user={sender} className="w-8 h-8" />
                                             <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                                <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username!); }}>
-                                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] group-hover/msg:text-white transition-colors">{sender.username?.toLowerCase()}</span>
-                                                    <VerificationBadge username={sender.username} custom_badge={sender.custom_badge} viewer={clerkUser?.username} />
-                                                </div>
+                                                <div className="flex items-center gap-1.5 mb-1.5 px-1"><span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">{sender.username?.toLowerCase()}</span><VerificationBadge username={sender.username} custom_badge={(sender as any).custom_badge} viewer={clerkUser?.username} /></div>
                                                 <div className={`px-4 py-3 rounded-2xl text-[13px] md:text-sm font-medium leading-relaxed break-all whitespace-pre-wrap shadow-lg ${isMe ? 'bg-red-600 text-white rounded-br-none' : 'bg-zinc-900 text-zinc-200 rounded-bl-none border border-white/5'}`}>{m.text}</div>
                                                 <span className="text-[7px] text-zinc-700 font-black uppercase mt-1.5 tracking-widest">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
                                         </div>
                                     );
                                 })}
-                                
-                                {otherUserTyping && (
-                                    <div className="flex gap-3 items-end animate-fade-in">
-                                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden">
-                                            <div className="flex gap-1">
-                                                <div className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce"></div>
-                                                <div className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                                                <div className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                                            </div>
-                                        </div>
-                                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] italic">typing...</p>
-                                    </div>
-                                )}
                                 <div ref={messagesEndRef} />
                             </div>
-
-                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 ${isMobileChatOpen && (selectedUser || isGlobal) ? 'pb-6 md:pb-6' : 'pb-24 md:pb-6'}`}>
-                                {!isGlobal && !isSelectedFriend ? (
-                                    <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
-                                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] text-center md:text-left">Connection Required</p>
-                                        <button className="w-full md:w-auto bg-red-600 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-600/20">Connect</button>
-                                    </div>
-                                ) : (
-                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto w-full">
-                                        <textarea 
-                                          ref={textareaRef} 
-                                          value={inputValue} 
-                                          onChange={e => handleTyping(e.target.value)} 
-                                          onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
-                                          placeholder="Type a message..." 
-                                          rows={1} 
-                                          className="flex-1 bg-transparent border-none text-sm text-white py-2 px-2 outline-none resize-none max-h-32 min-h-[40px]" 
-                                        />
-                                        <button type="submit" disabled={isMediaUploading || !inputValue.trim() || localSettings.blocked} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20 flex-shrink-0"><SendIcon className="w-5 h-5" /></button>
-                                    </form>
+                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-24 md:pb-6`}>
+                                {!isGlobal && !isSelectedFriend ? (<div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4"><p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Connection Required</p><button className="w-full md:w-auto bg-red-600 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Connect</button></div>) : (
+                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto w-full"><textarea ref={textareaRef} value={inputValue} onChange={e => handleTyping(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-2 px-2 outline-none resize-none max-h-32 min-h-[40px]" /><button type="submit" disabled={isMediaUploading || !inputValue.trim() || localSettings.blocked} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 disabled:opacity-50 flex-shrink-0"><SendIcon className="w-5 h-5" /></button></form>
                                 )}
                             </div>
                         </div>
@@ -670,81 +528,19 @@ export const CommunityChat: React.FC<{
 
                 <AnimatePresence>
                   {isDetailsOpen && selectedUser && !isGlobal && (
-                    <motion.aside 
-                      initial={{ x: '100%', opacity: 0 }} 
-                      animate={{ x: 0, opacity: 1 }} 
-                      exit={{ x: '100%', opacity: 0 }}
-                      className="absolute md:relative right-0 inset-y-0 w-full md:w-[320px] bg-black border-l border-white/5 z-50 flex flex-col overflow-hidden shadow-2xl"
-                    >
-                      <div className="p-6 border-b border-white/5 flex items-center justify-between">
-                         <h2 className="text-xs font-black text-white uppercase tracking-[0.2em]">Details</h2>
-                         <button onClick={() => setIsDetailsOpen(false)} className="p-1 hover:bg-white/5 rounded-full"><CloseIcon className="w-5 h-5 text-zinc-500" /></button>
-                      </div>
+                    <motion.aside initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }} className="absolute md:relative right-0 inset-y-0 w-full md:w-[320px] bg-black border-l border-white/5 z-50 flex flex-col overflow-hidden shadow-2xl">
+                      <div className="p-6 border-b border-white/5 flex items-center justify-between"><h2 className="text-xs font-black text-white uppercase tracking-[0.2em]">Details</h2><button onClick={() => setIsDetailsOpen(false)} className="p-1 hover:bg-white/5 rounded-full"><CloseIcon className="w-5 h-5 text-zinc-500" /></button></div>
                       <div className="flex-1 overflow-y-auto no-scrollbar p-8 text-center space-y-10">
-                         <div className="flex flex-col items-center gap-4">
-                            <div className="w-24 h-24 rounded-full border-2 border-red-600 p-1">
-                                <img src={targetRealUser?.avatar || selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
-                            </div>
-                            <div>
-                               <div className="flex items-center justify-center gap-1">
-                                  <h3 className="text-lg font-black text-white uppercase tracking-tighter">{targetRealUser?.name || selectedUser.name}</h3>
-                                  <VerificationBadge username={targetRealUser?.username || selectedUser.username} custom_badge={targetRealUser?.custom_badge} viewer={clerkUser?.username} />
-                               </div>
-                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{ (targetRealUser?.username || selectedUser.username)?.toLowerCase() }</p>
-                            </div>
-                            <div className="mt-2 px-4 py-1.5 bg-white/5 rounded-lg border border-white/10">
-                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">Role</p>
-                                <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">
-                                  {targetRealUser?.username === OWNER_HANDLE ? 'Selected Legend' : (targetRealUser?.username === ADMIN_HANDLE ? 'VFX Admin' : 'Community Member')}
-                                </p>
-                            </div>
-                            <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">View Profile</button>
-                         </div>
-
+                         <div className="flex flex-col items-center gap-4"><div className="w-24 h-24 rounded-full border-2 border-red-600 p-1"><img src={targetRealUser?.avatar || selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" /></div><div><div className="flex items-center justify-center gap-1"><h3 className="text-lg font-black text-white uppercase tracking-tighter">{targetRealUser?.name || selectedUser.name}</h3><VerificationBadge username={targetRealUser?.username || selectedUser.username} custom_badge={targetRealUser?.custom_badge} viewer={clerkUser?.username} /></div><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{(targetRealUser?.username || selectedUser.username)?.toLowerCase()}</p></div><button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">View Profile</button></div>
                          <div className="space-y-6 text-left">
-                            {/* Privacy Controls only for Friends/Following - Hidden in Requests View */}
                             {(isSelectedFriend || isFollowed) && inboxView !== 'requests' && (
-                                <div className="space-y-3">
-                                   <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Privacy Controls</p>
-                                   <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
-                                      <button onClick={() => toggleSetting('locked')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
-                                         <div className="flex items-center gap-3 text-zinc-300"><Lock size={16} /><span className="text-[10px] font-bold uppercase">Lock Thread</span></div>
-                                         <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.locked ? 'bg-red-600' : 'bg-zinc-800'}`}>
-                                            <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.locked ? 'left-5' : 'left-1'}`}></div>
-                                         </div>
-                                      </button>
-                                      
-                                      {currentUserData?.chat_passcode ? (
-                                        <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
-                                           <div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div>
-                                           <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
-                                        </button>
-                                      ) : (
-                                        <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all border-b border-white/5 group">
-                                           <div className="flex items-center gap-3 text-red-500 group-hover:text-red-400"><Plus size={16} /><span className="text-[10px] font-bold uppercase">Setup Passcode</span></div>
-                                           <ChevronRightIcon className="w-4 h-4 text-red-900" />
-                                        </button>
-                                      )}
-
-                                      <button onClick={() => toggleSetting('muted')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
-                                         <div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Channel</span></div>
-                                         <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.muted ? 'bg-red-600' : 'bg-zinc-800'}`}>
-                                            <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.muted ? 'left-5' : 'left-1'}`}></div>
-                                         </div>
-                                      </button>
-                                   </div>
-                                </div>
+                                <div className="space-y-3"><p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Privacy Controls</p><div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
+                                  <button onClick={() => toggleSetting('locked')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5"><div className="flex items-center gap-3 text-zinc-300"><Lock size={16} /><span className="text-[10px] font-bold uppercase">Lock Thread</span></div><div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.locked ? 'bg-red-600' : 'bg-zinc-800'}`}><div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.locked ? 'left-5' : 'left-1'}`}></div></div></button>
+                                  <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5"><div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div><ChevronRightIcon className="w-4 h-4 text-zinc-700" /></button>
+                                  <button onClick={() => toggleSetting('muted')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all"><div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Channel</span></div><div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.muted ? 'bg-red-600' : 'bg-zinc-800'}`}><div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.muted ? 'left-5' : 'left-1'}`}></div></div></button>
+                                </div></div>
                             )}
-
-                            <div className="space-y-3">
-                               <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Safety</p>
-                               <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
-                                  <button onClick={() => toggleSetting('blocked')} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all text-red-500">
-                                     <div className="flex items-center gap-3"><ShieldAlert size={16} /><span className="text-[10px] font-bold uppercase">Block User</span></div>
-                                     <Slash size={14} className={`transition-opacity ${localSettings.blocked ? 'opacity-100' : 'opacity-30'}`} />
-                                  </button>
-                               </div>
-                            </div>
+                            <div className="space-y-3"><p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Safety</p><div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden"><button onClick={() => toggleSetting('blocked')} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all text-red-500"><div className="flex items-center gap-3"><ShieldAlert size={16} /><span className="text-[10px] font-bold uppercase">Block User</span></div><Slash size={14} className={`transition-opacity ${localSettings.blocked ? 'opacity-100' : 'opacity-30'}`} /></button></div></div>
                          </div>
                       </div>
                     </motion.aside>
@@ -754,54 +550,9 @@ export const CommunityChat: React.FC<{
         </div>
       </div>
 
-      {/* Vault Passcode Modal */}
       <AnimatePresence>
         {vaultPasscodeModalOpen && (
-          <div className="fixed inset-0 z-[6000000] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVaultPasscodeModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }} 
-              animate={{ scale: 1, opacity: 1 }} 
-              exit={{ scale: 0.9, opacity: 0 }} 
-              className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12 cursor-pointer"
-              onClick={() => vaultHiddenInputRef.current?.focus()}
-            >
-               <div className="w-20 h-20 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2">
-                   <Lock size={32} />
-               </div>
-               <div>
-                   <h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Locked Hub</h3>
-                   <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest opacity-60">Identity verification required to reveal hidden threads.</p>
-               </div>
-
-               <div className="relative">
-                    <div className="flex gap-6 items-center">
-                        {[...Array(4)].map((_, i) => (
-                            <div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>
-                        ))}
-                    </div>
-                    <input 
-                        ref={vaultHiddenInputRef}
-                        type="tel"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={4}
-                        value={passcodeInput}
-                        onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
-                        className="absolute inset-0 opacity-0 cursor-default h-full w-full"
-                        autoFocus
-                    />
-               </div>
-
-               {showResetFlow && (
-                   <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
-                       <KeyRound size={14}/> Recovery Hub
-                   </button>
-               )}
-
-               <button onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button>
-            </motion.div>
-          </div>
+          <div className="fixed inset-0 z-[6000000] flex items-center justify-center p-6"><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVaultPasscodeModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" /><motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12 cursor-pointer" onClick={() => vaultHiddenInputRef.current?.focus()}><div className="w-20 h-20 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2"><Lock size={32} /></div><div><h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Locked Hub</h3><p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest opacity-60">Identity verification required.</p></div><div className="relative"><div className="flex gap-6 items-center">{[...Array(4)].map((_, i) => (<div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>))}</div><input ref={vaultHiddenInputRef} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={passcodeInput} onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))} className="absolute inset-0 opacity-0 cursor-default h-full w-full" autoFocus /></div><button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"><KeyRound size={14}/> Recovery Hub</button><button onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button></motion.div></div>
         )}
       </AnimatePresence>
     </div>

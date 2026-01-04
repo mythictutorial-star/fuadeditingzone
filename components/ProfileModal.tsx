@@ -200,13 +200,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const handleAction = async (type: 'follow' | 'friend') => {
         if (!clerkUser || !viewingUserId) return;
 
-        // Relationship modification requires passcode verification if already connected
+        // Relation modification: Unfollow/Unfriend requires identity check
         const myUserSnap = await get(ref(db, `users/${clerkUser.id}`));
         const myPasscode = myUserSnap.val()?.chat_passcode;
         const isRemoving = (type === 'follow' && socialState.isFollowing) || (type === 'friend' && socialState.friendStatus === 'accepted');
 
         if (isRemoving && myPasscode) {
-            const code = prompt("Security check: Enter your 4-digit passcode to modify this relationship:");
+            const code = prompt("Identity Check: Enter your 4-digit passcode to modify this relationship:");
             if (code === null) return;
             if (code !== myPasscode) {
                 alert("Authorization Denied: Incorrect passcode.");
@@ -229,10 +229,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             }
         } else {
             if (socialState.friendStatus === 'accepted') {
-                if (window.confirm(`Remove @${(targetUser?.username || '').toLowerCase()} from friends?`)) {
+                if (window.confirm(`Unfriend @${(targetUser?.username || '').toLowerCase()}?`)) {
                     await remove(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`));
                     await remove(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`));
-                    // When unfriend, we also stop following typically
                     await remove(ref(db, `social/${clerkUser.id}/following/${viewingUserId}`));
                     await remove(ref(db, `social/${viewingUserId}/followers/${clerkUser.id}`));
                 }
@@ -271,11 +270,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         const currentCode = targetUser?.chat_passcode;
         
         if (currentCode) {
-            // Updated behavior: Hide accounts again check
-            const shouldRelock = window.confirm("Security Alert: Hide locked profiles and threads again?");
+            const shouldRelock = window.confirm("Security Alert: Hide locked profiles and conversations again?");
             if (shouldRelock) {
-                // To "re-hide", we essentially reload or clear local verification states
-                alert("Vault re-locked. Locked content is now hidden again.");
+                alert("Vault Secured: Locked content is now hidden.");
                 window.location.reload(); 
                 return;
             }
@@ -294,68 +291,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         }
     };
 
-    const handleAdminAction = async () => {
-        if (!isOwner && !isAdmin) return;
-        const action = prompt("ADMIN CONSOLE: (1) Lock Account (2) Add Warning (3) Clear All (4) Give Badge (5) Remove Badge");
-        if (action === '1') {
-            const hours = prompt("Lock for how many hours?");
-            if (hours) {
-                const expiry = Date.now() + (parseInt(hours) * 3600000);
-                await update(ref(db, `users/${currentProfileId}`), { lockedUntil: expiry });
-                await push(ref(db, `notifications/${currentProfileId}`), {
-                    type: 'security_alert',
-                    text: `CRITICAL: Your account has been locked for ${hours} hours by the moderation team.`,
-                    timestamp: Date.now(),
-                    read: false,
-                    fromName: 'Security Hub'
-                });
-                alert("Account locked.");
-            }
-        } else if (action === '2') {
-            const msg = prompt("Enter warning message:");
-            if (msg) {
-                await update(ref(db, `users/${currentProfileId}`), { 
-                    warning: { message: msg, timestamp: Date.now() } 
-                });
-                await push(ref(db, `notifications/${currentProfileId}`), {
-                    type: 'security_warning',
-                    text: `WARNING: You have received a formal warning: "${msg}". Please follow community guidelines.`,
-                    timestamp: Date.now(),
-                    read: false,
-                    fromName: 'Moderation'
-                });
-                alert("Warning added.");
-            }
-        } else if (action === '3') {
-            await update(ref(db, `users/${currentProfileId}`), { lockedUntil: null, warning: null });
-            await push(ref(db, `notifications/${currentProfileId}`), {
-                type: 'security_info',
-                text: `NOTICE: All restrictions on your account have been lifted.`,
-                timestamp: Date.now(),
-                read: false,
-                fromName: 'System'
-            });
-            alert("Statuses cleared.");
-        } else if (action === '4') {
-            setIsBadgePickerOpen(true);
-        } else if (action === '5') {
-            await update(ref(db, `users/${currentProfileId}`), { custom_badge: null });
-            alert("Badge removed.");
-        }
-    };
-
-    const applyBadge = async (colorHex: string) => {
-        if (!isOwner && !isAdmin) return;
-        await update(ref(db, `users/${currentProfileId}`), { custom_badge: { color: colorHex, active: true } });
-        setIsBadgePickerOpen(false);
-        alert("Badge applied successfully.");
-    };
-
+    // Define handleSwitchToOtherProfile to fix "Cannot find name" errors
     const handleSwitchToOtherProfile = (userId: string, username?: string) => {
-        if (onShowProfile) {
-            onShowProfile(userId, username);
-            setUserListMode(null);
-        }
+        setUserListMode(null);
+        onShowProfile?.(userId, username);
     };
 
     const getVerifiedBadge = (u: string, custom?: any) => {
@@ -391,30 +330,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     if (!isLoaded || !clerkUser || !isOpen) return null;
 
-    if (isJiya && !hasAccessToJiya) {
-        return (
-            <AnimatePresence>
-                <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/98 backdrop-blur-3xl" />
-                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full h-full bg-[#050505] flex flex-col items-center justify-center p-10 text-center">
-                        <button onClick={onClose} className="absolute top-8 right-8 p-3 bg-white/5 rounded-full text-white hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6" /></button>
-                        <div className="w-32 h-32 md:w-48 md:h-48 rounded-[3rem] border-4 border-white/5 p-1 mb-8">
-                            <img src={targetUser?.avatar} className="w-full h-full object-cover rounded-[2.8rem] opacity-30 grayscale" alt="" />
-                        </div>
-                        <div className="flex items-center gap-2 mb-4">
-                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">@{targetUsername}</h2>
-                        </div>
-                        <div className="bg-red-600/10 border border-red-600/30 p-8 rounded-[2.5rem] max-w-sm w-full">
-                            <Lock className="w-10 h-10 text-red-600 mx-auto mb-4" />
-                            <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Private Account</h3>
-                            <p className="text-zinc-500 text-xs leading-relaxed">Only @fuadeditingzone has authorization to view this profile and its content.</p>
-                        </div>
-                    </motion.div>
-                </div>
-            </AnimatePresence>
-        );
-    }
-
     const isLocked = targetUser?.lockedUntil && targetUser.lockedUntil > Date.now();
     const hasWarning = !!targetUser?.warning;
 
@@ -426,9 +341,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                    initial={{ opacity: 0, y: 30 }} 
                    animate={{ opacity: 1, y: 0 }} 
                    exit={{ opacity: 0, y: 30 }} 
-                   className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl"
+                   className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl safe-area-padding"
                    style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}
                 >
+                    {/* Header */}
                     <div className="p-5 md:p-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
                         <div className="flex items-center gap-4">
                             <button onClick={() => { if (userListMode) setUserListMode(null); else if (showSecurity) setShowSecurity(false); else onClose(); }} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
@@ -440,9 +356,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            {(isOwner || isAdmin) && !isMyOwnProfile && (
-                                <button onClick={handleAdminAction} className="p-2.5 bg-yellow-600/10 rounded-xl border border-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white transition-all"><ShieldAlert size={20} /></button>
-                            )}
                             {!showSecurity && isMyOwnProfile && (
                                 <button onClick={() => setShowSecurity(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-all"><ShieldCheck size={20} /></button>
                             )}
@@ -465,30 +378,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             </div>
                         )}
 
-                        {hasWarning && (
-                            <div className="bg-yellow-600/10 border-b border-yellow-600/30 p-4 text-center flex flex-col items-center justify-center gap-1 shadow-inner sticky top-0 z-40 backdrop-blur-md">
-                                <div className="flex items-center gap-2 text-yellow-500">
-                                    <AlertTriangle size={14} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Community Warning</span>
-                                </div>
-                                <p className="text-[11px] md:text-sm text-zinc-200 font-medium italic">"{targetUser.warning.message}"</p>
-                            </div>
-                        )}
-
                         {showSecurity ? (
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-10">
                                 <div className="space-y-0">
                                     <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1 mb-4">Vault Authentication</h4>
-                                    
                                     {!targetUser?.chat_passcode && (
-                                        <button 
-                                            onClick={handlePasscodeSetupOrChange}
-                                            className="w-full flex items-center justify-between p-6 bg-red-600/5 border border-red-600/20 rounded-2xl hover:bg-red-600/10 transition-all group"
-                                        >
+                                        <button onClick={handlePasscodeSetupOrChange} className="w-full flex items-center justify-between p-6 bg-red-600/5 border border-red-600/20 rounded-2xl hover:bg-red-600/10 transition-all group">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20">
-                                                    <Plus size={24} />
-                                                </div>
+                                                <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><Plus size={24} /></div>
                                                 <div className="text-left">
                                                     <p className="text-sm font-black text-white uppercase tracking-widest">Setup Vault Passcode</p>
                                                     <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Access Restricted Content</p>
@@ -497,16 +394,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             <ArrowRight size={16} className="text-zinc-600" />
                                         </button>
                                     )}
-
                                     {targetUser?.chat_passcode && (
-                                        <button 
-                                            onClick={handlePasscodeSetupOrChange}
-                                            className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
-                                        >
+                                        <button onClick={handlePasscodeSetupOrChange} className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20">
-                                                    <KeyRound size={24} />
-                                                </div>
+                                                <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><KeyRound size={24} /></div>
                                                 <div className="text-left">
                                                     <p className="text-sm font-black text-white uppercase tracking-widest">Change Passcode</p>
                                                     <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Active Protection Layer</p>
@@ -519,12 +410,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                         </button>
                                     )}
                                 </div>
-                                <div className="space-y-4 pt-10 border-t border-white/5">
-                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Identity Hub</h4>
-                                    <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">"MODIFICATION NOTICE: Changing relationships or revealing locked content requires absolute identity verification via your encrypted passcode."</p>
-                                    </div>
-                                </div>
                             </div>
                         ) : userListMode ? (
                             <div className="p-6 md:p-16 max-w-4xl mx-auto space-y-6">
@@ -536,13 +421,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                         {resolvedUserList.map(u => (
                                             <div key={u.id} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl group hover:bg-white/10 transition-all">
                                                 <div className="flex items-center gap-4 cursor-pointer min-w-0" onClick={() => handleSwitchToOtherProfile(u.id, u.username)}>
-                                                    <img src={u.avatar} className="w-14 h-14 rounded-full object-cover border border-white/10 shadow-xl" alt="" />
+                                                    <img src={u.avatar} className="w-14 h-14 rounded-full object-cover border border-white/10" alt="" />
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-1">
                                                             <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{(u.username || '').toLowerCase()}</p>
                                                             {getVerifiedBadge(u.username, u.custom_badge)}
                                                         </div>
-                                                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Member'}</p>
+                                                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Designer'}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
@@ -591,43 +476,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             <button onClick={() => setUserListMode('followers')} className="text-center md:text-left hover:opacity-80 transition-all group"><p className="text-xl md:text-3xl font-black text-white leading-none group-hover:text-red-500">{socialState.followers.length}</p><p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Followers</p></button>
                                             <button onClick={() => setUserListMode('following')} className="text-center md:text-left hover:opacity-80 transition-all group"><p className="text-xl md:text-3xl font-black text-white leading-none group-hover:text-red-500">{socialState.following.length}</p><p className="text-[9px] md:text-[10px] text-zinc-500 uppercase font-black tracking-widest mt-1">Following</p></button>
                                         </div>
-                                        <div className="space-y-4">
-                                            {isEditing ? (
-                                                <div className="space-y-4 max-w-lg">
-                                                    <input value={editData.name || ''} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Display Name" className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white font-bold text-base md:text-lg outline-none focus:border-red-600" />
-                                                    <textarea value={editData.profile?.bio || ''} onChange={e => setEditData({...editData, profile: {...editData.profile, bio: e.target.value}})} placeholder="Identity description..." className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-zinc-400 text-xs md:text-sm italic outline-none h-24 resize-none" />
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div className="relative"><GlobeAltIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"/><input value={editData.profile?.origin} onChange={e => setEditData({...editData, profile: {...editData.profile, origin: e.target.value}})} placeholder="Zone Origin" className="w-full bg-black border border-white/10 pl-9 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-600"/></div>
-                                                        <div className="relative"><BriefcaseIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600"/><input value={editData.profile?.profession} onChange={e => setEditData({...editData, profile: {...editData.profile, profession: e.target.value}})} placeholder="Creative Role" className="w-full bg-black border border-white/10 pl-9 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-600"/></div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                  <p className="text-lg md:text-2xl font-black text-white uppercase tracking-tight leading-none">{targetUser?.name || clerkUser.fullName}</p>
-                                                  <p className="text-zinc-400 text-sm md:text-lg font-medium italic leading-relaxed opacity-80">"{targetUser?.profile?.bio || 'Creative Artist in the Zone.'}"</p>
-                                                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 pt-2">
-                                                      <div className="flex items-center gap-2 text-zinc-500">
-                                                          <BriefcaseIcon className="w-4 h-4 text-red-600 opacity-60" />
-                                                          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUsername === OWNER_HANDLE ? 'Selected Legend' : targetUsername === ADMIN_HANDLE ? 'VFX Admin' : targetUser?.profile?.profession || 'Designer'}</span>
-                                                      </div>
-                                                      <div className="flex items-center gap-2 text-zinc-500">
-                                                          <GlobeAltIcon className="w-4 h-4 text-red-600 opacity-60" />
-                                                          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUser?.profile?.origin || 'Earth'}</span>
-                                                      </div>
-                                                  </div>
-                                                </div>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
-
                                 <div className="space-y-10 pt-12 border-t border-white/10">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
                                             <GalleryIcon className="w-6 h-6 text-zinc-600" />
                                             <h4 className="text-lg md:text-2xl font-black text-white uppercase tracking-[0.4em] font-display">Artifacts</h4>
                                         </div>
-                                        <div className="h-px bg-white/5 flex-1 mx-8 hidden md:block"></div>
                                         <span className="text-[10px] md:text-xs font-black text-zinc-600 uppercase tracking-widest">{userPosts.length} Entries</span>
                                     </div>
                                     <div className="columns-2 sm:columns-3 gap-3 md:gap-4 no-scrollbar">
@@ -640,7 +496,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 )}
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center backdrop-blur-[2px]">
                                                     <div className="flex gap-8 text-sm font-black text-white uppercase tracking-widest scale-90 group-hover:scale-100 transition-all">
-                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500 drop-shadow-[0_0_8px_rgba(220,38,38,0.5)]"></i> {Object.keys(post.likes || {}).length}</span>
+                                                        <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-heart text-red-500"></i> {Object.keys(post.likes || {}).length}</span>
                                                         <span className="flex items-center gap-2 text-white"><i className="fa-solid fa-comment text-white/50"></i> {Object.keys(post.comments || {}).length}</span>
                                                     </div>
                                                 </div>
@@ -651,41 +507,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             </div>
                         )}
                     </div>
-
-                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5">
-                        <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Zone Protocol v4.0</p>
-                    </div>
                 </motion.div>
             </div>
-
-            {/* Badge Picker Modal */}
-            <AnimatePresence>
-                {isBadgePickerOpen && (
-                    <div className="fixed inset-0 z-[5000000] flex items-center justify-center p-4">
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsBadgePickerOpen(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#0d0d0d] border border-white/10 rounded-[2rem] p-8 max-w-sm w-full shadow-3xl text-center">
-                            <Palette className="w-12 h-12 text-red-600 mx-auto mb-6" />
-                            <h3 className="text-xl font-black text-white uppercase tracking-widest mb-2">Verification Seal</h3>
-                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-8">Select Badge Identity Color</p>
-                            
-                            <div className="grid grid-cols-2 gap-3 mb-10">
-                                {BADGE_COLORS.map(color => (
-                                    <button 
-                                        key={color.hex} 
-                                        onClick={() => applyBadge(color.hex)}
-                                        className="p-4 bg-white/5 border border-white/5 rounded-xl flex items-center gap-3 hover:bg-white/10 transition-all group"
-                                    >
-                                        <div className="w-4 h-4 rounded-full border border-white/20 shadow-lg" style={{ backgroundColor: color.hex }}></div>
-                                        <span className="text-[10px] font-black text-white uppercase tracking-tight opacity-60 group-hover:opacity-100">{color.name}</span>
-                                    </button>
-                                ))}
-                            </div>
-                            
-                            <button onClick={() => setIsBadgePickerOpen(false)} className="text-[10px] font-black text-zinc-600 uppercase tracking-widest hover:text-white transition-colors">Discard Changes</button>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </AnimatePresence>
     );
 };
