@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser, SignIn } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, onValue, limitToLast, query, get, update, push, set, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, onValue, limitToLast, query, get, update, push, set, remove, onDisconnect } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
 import type { GraphicWork, VideoWork, ModalItem } from './hooks/types';
 import { siteConfig } from './config';
@@ -40,13 +40,6 @@ const db = getDatabase(app);
 const OWNER_HANDLE = 'fuadeditingzone';
 const RESTRICTED_HANDLE = 'jiya';
 
-const updateSEO = (title: string, desc: string, image?: string) => {
-  if ((window as any).updatePortalMetadata) {
-    const absoluteImg = image ? (image.startsWith('http') ? image : window.location.origin + image) : undefined;
-    (window as any).updatePortalMetadata(title, desc, absoluteImg);
-  }
-};
-
 export default function App() {
   const { isSignedIn, user, isLoaded } = useUser();
   const [route, setRoute] = useState<'home' | 'marketplace' | 'community'>(
@@ -72,26 +65,41 @@ export default function App() {
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
   const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
 
+  // Presence Logic
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
-        const hasWiped = localStorage.getItem('fez_overhaul_v1');
-        if (!hasWiped) {
-            remove(ref(db, `notifications/${user.id}`)).then(() => {
-                localStorage.setItem('fez_overhaul_v1', 'true');
-            });
+      const userRef = ref(db, `users/${user.id}`);
+      const connectedRef = ref(db, '.info/connected');
+      
+      const unsub = onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+          onDisconnect(userRef).update({ 
+            online: false, 
+            lastActive: Date.now() 
+          });
+          update(userRef, { 
+            online: true, 
+            lastActive: Date.now(),
+            id: user.id,
+            name: user.fullName || user.username,
+            username: (user.username || user.firstName || 'user').toLowerCase(),
+            avatar: user.imageUrl
+          });
         }
+      });
+
+      return () => unsub();
     }
   }, [isLoaded, isSignedIn, user]);
 
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
-      const userRef = ref(db, `users/${user.id}`);
-      get(userRef).then((snapshot) => {
-        const currentData = snapshot.val();
-        if (!currentData || currentData.username !== (user.username || user.firstName || 'user').toLowerCase()) {
-          update(userRef, { id: user.id, name: user.fullName || user.username, username: (user.username || user.firstName || 'user').toLowerCase(), avatar: user.imageUrl, lastActive: Date.now() });
+        const hasWiped = localStorage.getItem('fez_overhaul_v2');
+        if (!hasWiped) {
+            remove(ref(db, `notifications/${user.id}`)).then(() => {
+                localStorage.setItem('fez_overhaul_v2', 'true');
+            });
         }
-      });
     }
   }, [isLoaded, isSignedIn, user]);
 

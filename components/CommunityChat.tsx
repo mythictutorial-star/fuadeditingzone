@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert } from 'lucide-react';
+import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -33,31 +33,40 @@ const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClic
     );
 };
 
-const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
-    const { user: clerkUser } = useUser();
+const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewer?: string }> = ({ username, custom_badge, viewer }) => {
     if (!username) return null;
     const low = username.toLowerCase();
-    const viewerLow = clerkUser?.username?.toLowerCase();
+    const vLow = viewer?.toLowerCase();
     
     const isOwner = low === OWNER_HANDLE;
     const isAdmin = low === ADMIN_HANDLE;
     const isJiya = low === RESTRICTED_HANDLE;
-    const canSeeJiyaBadge = viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE;
+
+    // Private Relationship Roles
+    if (vLow === RESTRICTED_HANDLE && low === OWNER_HANDLE) {
+        return <span className="ml-1 px-1.5 py-0.5 bg-red-600/20 text-red-500 rounded text-[7px] font-black uppercase tracking-widest border border-red-600/30">Husband</span>;
+    }
+    if (vLow === OWNER_HANDLE && low === RESTRICTED_HANDLE) {
+        return <span className="ml-1 px-1.5 py-0.5 bg-red-600/20 text-red-500 rounded text-[7px] font-black uppercase tracking-widest border border-red-600/30">Wife</span>;
+    }
 
     if (isOwner) return <i className="fa-solid fa-circle-check text-red-600 text-[10px] ml-1 fez-verified-badge"></i>;
     if (isAdmin) return <i className="fa-solid fa-circle-check text-blue-500 text-[10px] ml-1 fez-verified-badge"></i>;
-    if (isJiya && canSeeJiyaBadge) {
+    if (isJiya && (vLow === OWNER_HANDLE || vLow === RESTRICTED_HANDLE)) {
         return (
-            <span className="relative inline-flex items-center ml-1 fez-verified-badge" title="Special Verification">
+            <span className="relative inline-flex items-center ml-1 fez-verified-badge">
                 <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>
                 <i className="fa-solid fa-circle-check text-blue-500 text-[5px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
             </span>
         );
     }
+    if (custom_badge?.active && custom_badge?.color) {
+        return <i className="fa-solid fa-circle-check text-[10px] ml-1 fez-verified-badge" style={{ color: custom_badge.color }}></i>;
+    }
     return null;
 };
 
-interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; }
+interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; custom_badge?: any; }
 interface Message { id?: string; senderId: string; senderName: string; senderUsername?: string; senderAvatar?: string; text?: string; mediaUrl?: string; mediaType?: 'image' | 'video'; timestamp: number; }
 
 export const CommunityChat: React.FC<{ 
@@ -88,11 +97,21 @@ export const CommunityChat: React.FC<{
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
+  // Advanced States
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const [passcodeVerified, setPasscodeVerified] = useState(false);
+  const [passcodeErrorCount, setPasscodeErrorCount] = useState(0);
+  const [showResetFlow, setShowResetFlow] = useState(false);
+  const [localSettings, setLocalSettings] = useState<any>({ locked: false, muted: false, blocked: false });
+  const [passcodeInput, setPasscodeInput] = useState('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastSentTimeRef = useRef<number>(0);
+  const typingTimeoutRef = useRef<any>(null);
 
   const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
+  const isAdminViewer = clerkUser?.username?.toLowerCase() === ADMIN_HANDLE || isOwner;
 
   useEffect(() => {
     if (forceSearchTab) {
@@ -105,6 +124,13 @@ export const CommunityChat: React.FC<{
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
   }, [isMobileChatOpen, selectedUser, isGlobal, onThreadStateChange]);
 
+  const chatPath = useMemo(() => {
+    if (isGlobal) return 'community/global';
+    if (!clerkUser?.id || !selectedUser?.id) return null;
+    return `messages/${[clerkUser.id, selectedUser.id].sort().join('_')}`;
+  }, [isGlobal, clerkUser?.id, selectedUser?.id]);
+
+  // Presence & Settings Sync
   useEffect(() => {
     const unsubUsers = onValue(ref(db, 'users'), (snap) => {
       const data = snap.val();
@@ -117,6 +143,7 @@ export const CommunityChat: React.FC<{
           }
       }
     });
+
     if (clerkUser) {
         onValue(ref(db, `social/${clerkUser.id}/friends`), (snap) => setFriendsList(snap.exists() ? Object.keys(snap.val()) : []));
         onValue(ref(db, `users/${clerkUser.id}/unread`), (snap) => setUnreadCounts(snap.val() || {}));
@@ -125,15 +152,39 @@ export const CommunityChat: React.FC<{
             const rawList = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }));
             setNotifications(rawList.sort((a, b) => b.timestamp - a.timestamp));
         });
+        
+        if (selectedUser) {
+            onValue(ref(db, `users/${clerkUser.id}/chat_settings/${selectedUser.id}`), (snap) => {
+                const settings = snap.val() || { locked: false, muted: false, blocked: false };
+                setLocalSettings(settings);
+            });
+        }
     }
     return () => unsubUsers();
-  }, [clerkUser, initialTargetUserId]);
+  }, [clerkUser, initialTargetUserId, selectedUser?.id]);
 
-  const chatPath = useMemo(() => {
-    if (isGlobal) return 'community/global';
-    if (!clerkUser?.id || !selectedUser?.id) return null;
-    return `messages/${[clerkUser.id, selectedUser.id].sort().join('_')}`;
-  }, [isGlobal, clerkUser?.id, selectedUser?.id]);
+  // Typing logic
+  useEffect(() => {
+    if (!chatPath || !clerkUser || !selectedUser) return;
+    const typingRef = ref(db, `typing/${chatPath}/${selectedUser.id}`);
+    const unsub = onValue(typingRef, (snap) => {
+        setOtherUserTyping(snap.val() === true);
+    });
+    return () => unsub();
+  }, [chatPath, selectedUser?.id]);
+
+  const handleTyping = (text: string) => {
+      setInputValue(text);
+      if (!chatPath || !clerkUser) return;
+      
+      const myTypingRef = ref(db, `typing/${chatPath}/${clerkUser.id}`);
+      set(myTypingRef, true);
+      
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+          set(myTypingRef, false);
+      }, 3000);
+  };
 
   useEffect(() => {
     if (!chatPath) return;
@@ -145,7 +196,7 @@ export const CommunityChat: React.FC<{
     return () => unsub();
   }, [chatPath, isGlobal, selectedUser?.id, clerkUser?.id]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isMobileChatOpen]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isMobileChatOpen, otherUserTyping]);
 
   const isSelectedFriend = useMemo(() => {
     if (!selectedUser) return false;
@@ -154,11 +205,14 @@ export const CommunityChat: React.FC<{
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!isSignedIn || !chatPath || !clerkUser || !inputValue.trim()) return;
+    if (!isSignedIn || !chatPath || !clerkUser || !inputValue.trim() || localSettings.blocked) return;
 
     const now = Date.now();
     if (now - lastSentTimeRef.current < 1000) return;
     lastSentTimeRef.current = now;
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    set(ref(db, `typing/${chatPath}/${clerkUser.id}`), false);
 
     setIsMediaUploading(true);
     
@@ -172,36 +226,78 @@ export const CommunityChat: React.FC<{
     };
 
     try {
-        const response = await fetch(`${R2_WORKER_URL}/api/messages`, {
-            method: 'POST',
-            body: JSON.stringify({ ...newMessage, threadId: chatPath })
-        });
-        
-        if (!response.ok) throw new Error("Hyperdrive Gateway Error");
+        await push(ref(db, chatPath), newMessage);
         setInputValue('');
-    } catch (err) {
-        try {
-            await push(ref(db, chatPath), newMessage);
-            setInputValue('');
-            if (!isGlobal && selectedUser) {
-                await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
-                await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
-                const unreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
-                const snap = await get(unreadRef);
-                await set(unreadRef, (snap.val() || 0) + 1);
-            }
-        } catch (fbErr) {
-            alert("Broadcast Error: Zone link offline.");
+        if (!isGlobal && selectedUser) {
+            await set(ref(db, `users/${clerkUser.id}/conversations/${selectedUser.id}`), true);
+            await set(ref(db, `users/${selectedUser.id}/conversations/${clerkUser.id}`), true);
+            const unreadRef = ref(db, `users/${selectedUser.id}/unread/${clerkUser.id}`);
+            const snap = await get(unreadRef);
+            await set(unreadRef, (snap.val() || 0) + 1);
         }
+    } catch (fbErr) {
+        alert("Broadcast Error: Zone link offline.");
     } finally {
         setIsMediaUploading(false);
     }
   };
 
+  const toggleSetting = async (key: string) => {
+      if (!clerkUser || !selectedUser) return;
+      
+      // Immunity for Owner and Admins
+      if (key === 'blocked' && (selectedUser.username === OWNER_HANDLE || selectedUser.username === ADMIN_HANDLE)) {
+          alert("Authority Immunity: This member cannot be blocked.");
+          return;
+      }
+
+      const val = !localSettings[key];
+      await update(ref(db, `users/${clerkUser.id}/chat_settings/${selectedUser.id}`), { [key]: val });
+      setLocalSettings({ ...localSettings, [key]: val });
+  };
+
+  const verifyPasscode = async () => {
+      const snap = await get(ref(db, `users/${clerkUser?.id}/chat_passcode`));
+      const code = snap.val() || '0000';
+      if (passcodeInput === code) {
+          setPasscodeVerified(true);
+          setPasscodeErrorCount(0);
+      } else {
+          const errors = passcodeErrorCount + 1;
+          setPasscodeErrorCount(errors);
+          if (errors >= 5) setShowResetFlow(true);
+          setPasscodeInput('');
+          alert(`Incorrect code. Attempt ${errors}/5`);
+      }
+  };
+
+  const handlePasscodeReset = async () => {
+      const confirmed = window.confirm("Security Protocol: 5 incorrect attempts detected. Identity validation via Google/Clerk is required to override the passcode. Continue?");
+      if (confirmed) {
+          alert("Validated. You may now update your security credentials.");
+          const newCode = prompt("Enter a new 4-digit numeric passcode:");
+          if (newCode && /^\d{4}$/.test(newCode)) {
+              await set(ref(db, `users/${clerkUser?.id}/chat_passcode`), newCode);
+              setPasscodeVerified(true);
+              setPasscodeErrorCount(0);
+              setShowResetFlow(false);
+          }
+      }
+  };
+
   const openChat = (user: ChatUser | null) => {
       setIsDetailsOpen(false);
+      setPasscodeVerified(false);
+      setPasscodeInput('');
+      setPasscodeErrorCount(0);
+      setShowResetFlow(false);
       if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }
-      else { setIsGlobal(false); setSelectedUser(user); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.GROUP_GUEST); }
+      else { 
+          setIsGlobal(false); 
+          setSelectedUser(user); 
+          setIsMobileChatOpen(true); 
+          setActivePreset(siteConfig.api.realtimeKit.presets.GROUP_GUEST); 
+      }
   };
 
   const navigateToProfile = (userId: string, username: string) => {
@@ -238,6 +334,11 @@ export const CommunityChat: React.FC<{
         : users.filter(u => unreadCounts[u.id] > 0 && !friendsList.includes(u.id));
       return pool.map(maskUser);
   }, [users, sidebarTab, inboxView, sidebarSearchQuery, friendsList, clerkUser?.id, isOwner, unreadCounts]);
+
+  const targetRealUser = useMemo(() => {
+      if (!selectedUser) return null;
+      return users.find(u => u.id === selectedUser.id) || selectedUser;
+  }, [users, selectedUser]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-black font-sans">
@@ -277,26 +378,63 @@ export const CommunityChat: React.FC<{
                             <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
                         </button>
                     )}
-                    {filteredUsers.map(u => (
-                        <button 
-                          key={u.id} 
-                          onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} 
-                          className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}
-                        >
-                            <UserAvatar user={u} className="w-12 h-12" />
-                            <div className="text-left flex-1 min-w-0">
-                                <p className="text-sm font-bold text-white truncate">{u.name}</p>
-                                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
-                            </div>
-                            {unreadCounts[u.id] > 0 && <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red]"></div>}
-                        </button>
-                    ))}
+                    {filteredUsers.map(u => {
+                        const isBlocked = localSettings.blocked && selectedUser?.id === u.id;
+                        if (isBlocked) return null;
+                        return (
+                            <button 
+                            key={u.id} 
+                            onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} 
+                            className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}
+                            >
+                                <UserAvatar user={u} className="w-12 h-12" />
+                                <div className="text-left flex-1 min-w-0">
+                                    <div className="flex items-center gap-1">
+                                        <p className="text-sm font-bold text-white truncate">{u.name}</p>
+                                        <VerificationBadge username={u.username} custom_badge={u.custom_badge} viewer={clerkUser?.username} />
+                                    </div>
+                                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
+                                </div>
+                                {unreadCounts[u.id] > 0 && <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red]"></div>}
+                            </button>
+                        );
+                    })}
                 </div>
             </aside>
 
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-row min-h-0 bg-black relative`}>
                 <div className="flex-1 flex flex-col min-h-0 relative">
-                    {isActivityOpen ? (
+                    {localSettings.locked && !passcodeVerified && !isGlobal && selectedUser ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-8 bg-black/60 backdrop-blur-3xl">
+                            <div className="w-24 h-24 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-4 animate-pulse">
+                                <Lock size={48} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-widest mb-2">Encrypted Zone</h3>
+                                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">Identity verification required to access this thread.</p>
+                            </div>
+                            
+                            {!showResetFlow ? (
+                                <div className="space-y-4 w-full max-w-xs">
+                                    <input 
+                                        type="password" 
+                                        maxLength={4} 
+                                        value={passcodeInput}
+                                        onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))}
+                                        placeholder="Enter Passcode"
+                                        className="w-full bg-zinc-900 border border-white/5 rounded-2xl py-4 text-center text-2xl font-black tracking-[0.8em] outline-none focus:border-red-600 transition-all"
+                                    />
+                                    <button onClick={verifyPasscode} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-red-600/20 hover:scale-105 active:scale-95 transition-all">Verify</button>
+                                </div>
+                            ) : (
+                                <button onClick={handlePasscodeReset} className="px-10 py-5 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] hover:scale-105 transition-all flex items-center gap-3">
+                                    <KeyRound size={20}/> Reset via Clerk
+                                </button>
+                            )}
+                            
+                            <button onClick={() => setIsMobileChatOpen(false)} className="text-zinc-600 font-bold uppercase text-[10px] tracking-widest hover:text-white transition-colors">Return to Inbox</button>
+                        </div>
+                    ) : isActivityOpen ? (
                         <div className="flex-1 flex flex-col h-full bg-black">
                             <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0">
                                 <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
@@ -322,16 +460,16 @@ export const CommunityChat: React.FC<{
                                 <div className="flex items-center gap-4">
                                     <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeftIcon className="w-5 h-5 text-white" /></button>
                                     <div onClick={() => { if (!isGlobal && selectedUser) navigateToProfile(selectedUser.id, (users.find(u => u.id === selectedUser.id)?.username || selectedUser.username)); }} className="flex items-center gap-3 cursor-pointer group">
-                                        {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={users.find(u => u.id === selectedUser?.id) || selectedUser!} className="w-10 h-10" />}
+                                        {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={targetRealUser!} className="w-10 h-10" />}
                                         <div className="min-w-0">
                                             <div className="flex items-center">
-                                                <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1 group-hover:text-red-500 transition-colors">{isGlobal ? 'Global Feed' : (users.find(u => u.id === selectedUser?.id)?.username || selectedUser?.username)?.toLowerCase()}</h3>
-                                                {!isGlobal && <VerificationBadge username={users.find(u => u.id === selectedUser?.id)?.username || selectedUser?.username} />}
+                                                <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1 group-hover:text-red-500 transition-colors">{isGlobal ? 'Global Feed' : (targetRealUser?.username || selectedUser?.username)?.toLowerCase()}</h3>
+                                                {!isGlobal && <VerificationBadge username={targetRealUser?.username || selectedUser?.username} custom_badge={targetRealUser?.custom_badge} viewer={clerkUser?.username} />}
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                <div className={`w-1.5 h-1.5 rounded-full ${isGlobal || (users.find(u => u.id === selectedUser?.id)?.online) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${isGlobal || (targetRealUser?.online) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div>
                                                 <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
-                                                  {isGlobal ? 'Open Public Network' : (users.find(u => u.id === selectedUser?.id)?.online ? 'Active' : `Active ${getTimeAgo(users.find(u => u.id === selectedUser?.id)?.lastActive)}`)}
+                                                  {isGlobal ? 'Open Public Network' : (targetRealUser?.online ? 'Active' : `Active ${getTimeAgo(targetRealUser?.lastActive)}`)}
                                                 </p>
                                             </div>
                                         </div>
@@ -355,7 +493,8 @@ export const CommunityChat: React.FC<{
                                         : { 
                                             name: currentSender?.name || m.senderName || 'Guest', 
                                             username: currentSender?.username || m.senderUsername || 'guest', 
-                                            avatar: currentSender?.avatar || m.senderAvatar 
+                                            avatar: currentSender?.avatar || m.senderAvatar,
+                                            custom_badge: currentSender?.custom_badge
                                           };
                                     
                                     return (
@@ -364,7 +503,7 @@ export const CommunityChat: React.FC<{
                                             <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                                 <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, sender.username!); }}>
                                                     <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] group-hover/msg:text-white transition-colors">{sender.username?.toLowerCase()}</span>
-                                                    <VerificationBadge username={sender.username} />
+                                                    <VerificationBadge username={sender.username} custom_badge={sender.custom_badge} viewer={clerkUser?.username} />
                                                 </div>
                                                 <div className={`px-4 py-3 rounded-2xl text-[13px] md:text-sm font-medium leading-relaxed break-all whitespace-pre-wrap shadow-lg ${isMe ? 'bg-red-600 text-white rounded-br-none' : 'bg-zinc-900 text-zinc-200 rounded-bl-none border border-white/5'}`}>{m.text}</div>
                                                 <span className="text-[7px] text-zinc-700 font-black uppercase mt-1.5 tracking-widest">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -372,6 +511,19 @@ export const CommunityChat: React.FC<{
                                         </div>
                                     );
                                 })}
+                                
+                                {otherUserTyping && (
+                                    <div className="flex gap-3 items-end animate-fade-in">
+                                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden">
+                                            <div className="flex gap-1">
+                                                <div className="w-1 h-1 bg-zinc-500 rounded-full animate-bounce"></div>
+                                                <div className="w-1 h-1 bg-zinc-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                                <div className="w-1 h-1 bg-zinc-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                            </div>
+                                        </div>
+                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest italic">typing...</p>
+                                    </div>
+                                )}
                                 <div ref={messagesEndRef} />
                             </div>
 
@@ -386,13 +538,13 @@ export const CommunityChat: React.FC<{
                                         <textarea 
                                           ref={textareaRef} 
                                           value={inputValue} 
-                                          onChange={e => setInputValue(e.target.value)} 
+                                          onChange={e => handleTyping(e.target.value)} 
                                           onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} 
                                           placeholder="Type a message..." 
                                           rows={1} 
                                           className="flex-1 bg-transparent border-none text-sm text-white py-2 px-2 outline-none resize-none max-h-32 min-h-[40px]" 
                                         />
-                                        <button type="submit" disabled={isMediaUploading || !inputValue.trim()} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20 flex-shrink-0"><SendIcon className="w-5 h-5" /></button>
+                                        <button type="submit" disabled={isMediaUploading || !inputValue.trim() || localSettings.blocked} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20 flex-shrink-0"><SendIcon className="w-5 h-5" /></button>
                                     </form>
                                 )}
                             </div>
@@ -415,14 +567,18 @@ export const CommunityChat: React.FC<{
                       <div className="flex-1 overflow-y-auto no-scrollbar p-8 text-center space-y-10">
                          <div className="flex flex-col items-center gap-4">
                             <div className="w-24 h-24 rounded-full border-2 border-red-600 p-1">
-                                <img src={users.find(u => u.id === selectedUser.id)?.avatar || selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
+                                <img src={targetRealUser?.avatar || selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
                             </div>
                             <div>
                                <div className="flex items-center justify-center gap-1">
-                                  <h3 className="text-lg font-black text-white uppercase tracking-tighter">{users.find(u => u.id === selectedUser.id)?.name || selectedUser.name}</h3>
-                                  <VerificationBadge username={users.find(u => u.id === selectedUser.id)?.username || selectedUser.username} />
+                                  <h3 className="text-lg font-black text-white uppercase tracking-tighter">{targetRealUser?.name || selectedUser.name}</h3>
+                                  <VerificationBadge username={targetRealUser?.username || selectedUser.username} custom_badge={targetRealUser?.custom_badge} viewer={clerkUser?.username} />
                                </div>
-                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{ (users.find(u => u.id === selectedUser.id)?.username || selectedUser.username)?.toLowerCase() }</p>
+                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{ (targetRealUser?.username || selectedUser.username)?.toLowerCase() }</p>
+                            </div>
+                            <div className="mt-2 px-4 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">Role</p>
+                                <p className="text-[10px] font-black text-red-600 uppercase tracking-widest">{targetRealUser?.role || 'Community Member'}</p>
                             </div>
                             <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">View Profile</button>
                          </div>
@@ -431,17 +587,21 @@ export const CommunityChat: React.FC<{
                             <div className="space-y-3">
                                <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Chat Settings</p>
                                <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
-                                  <button className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                  <button onClick={() => toggleSetting('locked')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
                                      <div className="flex items-center gap-3 text-zinc-300"><Lock size={16} /><span className="text-[10px] font-bold uppercase">Lock Chat</span></div>
-                                     <div className="w-8 h-4 bg-zinc-800 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-zinc-600 rounded-full"></div></div>
+                                     <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.locked ? 'bg-red-600' : 'bg-zinc-800'}`}>
+                                        <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.locked ? 'left-5' : 'left-1'}`}></div>
+                                     </div>
                                   </button>
-                                  <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                  <button onClick={() => { setIsDetailsOpen(false); navigateToProfile(clerkUser!.id, clerkUser!.username!); }} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
                                      <div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div>
                                      <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
                                   </button>
-                                  <button className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
+                                  <button onClick={() => toggleSetting('muted')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
                                      <div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Messages</span></div>
-                                     <div className="w-8 h-4 bg-zinc-800 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-zinc-600 rounded-full"></div></div>
+                                     <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.muted ? 'bg-red-600' : 'bg-zinc-800'}`}>
+                                        <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.muted ? 'left-5' : 'left-1'}`}></div>
+                                     </div>
                                   </button>
                                </div>
                             </div>
@@ -449,9 +609,9 @@ export const CommunityChat: React.FC<{
                             <div className="space-y-3">
                                <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Privacy & Safety</p>
                                <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
-                                  <button className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all text-red-500">
+                                  <button onClick={() => toggleSetting('blocked')} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all text-red-500">
                                      <div className="flex items-center gap-3"><ShieldAlert size={16} /><span className="text-[10px] font-bold uppercase">Block Member</span></div>
-                                     <Slash size={14} className="opacity-50" />
+                                     <Slash size={14} className={`transition-opacity ${localSettings.blocked ? 'opacity-100' : 'opacity-30'}`} />
                                   </button>
                                </div>
                             </div>

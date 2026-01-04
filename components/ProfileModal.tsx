@@ -9,7 +9,7 @@ import {
   ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon, LockIcon
 } from './Icons';
 import { siteConfig } from '../config';
-import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock, Palette } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -26,13 +26,15 @@ const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
 
-const NETWORK_CONFIGS: Record<string, { icon: any; baseUrl: string }> = {
-    'Facebook': { icon: FacebookIcon, baseUrl: 'https://facebook.com/' },
-    'Instagram': { icon: InstagramIcon, baseUrl: 'https://instagram.com/' },
-    'YouTube': { icon: YouTubeIcon, baseUrl: 'https://youtube.com/@' },
-    'TikTok': { icon: TikTokIcon, baseUrl: 'https://tiktok.com/@' },
-    'Behance': { icon: BehanceIcon, baseUrl: 'https://behance.net/' }
-};
+const BADGE_COLORS = [
+    { name: 'Classic Red', hex: '#ef4444' },
+    { name: 'Ocean Blue', hex: '#3b82f6' },
+    { name: 'Neon Green', hex: '#22c55e' },
+    { name: 'Luxury Gold', hex: '#eab308' },
+    { name: 'Vibrant Purple', hex: '#a855f7' },
+    { name: 'Deep Pink', hex: '#ec4899' },
+    { name: 'Pure White', hex: '#ffffff' }
+];
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -54,6 +56,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const [showCopyToast, setShowCopyToast] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
     const [lockCountdown, setLockCountdown] = useState<string | null>(null);
+    const [isBadgePickerOpen, setIsBadgePickerOpen] = useState(false);
     
     const [socialState, setSocialState] = useState({ 
       isFollowing: false, 
@@ -66,7 +69,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const isMyOwnProfile = clerkUser?.id === currentProfileId;
     const isViewingOther = !!viewingUserId && !isMyOwnProfile;
 
-    const isJiya = targetUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
+    const targetUsername = (targetUser?.username || '').toLowerCase();
+    const isJiya = targetUsername === RESTRICTED_HANDLE;
     const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
     const isAdmin = clerkUser?.username?.toLowerCase() === ADMIN_HANDLE;
     const hasAccessToJiya = isOwner || clerkUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
@@ -107,7 +111,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     const data = snap.val();
                     if (data) {
                         const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
-                            .sort((a, b) => a.timestamp - b.timestamp);
+                            .sort((a, b) => b.timestamp - a.timestamp);
                         setUserPosts(list);
                     } else {
                         setUserPosts([]);
@@ -247,19 +251,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         }
     };
 
-    const handleCopyProfileLink = () => {
-        const username = (targetUser?.username || clerkUser?.username || currentProfileId).toLowerCase();
-        const url = `${window.location.origin}/@${username}`;
-        navigator.clipboard.writeText(url);
-        setShowCopyToast(true);
-        setTimeout(() => setShowCopyToast(false), 2000);
-    };
-
-    const handleSwitchToOtherProfile = (id: string, username: string) => {
-        onShowProfile?.(id, username.toLowerCase());
-        setUserListMode(null);
-    };
-
     const handleResetPasscode = async () => {
         if (!clerkUser) return;
         const current = targetUser?.chat_passcode;
@@ -278,7 +269,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     const handleAdminAction = async () => {
         if (!isOwner && !isAdmin) return;
-        const action = prompt("ADMIN CONSOLE: (1) Lock Account (2) Add Warning (3) Clear All");
+        const action = prompt("ADMIN CONSOLE: (1) Lock Account (2) Add Warning (3) Clear All (4) Give Badge (5) Remove Badge");
         if (action === '1') {
             const hours = prompt("Lock for how many hours?");
             if (hours) {
@@ -318,18 +309,45 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 fromName: 'System'
             });
             alert("Statuses cleared.");
+        } else if (action === '4') {
+            setIsBadgePickerOpen(true);
+        } else if (action === '5') {
+            await update(ref(db, `users/${currentProfileId}`), { custom_badge: null });
+            alert("Badge removed.");
         }
     };
 
-    const getVerifiedBadge = (u: string) => {
+    const applyBadge = async (colorHex: string) => {
+        if (!isOwner && !isAdmin) return;
+        await update(ref(db, `users/${currentProfileId}`), { custom_badge: { color: colorHex, active: true } });
+        setIsBadgePickerOpen(false);
+        alert("Badge applied successfully.");
+    };
+
+    const handleSwitchToOtherProfile = (userId: string, username?: string) => {
+        if (onShowProfile) {
+            onShowProfile(userId, username);
+            setUserListMode(null);
+        }
+    };
+
+    const getVerifiedBadge = (u: string, custom?: any) => {
         if (!u) return null;
         const low = u.toLowerCase();
-        const viewerLow = clerkUser?.username?.toLowerCase();
+        const vLow = clerkUser?.username?.toLowerCase();
         
+        // Private Relationship Roles
+        if (vLow === RESTRICTED_HANDLE && low === OWNER_HANDLE) {
+            return <span className="ml-1.5 px-2 py-0.5 bg-red-600 text-white rounded text-[8px] font-black uppercase tracking-widest border border-white/20">Husband</span>;
+        }
+        if (vLow === OWNER_HANDLE && low === RESTRICTED_HANDLE) {
+            return <span className="ml-1.5 px-2 py-0.5 bg-red-600 text-white rounded text-[8px] font-black uppercase tracking-widest border border-white/20">Wife</span>;
+        }
+
         if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
         if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
         
-        if (low === RESTRICTED_HANDLE && (viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE)) {
+        if (low === RESTRICTED_HANDLE && (vLow === OWNER_HANDLE || vLow === RESTRICTED_HANDLE)) {
             return (
                 <span className="relative inline-flex items-center ml-1.5 fez-verified-badge">
                     <i className="fa-solid fa-circle-check text-red-600 text-sm md:text-lg"></i>
@@ -337,6 +355,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 </span>
             );
         }
+
+        if (custom?.active && custom?.color) {
+            return <i className="fa-solid fa-circle-check ml-1.5 text-sm md:text-lg fez-verified-badge" style={{ color: custom.color }}></i>;
+        }
+
         return null;
     };
 
@@ -353,7 +376,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             <img src={targetUser?.avatar} className="w-full h-full object-cover rounded-[2.8rem] opacity-30 grayscale" alt="" />
                         </div>
                         <div className="flex items-center gap-2 mb-4">
-                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">@{targetUser?.username?.toLowerCase()}</h2>
+                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">@{targetUsername}</h2>
                         </div>
                         <div className="bg-red-600/10 border border-red-600/30 p-8 rounded-[2.5rem] max-w-sm w-full">
                             <Lock className="w-10 h-10 text-red-600 mx-auto mb-4" />
@@ -381,7 +404,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                 <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest truncate max-w-[200px]">
                                     {showSecurity ? 'Privacy & Security' : (targetUser?.username || clerkUser.username || '').toLowerCase()}
                                 </h2>
-                                {!showSecurity && getVerifiedBadge(targetUser?.username || clerkUser.username)}
+                                {!showSecurity && getVerifiedBadge(targetUser?.username || clerkUser.username, targetUser?.custom_badge)}
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -463,7 +486,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-sm font-black text-white uppercase tracking-tight truncate">@{(u.username || '').toLowerCase()}</p>
-                                                        {getVerifiedBadge(u.username)}
+                                                        {getVerifiedBadge(u.username, u.custom_badge)}
                                                     </div>
                                                     <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest truncate">{u.profile?.profession || 'Designer'}</p>
                                                 </div>
@@ -476,14 +499,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         ) : (
                             <div className="p-8 md:p-16 max-w-5xl mx-auto space-y-8">
                                 <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
-                                    <div className={`w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] md:rounded-[3.5rem] border-2 p-1.5 flex-shrink-0 transition-transform hover:scale-105 duration-500 ${targetUser?.username?.toLowerCase() === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.4)]' : targetUser?.username?.toLowerCase() === ADMIN_HANDLE ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)]' : 'border-white/10'}`}>
+                                    <div className={`w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] md:rounded-[3.5rem] border-2 p-1.5 flex-shrink-0 transition-transform hover:scale-105 duration-500 ${targetUsername === OWNER_HANDLE ? 'border-red-600 shadow-[0_0_30px_rgba(220,38,38,0.4)]' : targetUsername === ADMIN_HANDLE ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.4)]' : 'border-white/10'}`}>
                                         <img src={targetUser?.avatar || clerkUser.imageUrl} className="w-full h-full object-cover rounded-[2.2rem] md:rounded-[3.2rem]" alt="" />
                                     </div>
                                     <div className="flex-1 text-center md:text-left">
                                         <div className="flex flex-col md:flex-row items-center gap-5 mb-5">
                                             <div className="flex items-center gap-2">
                                                 <h3 className="text-2xl md:text-4xl font-black text-white tracking-tighter">@{(targetUser?.username || clerkUser.username || '').toLowerCase()}</h3>
-                                                {getVerifiedBadge(targetUser?.username || clerkUser.username)}
+                                                {getVerifiedBadge(targetUser?.username || clerkUser.username, targetUser?.custom_badge)}
                                             </div>
                                             <div className="flex gap-3">
                                                 {isViewingOther ? (
@@ -515,7 +538,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 pt-2">
                                                       <div className="flex items-center gap-2 text-zinc-500">
                                                           <BriefcaseIcon className="w-4 h-4 text-red-600 opacity-60" />
-                                                          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUser?.profile?.profession || 'Designer'}</span>
+                                                          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUsername === OWNER_HANDLE ? 'Selected Legend' : targetUsername === ADMIN_HANDLE ? 'VFX Admin' : targetUser?.profile?.profession || 'Designer'}</span>
                                                       </div>
                                                       <div className="flex items-center gap-2 text-zinc-500">
                                                           <GlobeAltIcon className="w-4 h-4 text-red-600 opacity-60" />
@@ -564,6 +587,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     </div>
                 </motion.div>
             </div>
+
+            {/* Badge Picker Modal */}
+            <AnimatePresence>
+                {isBadgePickerOpen && (
+                    <div className="fixed inset-0 z-[5000000] flex items-center justify-center p-4">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsBadgePickerOpen(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-[#0d0d0d] border border-white/10 rounded-[2rem] p-8 max-w-sm w-full shadow-3xl text-center">
+                            <Palette className="w-12 h-12 text-red-600 mx-auto mb-6" />
+                            <h3 className="text-xl font-black text-white uppercase tracking-widest mb-2">Verification Seal</h3>
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-8">Select Badge Identity Color</p>
+                            
+                            <div className="grid grid-cols-2 gap-3 mb-10">
+                                {BADGE_COLORS.map(color => (
+                                    <button 
+                                        key={color.hex} 
+                                        onClick={() => applyBadge(color.hex)}
+                                        className="p-4 bg-white/5 border border-white/5 rounded-xl flex items-center gap-3 hover:bg-white/10 transition-all group"
+                                    >
+                                        <div className="w-4 h-4 rounded-full border border-white/20 shadow-lg" style={{ backgroundColor: color.hex }}></div>
+                                        <span className="text-[10px] font-black text-white uppercase tracking-tight opacity-60 group-hover:opacity-100">{color.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            
+                            <button onClick={() => setIsBadgePickerOpen(false)} className="text-[10px] font-black text-zinc-600 uppercase tracking-widest hover:text-white transition-colors">Discard Changes</button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </AnimatePresence>
     );
 };

@@ -23,7 +23,7 @@ const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
 
-const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
+const VerificationBadge: React.FC<{ username?: string; custom_badge?: any }> = ({ username, custom_badge }) => {
     const { user: clerkUser } = useUser();
     if (!username) return null;
     const low = username.toLowerCase();
@@ -43,6 +43,9 @@ const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
                 <i className="fa-solid fa-circle-check text-blue-500 text-[5px] md:text-[6px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
             </span>
         );
+    }
+    if (custom_badge?.active && custom_badge?.color) {
+        return <i className="fa-solid fa-circle-check text-[10px] md:text-[12px] ml-1 fez-verified-badge" style={{ color: custom_badge.color }}></i>;
     }
     return null;
 };
@@ -123,7 +126,7 @@ const CommentItem: React.FC<{
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1 mb-1">
                         <span className="text-[11px] font-black text-white uppercase tracking-tight">@{comment.userName?.toLowerCase()}</span>
-                        <VerificationBadge username={comment.userName} />
+                        <VerificationBadge username={comment.userName} custom_badge={(comment as any).custom_badge} />
                         <span className="text-[7px] text-zinc-700 font-bold uppercase ml-auto">{new Date(comment.timestamp).toLocaleDateString()}</span>
                     </div>
                     <p className="text-zinc-300 text-xs leading-relaxed break-words font-sans">{comment.text}</p>
@@ -225,13 +228,19 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
         if (!isSignedIn || !user || !newComment.trim() || !isDynamicPost) return;
         const postId = (currentItem as any).id;
         const postAuthorId = (currentItem as any).userId;
+        
+        // Try to fetch my current badge to attach to comment
+        const mySnap = await get(ref(db, `users/${user.id}`));
+        const myData = mySnap.val() || {};
+
         const commentRef = ref(db, `explore_posts/${postId}/comments`);
         const newCM = await push(commentRef, {
             userId: user.id,
             userName: (user.username || user.fullName || '').toLowerCase(),
             userAvatar: user.imageUrl,
             text: newComment.trim(),
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            custom_badge: myData.custom_badge || null
         });
         if (postAuthorId !== user.id) {
             await push(ref(db, `notifications/${postAuthorId}`), {
@@ -265,7 +274,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                             <div className="flex flex-col">
                                 <div className="flex items-center">
                                     <span className="text-white font-black text-[10px] uppercase tracking-tight">@{resolvedUsername}</span>
-                                    <VerificationBadge username={resolvedUsername} />
+                                    <VerificationBadge username={resolvedUsername} custom_badge={(currentItem as any).custom_badge} />
                                 </div>
                                 <span className="text-zinc-500 font-bold text-[7px] uppercase tracking-widest">{(currentItem as any).category || 'Visual Artist'}</span>
                             </div>
@@ -305,7 +314,7 @@ export const ModalViewer: React.FC<ModalViewerProps> = ({ state, onClose, onNext
                             <div className="flex flex-col">
                                 <div className="flex items-center">
                                     <p className="text-white font-black text-xs uppercase tracking-tight">@{resolvedUsername}</p>
-                                    <VerificationBadge username={resolvedUsername} />
+                                    <VerificationBadge username={resolvedUsername} custom_badge={(currentItem as any).custom_badge} />
                                 </div>
                                 <p className="text-red-500 font-black text-[8px] uppercase tracking-widest">{(currentItem as any).userRole || 'Visual Artist'}</p>
                             </div>

@@ -51,7 +51,35 @@ export interface Post {
     likes?: Record<string, boolean>;
     comments?: Record<string, Comment>;
     privacy?: 'public' | 'friends' | 'private';
+    custom_badge?: any;
 }
+
+const VerificationBadge: React.FC<{ username?: string; custom_badge?: any }> = ({ username, custom_badge }) => {
+    const { user: clerkUser } = useUser();
+    if (!username) return null;
+    const low = username.toLowerCase();
+    const viewerLow = clerkUser?.username?.toLowerCase();
+    
+    const isOwner = low === OWNER_HANDLE;
+    const isAdmin = low === ADMIN_HANDLE;
+    const isJiya = low === RESTRICTED_HANDLE;
+    const canSeeJiyaBadge = viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE;
+
+    if (isOwner) return <i className="fa-solid fa-circle-check text-red-600 text-[9px] ml-1 fez-verified-badge"></i>;
+    if (isAdmin) return <i className="fa-solid fa-circle-check text-blue-500 text-[9px] ml-1 fez-verified-badge"></i>;
+    if (isJiya && canSeeJiyaBadge) {
+        return (
+            <span className="relative inline-flex items-center ml-1 fez-verified-badge">
+                <i className="fa-solid fa-circle-check text-red-600 text-[9px]"></i>
+                <i className="fa-solid fa-circle-check text-blue-500 text-[4px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
+            </span>
+        );
+    }
+    if (custom_badge?.active && custom_badge?.color) {
+        return <i className="fa-solid fa-circle-check text-[9px] ml-1 fez-verified-badge" style={{ color: custom_badge.color }}></i>;
+    }
+    return null;
+};
 
 const PostItem: React.FC<{ 
     post: Post; 
@@ -107,10 +135,12 @@ const PostItem: React.FC<{
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 md:gap-3 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
                         <img src={post.userAvatar} className="w-6 h-6 md:w-8 md:h-8 rounded-full object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
-                        <p className="text-[8px] md:text-[10px] font-black text-white uppercase truncate tracking-tight flex items-center gap-1">
-                            @{ (post.userName || '').toLowerCase() }
-                            {post.userName?.toLowerCase() === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[9px]"></i>}
-                        </p>
+                        <div className="flex items-center truncate">
+                            <p className="text-[8px] md:text-[10px] font-black text-white uppercase truncate tracking-tight">
+                                @{ (post.userName || '').toLowerCase() }
+                            </p>
+                            <VerificationBadge username={post.userName} custom_badge={post.custom_badge} />
+                        </div>
                     </div>
                 </div>
                 <p ref={textRef} className="text-zinc-500 text-[9px] md:text-[10px] font-medium leading-[1.4] break-words text-left line-clamp-2 mt-1">{post.caption}</p>
@@ -142,7 +172,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                 
                 const viewerHandle = user?.username?.toLowerCase();
                 if (viewerHandle !== OWNER_HANDLE) {
-                   // Allow @jiya to see their own posts, hide @jiya from everyone else except owner
                    list = list.filter(p => {
                        const postAuthor = (p.userName || '').toLowerCase();
                        if (postAuthor === RESTRICTED_HANDLE) {

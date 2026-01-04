@@ -27,7 +27,7 @@ const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
 
-const VerifiedBadge: React.FC<{ username: string }> = ({ username }) => {
+const VerifiedBadge: React.FC<{ username: string; custom_badge?: any }> = ({ username, custom_badge }) => {
     const { user: clerkUser } = useUser();
     const low = username.toLowerCase();
     const viewerLow = clerkUser?.username?.toLowerCase();
@@ -42,6 +42,9 @@ const VerifiedBadge: React.FC<{ username: string }> = ({ username }) => {
                 <i className="fa-solid fa-circle-check text-blue-500 text-[5px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
             </span>
         );
+    }
+    if (custom_badge?.active && custom_badge?.color) {
+        return <i className="fa-solid fa-circle-check text-sm ml-1.5 fez-verified-badge" style={{ color: custom_badge.color }}></i>;
     }
     return null;
 };
@@ -172,7 +175,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
-                                                        <VerifiedBadge username={req.username} />
+                                                        <VerifiedBadge username={req.username} custom_badge={req.custom_badge} />
                                                     </div>
                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 truncate">{req.profile?.profession || 'Designer'}</p>
                                                 </div>
@@ -195,7 +198,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
-                                                        <VerifiedBadge username={req.username} />
+                                                        <VerifiedBadge username={req.username} custom_badge={req.custom_badge} />
                                                     </div>
                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 italic">Requested</p>
                                                 </div>
@@ -417,7 +420,7 @@ export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNa
                 animate={{ y: 0, opacity: 0.9 }}
                 className="pointer-events-auto bg-black backdrop-blur-2xl rounded-t-[2rem] h-20 flex justify-around items-center shadow-2xl border-t border-white/5 px-6 z-[100]"
             >
-                {activeRoute !== 'marketplace' && (
+                {activeRoute !== 'home' && (
                     <button onClick={() => onScrollTo('home')} className={`flex flex-col items-center gap-1 transition-all ${activeRoute === 'home' ? 'text-red-500 scale-110' : 'text-zinc-500'}`}>
                         <HomeIcon className="w-5 h-5" />
                         <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
