@@ -226,7 +226,7 @@ export default function App() {
             onNavigateCommunity={() => navigateTo('community')} 
             onCreatePost={() => setIsCreatePostOpen(true)}
             activeRoute={route} 
-            isMinimized={isCreatePostOpen} // Removed isMessageThreadActive logic to keep nav visible while chatting
+            isMinimized={isCreatePostOpen || isMessageThreadActive} 
             hideFAB={false} 
           />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />

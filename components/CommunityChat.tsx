@@ -143,7 +143,7 @@ export const CommunityChat: React.FC<{
     e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser || !inputValue.trim()) return;
 
-    // Rate Limit Check: 1 second interval
+    // Anti-Spam: 1 second rate limit
     const now = Date.now();
     if (now - lastSentTimeRef.current < 1000) {
         return;
@@ -364,8 +364,8 @@ export const CommunityChat: React.FC<{
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            {/* Input Area */}
-                            <div className="p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-24 md:pb-6">
+                            {/* Input Area - Adjusted for mobile thread view where bottom nav is hidden */}
+                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 ${isMobileChatOpen ? 'pb-6 md:pb-6' : 'pb-24 md:pb-6'}`}>
                                 {!isGlobal && !isSelectedFriend ? (
                                     <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] text-center md:text-left">Thread Connection Required</p>
