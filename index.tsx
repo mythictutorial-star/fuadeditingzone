@@ -11,12 +11,13 @@ if (!CLERK_PUBLISHABLE_KEY) {
 
 // Register Service Worker for FCM
 if ('serviceWorker' in navigator) {
+  // Changed "Neural SW" to "Service Worker" for simplicity
   navigator.serviceWorker.register('/firebase-messaging-sw.js')
     .then((registration) => {
-      console.log('Neural SW registered: ', registration);
+      console.log('Service Worker registered: ', registration);
     })
     .catch((err) => {
-      console.log('Neural SW registration failed: ', err);
+      console.log('Service Worker registration failed: ', err);
     });
 }
 

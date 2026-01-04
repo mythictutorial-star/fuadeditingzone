@@ -11,7 +11,8 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Signal Received: ', payload);
+  // Changed "Signal" to "Notification" for better clarity
+  console.log('[firebase-messaging-sw.js] Notification Received: ', payload);
   
   const notificationTitle = payload.notification.title || "New Notification | FEZ";
   const notificationOptions = {
