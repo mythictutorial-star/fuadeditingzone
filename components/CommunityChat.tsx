@@ -25,21 +25,14 @@ const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
 
-// R2 Configuration
 const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
 const R2_PUBLIC_DOMAIN = 'https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev';
 
-/**
- * UPLOAD UTILITY: 
- * Uploads to R2 via Worker and constructs the URL: https://.../Messages/{filename}
- */
 const uploadMediaToR2 = async (file: File): Promise<string> => {
-    // Sanitize filename: remove spaces/special chars to ensure the public URL doesn't break
     const sanitizedName = `${Date.now()}-${file.name.replace(/[^a-z0-9.]/gi, '_')}`;
-    
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('folder', 'Messages/'); // Target folder
+    formData.append('folder', 'Messages/');
     formData.append('filename', sanitizedName);
 
     const response = await fetch(R2_WORKER_URL, {
@@ -52,9 +45,6 @@ const uploadMediaToR2 = async (file: File): Promise<string> => {
     }
 
     const result = await response.json();
-    
-    // Construct the specific public URL requested by the user
-    // Format: https://pub-c35a446ba9db4c89b71a674f0248f02a.r2.dev/Messages/{filename}
     const finalFilename = result.url ? result.url.split('/').pop() : sanitizedName;
     return `${R2_PUBLIC_DOMAIN}/Messages/${finalFilename}`;
 };
@@ -329,14 +319,29 @@ export const CommunityChat: React.FC<{
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; preview: string; type: 'image' | 'video' } | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const mediaInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Optimized Fetching State
+  const [optimizedRequests, setOptimizedRequests] = useState<any[]>([]);
 
   useEffect(() => {
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
   }, [isMobileChatOpen, selectedUser, isGlobal, onThreadStateChange]);
+
+  // Use Hyperdrive optimized fetching for message requests
+  useEffect(() => {
+    if (!clerkUser?.id) return;
+    const fetchOptimizedRequests = async () => {
+      try {
+        const res = await fetch(`${R2_WORKER_URL}/api/optimized/requests?userId=${clerkUser.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOptimizedRequests(data);
+        }
+      } catch (err) {
+        console.warn("Optimized connection failed, falling back to real-time sync.");
+      }
+    };
+    fetchOptimizedRequests();
+  }, [clerkUser?.id]);
 
   useEffect(() => {
     if (forceSearchTab) {
@@ -391,7 +396,7 @@ export const CommunityChat: React.FC<{
         });
         onValue(ref(db, `notifications/${clerkUser.id}`), (snap) => {
             const data = snap.val() || {};
-            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => a.timestamp - b.timestamp));
+            setNotifications(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).sort((a, b) => b.timestamp - a.timestamp));
         });
     }
 
@@ -428,7 +433,6 @@ export const CommunityChat: React.FC<{
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isMobileChatOpen]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -451,7 +455,6 @@ export const CommunityChat: React.FC<{
 
     try {
         if (pendingMedia) {
-            // Updated Upload Call
             mediaUrl = await uploadMediaToR2(pendingMedia.file);
             mediaType = pendingMedia.type;
         }
@@ -512,7 +515,8 @@ export const CommunityChat: React.FC<{
 
     const talkHistoryIds = Object.keys(conversations);
     const unreadIds = Object.keys(unreadCounts);
-    const messagedIds = [...new Set([...talkHistoryIds, ...unreadIds])];
+    // Combine real-time unread with optimized background fetch results
+    const messagedIds = [...new Set([...talkHistoryIds, ...unreadIds, ...optimizedRequests.map(r => r.sender_id)])];
 
     const primary: ChatUser[] = [];
     const requests: ChatUser[] = [];
@@ -531,7 +535,7 @@ export const CommunityChat: React.FC<{
     });
 
     return { primaryUsers: primary, requestUsers: requests, requestCount: requests.length };
-  }, [users, clerkUser, unreadCounts, conversations, friendsList, blockedByMe]);
+  }, [users, clerkUser, unreadCounts, conversations, friendsList, blockedByMe, optimizedRequests]);
 
   const filteredUsers = useMemo(() => {
     if (sidebarTab === 'search') {
@@ -666,7 +670,6 @@ export const CommunityChat: React.FC<{
     };
     await push(ref(db, `system/reports`), reportData);
     
-    // Notify target user
     await push(ref(db, `notifications/${selectedUser.id}`), {
         type: 'security_alert',
         text: `SECURITY ALERT: Your account has been reported for "${reason}". It is currently under review by our safety team.`,
@@ -693,7 +696,6 @@ export const CommunityChat: React.FC<{
     alert("Report submitted. Our moderation team will review this account soon.");
   };
 
-  // handleNotificationClick implementation to fix missing name error
   const handleNotificationClick = async (n: any) => {
     if (!clerkUser) return;
     if (!n.isGlobal) await update(ref(db, `notifications/${clerkUser.id}/${n.id}`), { read: true });
@@ -722,11 +724,15 @@ export const CommunityChat: React.FC<{
   const mySentMessagesCount = messages.filter(m => m.senderId === clerkUser?.id).length;
   const isInputLocked = !isGlobal && !isCurrentChatAFriend && mySentMessagesCount >= 3;
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative bg-black font-sans px-4 md:px-0">
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
         
-        {/* Fixed Desktop Sidebar */}
         <nav className="hidden lg:flex flex-col items-center py-10 gap-12 w-20 flex-shrink-0 border-r border-white/10 bg-black z-[100] fixed left-0 top-0 bottom-0">
             <button onClick={onBack} className="text-white hover:scale-110 transition-transform mb-4">
                 <img src={siteConfig.branding.logoUrl} className="w-9 h-9" alt="" />
@@ -738,13 +744,6 @@ export const CommunityChat: React.FC<{
                   title="Messages"
                 >
                   <HomeIcon className="w-6 h-6" />
-                </button>
-                <button 
-                  onClick={() => { setSidebarTab('search'); setIsActivityOpen(false); setIsMobileChatOpen(false); }} 
-                  className={`p-3.5 rounded-2xl transition-all ${sidebarTab === 'search' ? 'bg-white text-black scale-110 shadow-lg' : 'text-white opacity-40 hover:opacity-100 hover:bg-white/5'}`} 
-                  title="Search"
-                >
-                  <SearchIcon className="w-6 h-6" />
                 </button>
                 <button 
                   onClick={onNavigateMarket} 
@@ -781,11 +780,9 @@ export const CommunityChat: React.FC<{
             </div>
         </nav>
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col items-start lg:ml-20 overflow-hidden w-full relative">
             <div className="w-full flex-1 flex flex-row overflow-hidden relative">
                 
-                {/* Sidebar Chat List */}
                 <aside className={`${isMobileChatOpen || isActivityOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[300px] lg:w-[340px] flex-col flex-shrink-0 min-h-0 bg-black md:border-r border-white/10 animate-fade-in`}>
                   {sidebarTab === 'search' ? (
                     <div className="flex flex-col h-full animate-fade-in">
@@ -921,7 +918,6 @@ export const CommunityChat: React.FC<{
                   )}
                 </aside>
 
-                {/* Main Chat Flow */}
                 <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black animate-fade-in relative`}>
                   {isActivityOpen ? (
                     <div className="flex-1 flex flex-col h-full">
@@ -971,7 +967,6 @@ export const CommunityChat: React.FC<{
                     </div>
                   ) : (
                     <>
-                      {/* Fixed Chat Header */}
                       <div className="px-6 py-6 md:px-10 md:py-10 flex items-center justify-between border-b border-white/10 flex-shrink-0 backdrop-blur-2xl sticky top-0 z-[50] bg-black/60">
                         <div className="flex items-center gap-3 min-w-0">
                           <button onClick={() => { setIsMobileChatOpen(false); setSelectedUser(null); setIsGlobal(false); setVerifiedTarget(null); }} className="md:hidden p-2 rounded-lg bg-white/5 border border-white/10 text-white"><ChevronLeftIcon className="w-5 h-5" /></button>
@@ -1039,7 +1034,6 @@ export const CommunityChat: React.FC<{
                         <div ref={messagesEndRef} />
                       </div>
 
-                      {/* Media Preview */}
                       <AnimatePresence>
                         {pendingMedia && (
                             <motion.div 
@@ -1068,7 +1062,6 @@ export const CommunityChat: React.FC<{
                         )}
                       </AnimatePresence>
 
-                      {/* Typing Section: Enhanced for Mobile Clipping */}
                       <div className="px-3 py-4 md:px-10 md:py-8 bg-black border-t border-white/10 flex-shrink-0 z-[60] pb-safe">
                         {isSignedIn ? (
                           <div className="max-w-4xl mx-auto flex flex-col gap-2">
@@ -1264,7 +1257,7 @@ export const CommunityChat: React.FC<{
                                     <AlertTriangle size={20} className="text-yellow-500" />
                                     <span className="text-sm font-bold">Report Account</span>
                                 </div>
-                                <ChevronRightIcon className="w-4 h-4 text-zinc-600" />
+                                <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
                             </button>
                         </div>
                     </div>

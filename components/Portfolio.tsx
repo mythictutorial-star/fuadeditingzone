@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDatabase, ref, onValue, query, orderByChild, equalTo, update, set, remove, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
@@ -180,7 +181,7 @@ const VfxVideoPlayer: React.FC<{
         >
             <AnimatePresence>
                 {copyToast && (
-                    <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] bg-white text-black px-4 py-2 rounded-full font-bold uppercase text-[8px] tracking-widest shadow-2xl">Signal Copied</motion.div>
+                    <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[500] bg-white text-black px-4 py-2 rounded-full font-bold uppercase text-[8px] tracking-widest shadow-2xl">Link Copied</motion.div>
                 )}
             </AnimatePresence>
             
@@ -380,7 +381,7 @@ export const Portfolio: React.FC<any> = ({
                                 <div id="youtube-portfolio-player-inner" className="w-full h-full"></div>
                             </div>
                             <div className="bg-[#0f0f0f] p-6 md:p-8 border border-white/5 rounded-[1.5rem] md:rounded-[2rem] shadow-xl">
-                                <h3 className="text-white font-bold text-lg md:text-2xl mb-4 truncate font-display">{currentVideoStats?.title || 'Syncing...'}</h3>
+                                <h3 className="text-white font-bold text-lg md:text-2xl mb-4 truncate font-display">{currentVideoStats?.title || 'Loading...'}</h3>
                                 <div className="flex items-center justify-between gap-4">
                                     <div className="flex items-center gap-3 md:gap-4 min-w-0">
                                         <div className="w-12 h-12 md:w-16 md:h-16 rounded-full overflow-hidden border border-red-600/30 flex-shrink-0">

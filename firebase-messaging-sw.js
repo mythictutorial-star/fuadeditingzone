@@ -1,3 +1,4 @@
+
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
@@ -11,9 +12,10 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Signal Intercepted: ', payload);
+  // Changed technical 'Signal' to human-friendly 'Notification'
+  console.log('[firebase-messaging-sw.js] Notification Received: ', payload);
   
-  const notificationTitle = payload.notification.title || "Incoming Signal | FEZ";
+  const notificationTitle = payload.notification.title || "New Notification | FEZ";
   const notificationOptions = {
     body: payload.notification.body,
     icon: 'https://dl.dropboxusercontent.com/scl/fi/vvk2qlo8i0mer2n4sip1h/faeez-logo.png?rlkey=xiahu40vwixf0uf96wwnvqlw2&raw=1',

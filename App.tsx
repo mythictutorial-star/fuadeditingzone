@@ -72,10 +72,8 @@ export default function App() {
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
 
-  // Tracking if a message thread is active to hide footer components
   const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
 
-  // Auto-sync Clerk user to Firebase
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
       const userRef = ref(db, `users/${user.id}`);
@@ -87,7 +85,6 @@ export default function App() {
         lastActive: Date.now()
       };
       
-      // Update entry if changed
       get(userRef).then((snapshot) => {
         const currentData = snapshot.val();
         if (!currentData || 
@@ -103,12 +100,9 @@ export default function App() {
   const resolveProfileFromUrl = async (path: string) => {
     if (path.startsWith('/@')) {
       const handle = path.substring(2).toLowerCase();
-      
-      // Restriction: Only Owner can resolve Jiya
       if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
           return false;
       }
-
       const usersSnap = await get(ref(db, 'users'));
       const usersData = usersSnap.val();
       if (usersData) {
@@ -126,7 +120,6 @@ export default function App() {
       const postSnap = await get(ref(db, `explore_posts/${postId}`));
       if (postSnap.exists()) {
           const postData = postSnap.val();
-          // Restriction: Only Owner can see Jiya's posts
           if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
               return;
           }
@@ -152,7 +145,6 @@ export default function App() {
         const postSnap = await get(ref(db, `explore_posts/${id}`));
         if (postSnap.exists()) {
             const postData = postSnap.val();
-            // Restriction check
             if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
                setRoute('home');
                return;
@@ -191,9 +183,7 @@ export default function App() {
 
   const handleSetModal = (items: ModalItem[], index: number) => {
     const item = items[index] as any;
-    // Restriction: Only owner can see jiya's items in modal
     if (item.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-
     const path = item.userId ? `/post/${item.id}` : `/work/${item.id}`;
     window.history.pushState(null, '', path);
     setModalState({ items, currentIndex: index });
@@ -219,12 +209,10 @@ export default function App() {
     const handlePopState = async () => {
       const path = window.location.pathname;
       if (!path.includes('/work/') && !path.includes('/post/')) setModalState(null);
-      
       const resolved = await resolveProfileFromUrl(path);
       if (!resolved && !path.includes('/post/') && !path.includes('/work/')) {
         setViewingProfileId(null);
       }
-      
       setRoute(path === '/marketplace' ? 'marketplace' : path === '/community' ? 'community' : 'home');
     };
     window.addEventListener('popstate', handlePopState);
@@ -244,10 +232,7 @@ export default function App() {
         const snap = await get(ref(db, `users/${userId}`));
         handle = snap.val()?.username?.toLowerCase() || userId;
     }
-    
-    // Restriction
     if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-
     window.history.pushState(null, '', `/@${handle}`);
     setViewingProfileId(userId);
   };
@@ -261,10 +246,7 @@ export default function App() {
   const handleOpenChatWithUser = async (userId: string) => {
     const snap = await get(ref(db, `users/${userId}`));
     const handle = snap.val()?.username?.toLowerCase();
-    
-    // Restriction: Only owner can message jiya
     if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-
     setTargetUserId(userId);
     setViewingProfileId(null);
     navigateTo('community');
@@ -320,7 +302,6 @@ export default function App() {
           </div>
           
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
-            {/* Background Pre-Rendering logic: keep components mounted and toggle display */}
             <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth ${route !== 'home' ? 'hidden' : 'block'}`}>
                 <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
                 <Portfolio openModal={handleSetModal} isYouTubeApiReady={isYouTubeApiReady} playingVfxVideo={playingVfxVideo} setPlayingVfxVideo={setPlayingVfxVideo} pipVideo={pipVideo} setPipVideo={setPipVideo} activeYouTubeId={activeYouTubeId} setActiveYouTubeId={setActiveYouTubeId} isYtPlaying={isYtPlaying} setIsYtPlaying={setIsYtPlaying} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />
@@ -332,6 +313,7 @@ export default function App() {
                 <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} onBack={() => navigateTo('home')} />
             </div>
 
+            {/* Navigation Fix: Ensure pb-24 remains even when thread is active to avoid navigation button clipping */}
             <div className={`flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0 ${route !== 'community' ? 'hidden' : 'flex'}`}>
                 <CommunityChat 
                   onShowProfile={handleOpenProfile} 
@@ -374,7 +356,7 @@ export default function App() {
             onCreatePost={() => setIsCreatePostOpen(true)}
             activeRoute={route} 
             isMinimized={isCreatePostOpen}
-            hideFAB={isMessageThreadActive}
+            hideFAB={isMessageThreadActive} // Navigation buttons now remain visible even when hideFAB is true
           />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
       </div>

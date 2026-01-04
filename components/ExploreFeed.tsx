@@ -23,8 +23,7 @@ const db = getDatabase(app);
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
-
-type UserRole = 'Designer' | 'Client';
+const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
 
 export interface Comment {
     id: string;
@@ -42,7 +41,7 @@ export interface Post {
     userId: string;
     userName: string;
     userAvatar: string;
-    userRole?: UserRole;
+    userRole?: 'Designer' | 'Client';
     mediaUrl?: string;
     mediaType?: 'image' | 'video' | 'text';
     title?: string;
@@ -50,9 +49,6 @@ export interface Post {
     tags?: string[];
     links?: { name: string; url: string }[];
     timestamp: number;
-    lastEdited?: number;
-    targetSection?: string;
-    budget?: string;
     likes?: Record<string, boolean>;
     comments?: Record<string, Comment>;
     privacy?: 'public' | 'friends' | 'private';
@@ -64,31 +60,12 @@ const PostItem: React.FC<{
     user: any; 
     onOpenProfile?: (id: string) => void; 
     onOpenModal?: (posts: Post[], index: number) => void;
-    onShare: (e: React.MouseEvent, id: string) => void;
     onLike: (e: React.MouseEvent, post: Post, isLiked: boolean) => void;
-    onEdit: (post: Post) => void;
-    onDelete: (post: Post) => void;
     posts: Post[];
-}> = ({ post, idx, user, onOpenProfile, onOpenModal, onShare, onLike, onEdit, onDelete, posts }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [showReadMore, setShowReadMore] = useState(false);
+}> = ({ post, idx, user, onOpenProfile, onOpenModal, onLike, posts }) => {
     const [isMediaLoaded, setIsMediaLoaded] = useState(false);
     const textRef = useRef<HTMLParagraphElement>(null);
     const isLiked = user ? !!post.likes?.[user.id] : false;
-
-    useEffect(() => {
-        const checkLines = () => {
-            if (textRef.current) {
-                const el = textRef.current;
-                const lineHeight = parseInt(window.getComputedStyle(el).lineHeight);
-                const height = el.scrollHeight;
-                if (height > lineHeight * 2.1) { setShowReadMore(true); } else { setShowReadMore(false); }
-            }
-        };
-        checkLines();
-        window.addEventListener('resize', checkLines);
-        return () => window.removeEventListener('resize', checkLines);
-    }, [post.caption]);
 
     const hasMedia = post.mediaUrl && (post.mediaType === 'image' || post.mediaType === 'video');
 
@@ -106,10 +83,7 @@ const PostItem: React.FC<{
                             <video 
                               src={post.mediaUrl} 
                               className={`w-full h-auto object-cover transition-opacity duration-500 ${isMediaLoaded ? 'opacity-100' : 'opacity-0'}`} 
-                              muted 
-                              loop 
-                              autoPlay 
-                              playsInline 
+                              muted loop autoPlay playsInline 
                               onLoadedData={() => setIsMediaLoaded(true)}
                             />
                         ) : (
@@ -118,7 +92,6 @@ const PostItem: React.FC<{
                               className={`w-full h-auto object-cover transition-opacity duration-500 ${isMediaLoaded ? 'opacity-100' : 'opacity-0'}`} 
                               alt="" 
                               onLoad={() => setIsMediaLoaded(true)}
-                              loading={idx < 10 ? "eager" : "lazy"}
                             />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 md:p-5">
@@ -134,30 +107,19 @@ const PostItem: React.FC<{
                          <h2 className="text-xs md:text-sm font-black text-white uppercase tracking-tight leading-tight text-center line-clamp-3">{post.title || 'Inquiry Post'}</h2>
                     </div>
                 )}
-
-                {post.budget && (
-                    <div className="absolute top-2 left-2 bg-red-600 text-white font-black px-1.5 py-0.5 rounded-md text-[7px] md:text-[8px] uppercase tracking-tighter border border-white/20 shadow-xl backdrop-blur-md z-10">${post.budget}</div>
-                )}
             </div>
             <div className="p-3 md:p-5 flex flex-col flex-1 min-h-0 bg-[#0d0d0d]">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5 md:gap-3 cursor-pointer group/prof" onClick={(e) => { e.stopPropagation(); onOpenProfile?.(post.userId); }}>
-                        <div className="relative">
-                            <img src={post.userAvatar} className="w-6 h-6 md:w-8 md:h-8 rounded-full object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
-                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 border border-black rounded-full"></div>
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-[8px] md:text-[10px] font-black text-white uppercase truncate tracking-tight flex items-center gap-1">
-                                @{ (post.userName || '').toLowerCase() }
-                                {post.userName?.toLowerCase() === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[9px]"></i>}
-                            </p>
-                        </div>
+                        <img src={post.userAvatar} className="w-6 h-6 md:w-8 md:h-8 rounded-full object-cover border border-white/10 group-hover/prof:border-red-600/50 transition-colors" alt="" />
+                        <p className="text-[8px] md:text-[10px] font-black text-white uppercase truncate tracking-tight flex items-center gap-1">
+                            @{ (post.userName || '').toLowerCase() }
+                            {post.userName?.toLowerCase() === OWNER_HANDLE && <i className="fa-solid fa-circle-check text-red-600 text-[9px]"></i>}
+                        </p>
                     </div>
                 </div>
-                <div className="font-sans relative w-full mt-1 flex-1 min-h-0 flex flex-col">
-                    <p ref={textRef} className={`text-zinc-500 text-[9px] md:text-[10px] font-medium leading-[1.4] break-words text-left line-clamp-2`}>{post.caption}</p>
-                </div>
-                <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5 relative">
+                <p ref={textRef} className="text-zinc-500 text-[9px] md:text-[10px] font-medium leading-[1.4] break-words text-left line-clamp-2 mt-1">{post.caption}</p>
+                <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5">
                     <div className="flex items-center gap-3 md:gap-4">
                         <button onClick={(e) => onLike(e, post, isLiked)} className={`flex items-center gap-1 text-[8px] md:text-[10px] font-black transition-all ${isLiked ? 'text-red-500' : 'text-zinc-600 hover:text-white'}`}><i className={`fa-${isLiked ? 'solid' : 'regular'} fa-heart text-[10px] md:text-[12px]`}></i>{Object.keys(post.likes || {}).length}</button>
                         <button onClick={() => onOpenModal?.(posts, idx)} className="flex items-center gap-1 text-[8px] md:text-[10px] font-black text-zinc-600 hover:text-white transition-colors"><i className="fa-regular fa-comment text-[10px] md:text-[12px]"></i>{Object.keys(post.comments || {}).length}</button>
@@ -174,8 +136,22 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     const [isPostModalOpen, setIsPostModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Optimized Initial Load with Hyperdrive
     useEffect(() => {
-        const postsRef = query(ref(db, 'explore_posts'), limitToLast(500));
+        const fetchOptimizedPosts = async () => {
+            try {
+                const res = await fetch(`${R2_WORKER_URL}/api/optimized/posts`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setPosts(data);
+                }
+            } catch (err) {
+                console.warn("Optimized fetch failed, waiting for real-time connection.");
+            }
+        };
+        fetchOptimizedPosts();
+
+        const postsRef = query(ref(db, 'explore_posts'), limitToLast(200));
         const unsubscribe = onValue(postsRef, (snap) => {
             const data = snap.val();
             if (data) {
@@ -186,7 +162,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                 if (user?.username?.toLowerCase() !== OWNER_HANDLE) {
                    list = list.filter(p => (p.userName || '').toLowerCase() !== RESTRICTED_HANDLE);
                 }
-
                 setPosts(list as Post[]);
             }
         });
@@ -195,27 +170,16 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
 
     const handleLike = async (e: React.MouseEvent, post: Post, isLiked: boolean) => {
         e.stopPropagation();
-        if (!isSignedIn || !user) {
-            alert("Please log in to like posts.");
-            return;
-        }
-
+        if (!isSignedIn || !user) return;
         const likeRef = ref(db, `explore_posts/${post.id}/likes/${user.id}`);
-        if (isLiked) {
-            await remove(likeRef);
-        } else {
+        if (isLiked) await remove(likeRef);
+        else {
             await set(likeRef, true);
-            // Notify post author
             if (post.userId !== user.id) {
                 await push(ref(db, `notifications/${post.userId}`), {
-                    type: 'post_like',
-                    fromId: user.id,
-                    fromName: (user.username || user.fullName || 'user').toLowerCase(),
-                    fromAvatar: user.imageUrl,
-                    text: `@${(user.username || user.fullName || 'user').toLowerCase()} liked your post.`,
-                    timestamp: Date.now(),
-                    read: false,
-                    postId: post.id
+                    type: 'post_like', fromId: user.id, fromName: (user.username || user.fullName || 'user').toLowerCase(),
+                    fromAvatar: user.imageUrl, text: `@${(user.username || user.fullName || 'user').toLowerCase()} liked your post.`,
+                    timestamp: Date.now(), read: false, postId: post.id
                 });
             }
         }
@@ -228,8 +192,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             list = posts.filter(post => 
                 post.title?.toLowerCase().includes(q) || 
                 post.userName?.toLowerCase().includes(q) ||
-                post.caption?.toLowerCase().includes(q) ||
-                post.tags?.some(t => t.toLowerCase().includes(q))
+                post.caption?.toLowerCase().includes(q)
             );
         }
         return list;
@@ -237,8 +200,6 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
 
     return (
         <div className="flex h-screen w-full bg-black overflow-hidden relative font-sans">
-            
-            {/* Standard Desktop Sidebar Fixed at w-20 */}
             <nav className="hidden lg:flex flex-col items-center py-10 gap-12 w-20 flex-shrink-0 border-r border-white/10 bg-black z-[100] fixed left-0 top-0 bottom-0">
                 <button onClick={onBack} className="text-white hover:scale-110 transition-transform mb-4">
                     <img src={siteConfig.branding.logoUrl} className="w-9 h-9" alt="" />
@@ -247,47 +208,25 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     <button className="p-3.5 rounded-2xl bg-white text-black scale-110 shadow-lg" title="Marketplace">
                         <MarketIcon className="w-6 h-6" />
                     </button>
-                    <button onClick={() => { const btn = document.querySelector('[title="Activity"]') as HTMLButtonElement; if(btn) btn.click(); }} className="p-3.5 rounded-2xl text-white opacity-40 hover:opacity-100 hover:bg-white/5 transition-all" title="Activity">
-                        <Bell className="w-6 h-6" />
-                    </button>
-                    <button onClick={() => setIsPostModalOpen(true)} className="p-3.5 rounded-2xl text-white opacity-40 hover:opacity-100 hover:bg-white/5 transition-all" title="Create">
-                        <PlusSquare className="w-6 h-6" />
-                    </button>
                 </div>
             </nav>
 
-            {/* Main Full-Width Masonry Flow */}
             <div className="flex-1 flex flex-col lg:ml-20 overflow-y-auto custom-scrollbar no-scrollbar w-full relative px-4 md:px-10 lg:px-14">
                 <div className="w-full flex flex-col pb-48">
-                    
-                    {/* Aligned Header Block centered with the content */}
-                    <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8 px-2 md:px-0">
-                        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-shrink-0">
-                            <button onClick={onBack} className="p-2 md:p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all group flex-shrink-0"><ArrowLeft className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" /></button>
+                    <div className="sticky top-0 z-[200] py-6 bg-black/70 backdrop-blur-2xl flex items-center justify-between gap-3 border-b border-white/10 mb-8">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <button onClick={onBack} className="p-2 md:p-2.5 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-red-600 transition-all"><ArrowLeft className="w-4 h-4 md:w-5 md:h-5" /></button>
                             <h1 className="text-[10px] md:text-xl font-black text-white uppercase tracking-widest font-display opacity-90 truncate">Marketplace</h1>
                         </div>
-                        <div className="relative w-full max-w-[150px] md:max-w-[450px] lg:max-w-[550px] flex-1">
+                        <div className="relative w-full max-w-[150px] md:max-w-[450px] lg:max-w-[550px]">
                             <SearchIcon className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-zinc-600 w-3 h-3 md:w-4 md:h-4" />
-                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/5 border border-white/10 rounded-full py-2 md:py-2.5 pl-9 md:pl-11 pr-3 md:pr-5 text-[9px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest placeholder-zinc-800" />
+                            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-9 md:pl-11 pr-3 text-[9px] md:text-[11px] text-white outline-none focus:border-red-600 transition-all font-bold uppercase tracking-widest" />
                         </div>
                     </div>
                     
-                    {/* Masonry Effect */}
-                    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-8 gap-4 md:gap-6 px-2 md:px-0 w-full">
+                    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 gap-4 md:gap-6 w-full">
                         {filteredPosts.map((post, idx) => (
-                            <PostItem 
-                                key={post.id} 
-                                post={post} 
-                                idx={idx} 
-                                user={user} 
-                                onOpenProfile={(id) => onOpenProfile?.(id)} 
-                                onOpenModal={onOpenModal} 
-                                onShare={() => {}} 
-                                onLike={handleLike} 
-                                onEdit={() => {}} 
-                                onDelete={() => {}} 
-                                posts={posts} 
-                            />
+                            <PostItem key={post.id} post={post} idx={idx} user={user} onOpenProfile={(id) => onOpenProfile?.(id)} onOpenModal={onOpenModal} onLike={handleLike} posts={posts} />
                         ))}
                     </div>
                 </div>
@@ -295,14 +234,8 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
             
             <CreatePostModal isOpen={isPostModalOpen} onClose={() => setIsPostModalOpen(false)} isMarketplaceContext={true} />
 
-            {/* Consistently Placed FAB - Bottom Right */}
             {isSignedIn && (
-                <motion.button 
-                    whileHover={{ scale: 1.1 }} 
-                    whileTap={{ scale: 0.9 }} 
-                    onClick={() => setIsPostModalOpen(true)} 
-                    className="fixed bottom-28 md:bottom-12 right-6 md:right-12 z-[250] w-14 h-14 md:w-16 md:h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-[0_15px_40px_rgba(220,38,38,0.4)] border-2 border-white/20 active:bg-red-700 transition-colors"
-                >
+                <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setIsPostModalOpen(true)} className="fixed bottom-28 md:bottom-12 right-6 md:right-12 z-[250] w-14 h-14 md:w-16 md:h-16 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-[0_15px_40px_rgba(220,38,38,0.4)] border-2 border-white/20">
                     <span className="text-3xl md:text-4xl font-light">+</span>
                 </motion.button>
             )}
