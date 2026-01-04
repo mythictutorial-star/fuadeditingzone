@@ -109,12 +109,14 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
             await remove(ref(db, `social/${targetId}/requests/sent/${user.id}`));
             await set(ref(db, `social/${user.id}/friends/${targetId}`), true);
             await set(ref(db, `social/${targetId}/friends/${user.id}`), true);
+            
+            // NOTIFICATION OVERHAUL: "@username accepted your request" logic
             await push(ref(db, `notifications/${targetId}`), {
                 type: 'friend_accepted',
                 fromId: user.id,
                 fromName: (user.username || user.fullName || '').toLowerCase(),
                 fromAvatar: user.imageUrl,
-                text: `@${(user.username || user.fullName || '').toLowerCase()} accepted your friend request!`,
+                text: `@${(user.username || user.fullName || '').toLowerCase()} accepted your request`,
                 timestamp: Date.now(),
                 read: false
             });
@@ -225,18 +227,29 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         
         onValue(notifyRef, (snap) => {
             const data = snap.val() || {};
-            const list = Object.entries(data)
-                .map(([id, info]: [string, any]) => ({ id, ...info }))
-                .filter(n => n.type !== 'friend_request');
+            const rawList = Object.entries(data)
+                .map(([id, info]: [string, any]) => ({ id, ...info }));
             
             onValue(globalRef, (gSnap) => {
               const gData = gSnap.val() || {};
               const gList = Object.entries(gData).map(([id, info]: [string, any]) => ({ id, ...info, isGlobal: true }));
-              setNotifications([...list, ...gList].sort((a, b) => b.timestamp - a.timestamp));
+              
+              // NOTIFICATION OVERHAUL: Stacking/Merging logic
+              const merged = [...rawList, ...gList].reduce((acc: any[], n: any) => {
+                  const existingIndex = acc.findIndex(item => item.fromId === n.fromId && item.type === n.type && !n.isGlobal);
+                  if (existingIndex !== -1 && n.type === 'post_like') {
+                      acc[existingIndex].count = (acc[existingIndex].count || 1) + 1;
+                      acc[existingIndex].timestamp = Math.max(acc[existingIndex].timestamp, n.timestamp);
+                  } else {
+                      acc.push(n);
+                  }
+                  return acc;
+              }, []);
+
+              setNotifications(merged.sort((a, b) => b.timestamp - a.timestamp));
             });
         });
 
-        // Check for pending message requests logic
         const unreadRef = ref(db, `users/${user.id}/unread`);
         const friendsRef = ref(db, `social/${user.id}/friends`);
         onValue(unreadRef, (snap) => {
@@ -273,52 +286,29 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                     <motion.div initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 bg-black z-[10000000] flex flex-col overflow-hidden">
                         <div className="p-6 md:p-10 border-b border-white/5 bg-black flex justify-between items-center">
                             <div className="flex items-center gap-4">
-                                <i className="fa-solid fa-bell text-2xl text-red-600"></i>
                                 <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
                             </div>
                             <button onClick={() => setIsOpen(false)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-20 max-w-4xl mx-auto w-full space-y-4">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-20 max-w-4xl mx-auto w-full space-y-2">
                             {hasPendingMsgRequests && (
-                                <div onClick={() => { setIsOpen(false); onGoToInbox(''); }} className="p-6 rounded-[2rem] cursor-pointer transition-all border bg-red-600/10 border-red-600/30 group animate-pulse">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-red-600 text-white rounded-2xl flex items-center justify-center"><ChatBubbleIcon className="w-6 h-6" /></div>
-                                            <div>
-                                                <p className="text-sm md:text-lg font-black text-white uppercase tracking-tight">New Message Requests</p>
-                                                <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Non-friends are trying to reach you</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRightIcon className="w-5 h-5 text-red-600" />
-                                    </div>
+                                <div onClick={() => { setIsOpen(false); onGoToInbox(''); }} className="p-6 cursor-pointer bg-red-600/5 hover:bg-red-600/10 transition-all">
+                                    <p className="text-sm md:text-lg font-black text-white uppercase tracking-tight">New Message Requests</p>
+                                    <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Non-friends are trying to reach you</p>
                                 </div>
                             )}
                             
                             {notifications.length === 0 && !hasPendingMsgRequests ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-20">
-                                     <i className="fa-solid fa-bell-slash text-6xl mb-8"></i>
                                      <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em] text-zinc-600">No Activity Yet</p>
                                 </div>
                             ) : (
                                 notifications.map((n) => (
-                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-6 rounded-[2rem] cursor-pointer transition-all border group relative ${!n.read && !n.isGlobal ? 'bg-red-600/5 border-red-600/20' : 'bg-white/5 border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.08]'}`}>
-                                        <div className="flex gap-5 items-center">
-                                            <div className="relative flex-shrink-0">
-                                                {n.fromAvatar ? (
-                                                  <img src={n.fromAvatar} className="w-14 h-14 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" alt="" />
-                                                ) : (
-                                                  <div className="w-14 h-14 rounded-2xl bg-zinc-800 flex items-center justify-center"><i className="fa-solid fa-user text-xl text-zinc-500"></i></div>
-                                                )}
-                                                {!n.read && !n.isGlobal && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full border-2 border-black"></div>}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm md:text-lg leading-snug text-gray-200">
-                                                    <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.type === 'post_like' ? 'liked your post.' : n.type === 'post_comment' ? 'commented on your post.' : n.type === 'comment_reply' ? 'replied to your comment.' : n.text}
-                                                </p>
-                                                <p className="text-[10px] text-zinc-600 font-bold uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleString()}</p>
-                                            </div>
-                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRightIcon className="w-5 h-5 text-red-600" /></div>
-                                        </div>
+                                    <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-6 cursor-pointer transition-all border-b border-white/5 ${!n.read && !n.isGlobal ? 'bg-red-600/5' : 'bg-black opacity-60 hover:opacity-100 hover:bg-white/[0.03]'}`}>
+                                        <p className="text-sm md:text-lg leading-snug text-gray-200">
+                                            <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.text}{n.count > 1 ? ` (${n.count})` : ''}
+                                        </p>
+                                        <p className="text-[10px] text-zinc-700 font-bold uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleString()}</p>
                                     </div>
                                 ))
                             )}
