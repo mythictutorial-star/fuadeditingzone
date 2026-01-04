@@ -1,4 +1,3 @@
-
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
@@ -14,21 +13,14 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Signal Intercepted: ', payload);
   
-  const isLocked = payload.data?.isLocked === 'true';
-  const senderName = payload.data?.fromName || "System";
-  const messageText = payload.data?.text || "New signal received.";
-  
-  const notificationTitle = `Message from @${senderName.toLowerCase()}`;
+  const notificationTitle = payload.notification.title || "Incoming Signal | FEZ";
   const notificationOptions = {
-    body: isLocked ? "Sent a locked message" : messageText,
+    body: payload.notification.body,
     icon: 'https://dl.dropboxusercontent.com/scl/fi/vvk2qlo8i0mer2n4sip1h/faeez-logo.png?rlkey=xiahu40vwixf0uf96wwnvqlw2&raw=1',
     badge: 'https://dl.dropboxusercontent.com/scl/fi/vvk2qlo8i0mer2n4sip1h/faeez-logo.png?rlkey=xiahu40vwixf0uf96wwnvqlw2&raw=1',
-    vibrate: [100, 50, 100],
-    data: {
-      url: payload.data?.url || '/community',
-      senderId: payload.data?.fromId
-    },
-    tag: 'fez-direct-message',
+    vibrate: [200, 100, 200, 100, 200, 100, 200],
+    data: payload.data,
+    tag: payload.data?.type || 'fez-generic',
     renotify: true
   };
 
@@ -37,7 +29,7 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = new URL(event.notification.data?.url || '/community', self.location.origin).href;
+  const urlToOpen = new URL(event.notification.data?.url || '/', self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
