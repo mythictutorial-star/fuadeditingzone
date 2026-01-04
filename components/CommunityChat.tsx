@@ -77,6 +77,7 @@ export const CommunityChat: React.FC<{
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastSentTimeRef = useRef<number>(0);
 
   const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
 
@@ -141,6 +142,14 @@ export const CommunityChat: React.FC<{
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser || !inputValue.trim()) return;
+
+    // Rate Limit Check: 1 second interval
+    const now = Date.now();
+    if (now - lastSentTimeRef.current < 1000) {
+        return;
+    }
+    lastSentTimeRef.current = now;
+
     setIsMediaUploading(true);
     
     const newMessage: Message = { 
