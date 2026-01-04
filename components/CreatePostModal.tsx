@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -22,7 +21,7 @@ interface ExternalLink {
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose, isMarketplaceContext }) => {
   const { user } = useUser();
-  const [role, setRole] = useState<'Designer' | 'Client/Visitor'>('Designer');
+  const [role, setRole] = useState<'Designer' | 'Client'>('Designer');
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState(['', '', '', '', '']);
   const [caption, setCaption] = useState('');
@@ -85,7 +84,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             if (userPosts.length >= 5) {
                 // Find the oldest post in the 5-post set that needs to "expire" to allow a new one
                 const oldestPostInSet = userPosts[4];
-                // Fix: Cast oldestPostInSet to any to avoid "unknown" type error on timestamp property
                 const nextAvailableTime = (oldestPostInSet as any).timestamp + (24 * 60 * 60 * 1000);
 
                 const interval = setInterval(() => {
@@ -151,8 +149,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     setIsUploading(true);
 
     try {
-      const storedRole = role === 'Client/Visitor' ? 'Client' : 'Designer';
-      await update(ref(db, `users/${user.id}`), { role: storedRole });
+      await update(ref(db, `users/${user.id}`), { role: role });
 
       let mediaUrl = '';
       let mediaType = 'text';
@@ -177,7 +174,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         title: title.trim(),
         caption: caption.trim(),
         tags: tags.filter(t => t.trim() !== ''),
-        links: role === 'Client/Visitor' ? links.filter(l => l.name.trim() && l.url.trim()) : [],
+        links: role === 'Client' ? links.filter(l => l.name.trim() && l.url.trim()) : [],
         privacy: privacy,
         targetSection: isMarketplaceContext ? 'Marketplace Only' : 'Community',
         timestamp: Date.now(),
@@ -270,13 +267,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               <div className="space-y-3 md:space-y-4">
                 <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">Post Category</label>
                 <div className="flex gap-2 md:gap-3">
-                  {['Designer', 'Client/Visitor'].map((r) => (
+                  {['Designer', 'Client'].map((r) => (
                     <button 
                       key={r} 
                       onClick={() => setRole(r as any)} 
                       className={`flex-1 py-3 md:py-4 rounded-xl border font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all ${role === r ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-white/5 border-white/5 text-zinc-500 hover:text-white'}`}
                     >
-                      {r === 'Client/Visitor' ? 'Inquiry' : r}
+                      {r === 'Client' ? 'Inquiry' : r}
                     </button>
                   ))}
                 </div>
@@ -381,7 +378,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               </div>
 
               {/* Links (Only for Client) */}
-              {role === 'Client/Visitor' && (
+              {role === 'Client' && (
                 <div className="space-y-4 pt-4 border-t border-white/5">
                   <div className="flex items-center justify-between">
                     <label className="text-[9px] font-black text-zinc-500 uppercase tracking-widest ml-1">External Links</label>

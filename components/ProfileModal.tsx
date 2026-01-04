@@ -1,5 +1,3 @@
-
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -440,9 +438,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                 <div className="space-y-4 pt-10 border-t border-white/5">
                                     <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">System Security</h4>
                                     <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                                        {/* Changed technical 'verification signal' to humanized 'verification code' */}
                                         <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">
-                                            "PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen. A secure verification code will be broadcast to your Activity hub."
+                                            "PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen. A secure verification signal will be broadcast to your Activity hub."
                                         </p>
                                     </div>
                                 </div>

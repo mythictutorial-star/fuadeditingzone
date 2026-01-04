@@ -1,4 +1,3 @@
-
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
@@ -12,8 +11,7 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  // Changed technical 'Signal' to human-friendly 'Notification'
-  console.log('[firebase-messaging-sw.js] Notification Received: ', payload);
+  console.log('[firebase-messaging-sw.js] Signal Received: ', payload);
   
   const notificationTitle = payload.notification.title || "New Notification | FEZ";
   const notificationOptions = {

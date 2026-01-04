@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Phone, Video, Image as ImageIcon, Lock, Bell, Mic, Camera, PhoneOff, User, ShieldCheck } from 'lucide-react';
+import { Phone, Video, Image as ImageIcon, Lock, Bell, Mic, Camera, PhoneOff, User, ShieldCheck, Check } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -44,9 +44,15 @@ const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
     );
 };
 
-const MeetingView: React.FC<{ user: ChatUser; type: 'audio' | 'video'; onEnd: () => void }> = ({ user, type, onEnd }) => {
+const CallOverlay: React.FC<{ 
+  user: Partial<ChatUser>; 
+  type: 'audio' | 'video'; 
+  isIncoming?: boolean;
+  onEnd: () => void; 
+  onAccept?: () => void;
+}> = ({ user, type, isIncoming, onEnd, onAccept }) => {
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center">
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center">
       <div className="relative mb-8">
         <div className="w-32 h-32 rounded-full border-4 border-red-600 p-1 animate-pulse shadow-[0_0_40px_rgba(220,38,38,0.4)]">
           <img src={user.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
@@ -55,13 +61,22 @@ const MeetingView: React.FC<{ user: ChatUser; type: 'audio' | 'video'; onEnd: ()
           {type === 'audio' ? <Mic size={18} /> : <Camera size={18} />}
         </div>
       </div>
-      <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">@{user.username}</h2>
-      <p className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em] mb-12 animate-pulse">{type === 'audio' ? 'Connecting Audio Channel...' : 'Initializing Video Stream...'}</p>
+      <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">@{user.username || 'user'}</h2>
+      <p className="text-zinc-500 font-black text-[10px] uppercase tracking-[0.3em] mb-12 animate-pulse">
+        {isIncoming ? `Incoming ${type} Call...` : `Calling via Secure Node...`}
+      </p>
       
       <div className="flex gap-8">
-        <button onClick={onEnd} className="w-16 h-16 bg-white/5 hover:bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-zinc-400 transition-all"><Mic size={24} /></button>
-        <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-red-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
-        <button onClick={onEnd} className="w-16 h-16 bg-white/5 hover:bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-zinc-400 transition-all"><Camera size={24} /></button>
+        {isIncoming ? (
+          <>
+            <button onClick={onEnd} className="w-16 h-16 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-zinc-400 hover:bg-zinc-800 transition-all"><PhoneOff size={24} /></button>
+            <button onClick={onAccept} className="w-20 h-20 bg-green-600 hover:bg-green-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-green-600/20 active:scale-95 transition-all"><Phone size={32} /></button>
+          </>
+        ) : (
+          <>
+            <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-red-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
+          </>
+        )}
       </div>
     </motion.div>
   );
@@ -94,12 +109,27 @@ export const CommunityChat: React.FC<{
   const [activePreset, setActivePreset] = useState<string>(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [showLockAlert, setShowLockAlert] = useState(false);
-  const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; user: ChatUser } | null>(null);
+  
+  // Call States
+  const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; user: Partial<ChatUser>; meetingId: string } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ fromId: string; fromUsername: string; fromAvatar: string; type: 'audio' | 'video'; meetingId: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
+
+  // Listen for incoming 1v1 calls
+  useEffect(() => {
+    if (!clerkUser?.id) return;
+    const callRef = ref(db, `calls/${clerkUser.id}`);
+    const unsub = onValue(callRef, (snap) => {
+        const data = snap.val();
+        if (data) setIncomingCall(data);
+        else setIncomingCall(null);
+    });
+    return () => unsub();
+  }, [clerkUser?.id]);
 
   useEffect(() => {
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
@@ -167,16 +197,14 @@ export const CommunityChat: React.FC<{
     };
 
     try {
-        // Attempt Hyperdrive via Worker first
         const response = await fetch(`${R2_WORKER_URL}/api/messages`, {
             method: 'POST',
             body: JSON.stringify({ ...newMessage, threadId: chatPath })
         });
         
-        if (!response.ok) throw new Error("Hyperdrive Sync Failed");
+        if (!response.ok) throw new Error("Hyperdrive Gateway Error");
         setInputValue('');
     } catch (err) {
-        // Fallback to direct Firebase
         try {
             await push(ref(db, chatPath), newMessage);
             setInputValue('');
@@ -188,21 +216,61 @@ export const CommunityChat: React.FC<{
                 await set(unreadRef, (snap.val() || 0) + 1);
             }
         } catch (fbErr) {
-            alert("Broadcast Error: Zone link broken.");
+            alert("Broadcast Error: Zone link offline.");
         }
     } finally {
         setIsMediaUploading(false);
     }
   };
 
-  const handleCallAttempt = (type: 'audio' | 'video') => {
-    if (isSelectedFriend && selectedUser) {
-        setActivePreset('03a2f6a5-954a-4e10-8364-b0892044cedf'); // GROUP_HOST
-        setActiveCall({ type, user: selectedUser });
+  const initiateCall = async (type: 'audio' | 'video') => {
+    if (isSelectedFriend && selectedUser && clerkUser) {
+        const meetingId = `1v1_${[clerkUser.id, selectedUser.id].sort().join('_')}`;
+        const callInvite = {
+          fromId: clerkUser.id,
+          fromUsername: clerkUser.username || 'user',
+          fromAvatar: clerkUser.imageUrl,
+          type,
+          meetingId,
+          timestamp: Date.now()
+        };
+        
+        // Send signal to recipient
+        await set(ref(db, `calls/${selectedUser.id}`), callInvite);
+        
+        setActivePreset('03a2f6a5-954a-4e10-8364-b0892044cedf'); // GROUP_HOST as 1v1 relay
+        setActiveCall({ type, user: selectedUser, meetingId });
     } else {
         setShowLockAlert(true);
         setTimeout(() => setShowLockAlert(false), 3000);
     }
+  };
+
+  const handleAcceptCall = async () => {
+    if (!incomingCall || !clerkUser) return;
+    const { type, meetingId, fromId, fromUsername, fromAvatar } = incomingCall;
+    
+    // Clear invite signal
+    await remove(ref(db, `calls/${clerkUser.id}`));
+    
+    setActivePreset('084c0e88-fa5c-478d-b921-26697bdae794'); // GROUP_GUEST
+    setActiveCall({ 
+      type, 
+      user: { id: fromId, username: fromUsername, avatar: fromAvatar }, 
+      meetingId 
+    });
+    setIncomingCall(null);
+  };
+
+  const handleEndCall = async () => {
+    if (activeCall && selectedUser) {
+        await remove(ref(db, `calls/${selectedUser.id}`));
+    }
+    if (clerkUser) {
+        await remove(ref(db, `calls/${clerkUser.id}`));
+    }
+    setActiveCall(null);
+    setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
   };
 
   const openChat = (user: ChatUser | null) => {
@@ -257,14 +325,14 @@ export const CommunityChat: React.FC<{
                     </div>
                     {sidebarTab === 'search' && <input value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Type a name..." className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-[10px] outline-none focus:ring-1 focus:ring-red-600/30" />}
                     <div className="flex gap-6 border-b border-white/5">
-                        <button onClick={() => setInboxView('primary')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all ${inboxView === 'primary' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Circle</button>
-                        <button onClick={() => setInboxView('requests')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${inboxView === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Pending {filteredUsers.length > 0 && inboxView === 'requests' && <span className="ml-1 bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full">{filteredUsers.length}</span>}</button>
+                        <button onClick={() => setInboxView('primary')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all ${inboxView === 'primary' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Primary</button>
+                        <button onClick={() => setInboxView('requests')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${inboxView === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Requests {filteredUsers.length > 0 && inboxView === 'requests' && <span className="ml-1 bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full">{filteredUsers.length}</span>}</button>
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
                     <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
                         <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
-                        <div className="text-left"><p className="text-sm font-bold text-white">Broadcast Zone</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
+                        <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
                     </button>
                     {filteredUsers.map(u => (
                         <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
@@ -281,7 +349,17 @@ export const CommunityChat: React.FC<{
 
             <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black relative`}>
                 <AnimatePresence>
-                    {activeCall && <MeetingView key="meeting" user={activeCall.user} type={activeCall.type} onEnd={() => setActiveCall(null)} />}
+                    {incomingCall && (
+                      <CallOverlay 
+                        key="incoming" 
+                        user={{ username: incomingCall.fromUsername, avatar: incomingCall.fromAvatar }} 
+                        type={incomingCall.type} 
+                        isIncoming 
+                        onEnd={async () => { await remove(ref(db, `calls/${clerkUser?.id}`)); setIncomingCall(null); }} 
+                        onAccept={handleAcceptCall}
+                      />
+                    )}
+                    {activeCall && <CallOverlay key="active" user={activeCall.user} type={activeCall.type} onEnd={handleEndCall} />}
                     {showLockAlert && (
                         <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute top-24 right-6 z-[60] bg-red-600/90 backdrop-blur-xl border border-red-500 p-4 rounded-2xl shadow-2xl">
                             <p className="text-[10px] font-black uppercase tracking-widest text-white">Connect to Unlock Calls</p>
@@ -319,19 +397,21 @@ export const CommunityChat: React.FC<{
                                     {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={maskUser(selectedUser!)} className="w-10 h-10" />}
                                     <div className="min-w-0">
                                         <div className="flex items-center">
-                                            <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1">{isGlobal ? 'Broadcast' : maskUser(selectedUser!).username?.toLowerCase()}</h3>
+                                            <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1">{isGlobal ? 'Global' : maskUser(selectedUser!).username?.toLowerCase()}</h3>
                                             {!isGlobal && <VerificationBadge username={maskUser(selectedUser!).username} />}
                                         </div>
-                                        <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest leading-none">{isGlobal ? 'Open Public Network' : 'Zone Thread'}</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isGlobal ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,1)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]'}`}></div>
+                                            <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">{isGlobal ? 'Open Public Network' : 'Zone Thread'}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full animate-pulse mr-2 ${isGlobal ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,1)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]'}`}></div>
                                 {!isGlobal && (
                                     <>
-                                        <button onClick={() => handleCallAttempt('audio')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Phone size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
-                                        <button onClick={() => handleCallAttempt('video')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Video size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
+                                        <button onClick={() => initiateCall('audio')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Phone size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
+                                        <button onClick={() => initiateCall('video')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Video size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
                                     </>
                                 )}
                             </div>
@@ -371,7 +451,7 @@ export const CommunityChat: React.FC<{
                             ) : (
                                 <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto">
                                     <button type="button" className="p-2 text-zinc-500 hover:text-white transition-colors"><ImageIcon size={20}/></button>
-                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Secure broadcast..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-1.5 outline-none resize-none max-h-32" />
+                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-1.5 outline-none resize-none max-h-32" />
                                     <button type="submit" disabled={isMediaUploading || !inputValue.trim()} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20"><SendIcon className="w-5 h-5" /></button>
                                 </form>
                             )}
