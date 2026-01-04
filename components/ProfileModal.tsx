@@ -9,7 +9,7 @@ import {
   ChatBubbleIcon, EyeIcon, UserCircleIcon, BriefcaseIcon, SparklesIcon, LockIcon
 } from './Icons';
 import { siteConfig } from '../config';
-import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock, Palette } from 'lucide-react';
+import { Lock, ShieldCheck, KeyRound, ArrowRight, AlertTriangle, ShieldAlert, Clock, Palette, Plus } from 'lucide-react';
 
 const firebaseConfig = {
   databaseURL: "https://fuad-editing-zone-default-rtdb.firebaseio.com/",
@@ -53,7 +53,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const [editData, setEditData] = useState<any>({});
     const [userListMode, setUserListMode] = useState<'followers' | 'following' | null>(null);
     const [resolvedUserList, setResolvedUserList] = useState<any[]>([]);
-    const [showCopyToast, setShowCopyToast] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
     const [lockCountdown, setLockCountdown] = useState<string | null>(null);
     const [isBadgePickerOpen, setIsBadgePickerOpen] = useState(false);
@@ -251,19 +250,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         }
     };
 
-    const handleResetPasscode = async () => {
+    const handlePasscodeSetupOrChange = async () => {
         if (!clerkUser) return;
-        const current = targetUser?.chat_passcode;
-        if (current) {
-            const old = prompt("Enter previous 4-digit passcode:");
-            if (old !== current) { alert("Incorrect previous passcode."); return; }
+        const currentCode = targetUser?.chat_passcode;
+        
+        if (currentCode) {
+            const old = prompt("Identity Check: Enter your current 4-digit passcode to proceed:");
+            if (old === null) return;
+            if (old !== currentCode) { alert("Verification Denied: Incorrect current passcode."); return; }
         }
-        const next = prompt("Enter new 4-digit passcode:");
+
+        const next = prompt(currentCode ? "Verification Approved. Enter your new 4-digit passcode:" : "Secure Vault: Setup a new 4-digit passcode for locked threads:");
         if (next && next.length === 4 && /^\d+$/.test(next)) {
             await set(ref(db, `users/${clerkUser.id}/chat_passcode`), next);
-            alert("Passcode updated successfully.");
-        } else {
-            alert("Invalid passcode. Must be 4 digits.");
+            alert("Security protocol updated: Passcode active.");
+        } else if (next !== null) {
+            alert("Invalid Input: Passcode must be exactly 4 digits.");
         }
     };
 
@@ -336,7 +338,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         const low = u.toLowerCase();
         const vLow = clerkUser?.username?.toLowerCase();
         
-        // Private Relationship Roles
         if (vLow === RESTRICTED_HANDLE && low === OWNER_HANDLE) {
             return <span className="ml-1.5 px-2 py-0.5 bg-red-600 text-white rounded text-[8px] font-black uppercase tracking-widest border border-white/20">Husband</span>;
         }
@@ -394,9 +395,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
+            <div className="fixed inset-0 z-[4000000] flex items-center justify-center overflow-hidden">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/98 backdrop-blur-3xl" />
-                <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl">
+                <motion.div 
+                   initial={{ opacity: 0, y: 30 }} 
+                   animate={{ opacity: 1, y: 0 }} 
+                   exit={{ opacity: 0, y: 30 }} 
+                   className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl safe-area-padding"
+                   style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top)' }}
+                >
                     <div className="p-5 md:p-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
                         <div className="flex items-center gap-4">
                             <button onClick={() => { if (userListMode) setUserListMode(null); else if (showSecurity) setShowSecurity(false); else onClose(); }} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
@@ -419,7 +426,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative no-scrollbar">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative no-scrollbar pb-24 md:pb-12">
                         {isLocked && (
                             <div className="bg-red-600 text-white p-3 text-center flex items-center justify-center gap-6 shadow-lg sticky top-0 z-50">
                                 <div className="flex items-center gap-2">
@@ -447,29 +454,52 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-10">
                                 <div className="space-y-4">
                                     <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Passcode Protection</h4>
-                                    <button 
-                                        onClick={handleResetPasscode}
-                                        className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20">
-                                                <KeyRound size={24} />
+                                    
+                                    {/* Setup Passcode Button (Only if not set) */}
+                                    {!targetUser?.chat_passcode && (
+                                        <button 
+                                            onClick={handlePasscodeSetupOrChange}
+                                            className="w-full flex items-center justify-between p-6 bg-red-600/5 border border-red-600/20 rounded-2xl hover:bg-red-600/10 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20">
+                                                    <Plus size={24} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="text-sm font-black text-white uppercase tracking-widest">Setup Vault Passcode</p>
+                                                    <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Required for locked profiles</p>
+                                                </div>
                                             </div>
-                                            <div className="text-left">
-                                                <p className="text-sm font-black text-white uppercase tracking-widest">Chat Passcode</p>
-                                                <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">{targetUser?.chat_passcode ? 'Passcode is Active' : 'Not Set'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-[9px] font-black text-red-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Change</span>
                                             <ArrowRight size={16} className="text-zinc-600" />
-                                        </div>
-                                    </button>
+                                        </button>
+                                    )}
+
+                                    {/* Change Passcode Button (Only if already set) */}
+                                    {targetUser?.chat_passcode && (
+                                        <button 
+                                            onClick={handlePasscodeSetupOrChange}
+                                            className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20">
+                                                    <KeyRound size={24} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="text-sm font-black text-white uppercase tracking-widest">Change Passcode</p>
+                                                    <p className="text-[10px] text-zinc-500 font-bold mt-1 uppercase tracking-tight">Passcode is currently Active</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-[9px] font-black text-red-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Change</span>
+                                                <ArrowRight size={16} className="text-zinc-600" />
+                                            </div>
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="space-y-4 pt-10 border-t border-white/5">
                                     <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">System Security</h4>
                                     <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">"PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen."</p>
+                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">"PASSCODE RECOVERY: To maintain absolute privacy, passcodes are encrypted. If forgotten, identity verification via the hub is mandatory for reset."</p>
                                     </div>
                                 </div>
                             </div>
@@ -582,7 +612,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                         )}
                     </div>
 
-                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5">
+                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5 pb-[env(safe-area-inset-bottom)]">
                         <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Zone Protocol v4.0</p>
                     </div>
                 </motion.div>

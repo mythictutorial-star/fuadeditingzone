@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   SignedIn, 
   SignedOut, 
@@ -219,12 +219,18 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
     const { user } = useUser();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [hasPendingMsgRequests, setHasPendingMsgRequests] = useState(false);
+    const [chatSettings, setChatSettings] = useState<Record<string, any>>({});
 
     useEffect(() => {
         if (!user) return;
         const notifyRef = ref(db, `notifications/${user.id}`);
         const globalRef = ref(db, 'notifications/global');
+        const settingsRef = ref(db, `users/${user.id}/chat_settings`);
         
+        onValue(settingsRef, (snap) => {
+            setChatSettings(snap.val() || {});
+        });
+
         onValue(notifyRef, (snap) => {
             const data = snap.val() || {};
             const rawList = Object.entries(data)
@@ -273,11 +279,19 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
         setIsOpen(false);
     };
 
+    // FIX: Using useMemo which is now correctly imported from React
+    const filteredNotifications = useMemo(() => {
+        return notifications.filter(n => {
+            if (n.fromId && chatSettings[n.fromId]?.locked) return false;
+            return true;
+        });
+    }, [notifications, chatSettings]);
+
     return (
         <div className="relative">
             <button onClick={() => setIsOpen(!isOpen)} className="relative p-2 rounded-xl hover:bg-red-600/10 transition-all text-gray-400 hover:text-red-500" title="Notifications">
                 <i className="fa-solid fa-bell text-[14px]"></i>
-                {(notifications.some(n => !n.read && !n.isGlobal) || hasPendingMsgRequests) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
+                {(filteredNotifications.some(n => !n.read && !n.isGlobal) || hasPendingMsgRequests) && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-black animate-pulse"></span>}
             </button>
             <AnimatePresence>
                 {isOpen && (
@@ -293,12 +307,12 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                                     <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Non-friends are trying to reach you</p>
                                 </div>
                             )}
-                            {notifications.length === 0 && !hasPendingMsgRequests ? (
+                            {filteredNotifications.length === 0 && !hasPendingMsgRequests ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-20">
                                      <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em] text-zinc-600">No Activity Yet</p>
                                 </div>
                             ) : (
-                                notifications.map((n) => (
+                                filteredNotifications.map((n) => (
                                     <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-6 cursor-pointer transition-all border-b border-white/5 ${!n.read && !n.isGlobal ? 'bg-red-600/5' : 'bg-black opacity-60 hover:opacity-100 hover:bg-white/[0.03]'}`}>
                                         <p className="text-sm md:text-lg leading-snug text-gray-200">
                                             <span className="font-black text-white">@{ (n.fromName || '').toLowerCase() }</span> {n.text}{n.count > 1 ? ` (${n.count})` : ''}

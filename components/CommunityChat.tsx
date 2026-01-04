@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff, Fingerprint, LockKeyhole } from 'lucide-react';
+import { Info, Image as ImageIcon, Lock, Bell, User, ShieldCheck, Check, MoreHorizontal, Slash, ShieldAlert, KeyRound, Eye, EyeOff, Fingerprint, LockKeyhole, Plus } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -51,7 +51,7 @@ const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewe
         return (
             <span className="relative inline-flex items-center ml-1 fez-verified-badge">
                 <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>
-                <i className="fa-solid fa-circle-check text-blue-500 text-[5px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
+                <i className="fa-solid fa-circle-check text-blue-500 text-[4px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
             </span>
         );
     }
@@ -61,7 +61,6 @@ const VerificationBadge: React.FC<{ username?: string; custom_badge?: any; viewe
     return null;
 };
 
-// Added helper function to resolve "Cannot find name 'getTimeAgo'" error
 const getTimeAgo = (timestamp?: number) => {
     if (!timestamp) return 'a while ago';
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -75,7 +74,7 @@ const getTimeAgo = (timestamp?: number) => {
     return new Date(timestamp).toLocaleDateString();
 };
 
-interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; custom_badge?: any; }
+interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; custom_badge?: any; chat_passcode?: string; }
 interface Message { id?: string; senderId: string; senderName: string; senderUsername?: string; senderAvatar?: string; text?: string; timestamp: number; }
 
 export const CommunityChat: React.FC<{ 
@@ -312,6 +311,26 @@ export const CommunityChat: React.FC<{
       }
   };
 
+  const handlePasscodeSetupOrChange = async () => {
+      if (!clerkUser) return;
+      const myUserSnap = await get(ref(db, `users/${clerkUser.id}`));
+      const currentCode = myUserSnap.val()?.chat_passcode;
+      
+      if (currentCode) {
+          const old = prompt("Identity Check: Enter your current 4-digit passcode to proceed:");
+          if (old === null) return;
+          if (old !== currentCode) { alert("Verification Denied: Incorrect current passcode."); return; }
+      }
+
+      const next = prompt(currentCode ? "Verification Approved. Enter your new 4-digit passcode:" : "Secure Vault: Setup a new 4-digit passcode for locked threads:");
+      if (next && next.length === 4 && /^\d+$/.test(next)) {
+          await set(ref(db, `users/${clerkUser.id}/chat_passcode`), next);
+          alert("Security protocol updated: Passcode active.");
+      } else if (next !== null) {
+          alert("Invalid Input: Passcode must be exactly 4 digits.");
+      }
+  };
+
   const openChat = (user: ChatUser | null) => {
       setIsDetailsOpen(false); setPasscodeVerified(false); setPasscodeInput(''); setPasscodeErrorCount(0); setShowResetFlow(false);
       if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }
@@ -351,6 +370,10 @@ export const CommunityChat: React.FC<{
       if (!selectedUser) return null;
       return users.find(u => u.id === selectedUser.id) || selectedUser;
   }, [users, selectedUser]);
+
+  const currentUserData = useMemo(() => {
+      return users.find(u => u.id === clerkUser?.id);
+  }, [users, clerkUser?.id]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-black font-sans">
@@ -448,14 +471,19 @@ export const CommunityChat: React.FC<{
                                                 <p className="text-sm font-bold text-white truncate">{u.name}</p>
                                                 <VerificationBadge username={u.username} custom_badge={u.custom_badge} viewer={clerkUser?.username} />
                                                 {isItemLocked && (
-                                                   <span className="ml-auto flex items-center justify-center w-5 h-5 bg-red-600/10 rounded-lg border border-red-600/20">
-                                                      <LockKeyhole size={10} className="text-red-600" />
+                                                   <span 
+                                                      onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(true); }}
+                                                      className="ml-auto flex items-center justify-center w-6 h-6 bg-red-600 text-white rounded-lg border border-red-500 active:scale-90 transition-transform shadow-lg shadow-red-600/20"
+                                                   >
+                                                      <LockKeyhole size={12} />
                                                    </span>
                                                 )}
                                             </div>
                                             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
                                         </div>
-                                        {unreadCounts[u.id] > 0 && <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red]"></div>}
+                                        {unreadCounts[u.id] > 0 && (
+                                            <div className={`w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red] ${isItemLocked && !isVaultUnlocked ? 'hidden' : ''}`}></div>
+                                        )}
                                     </button>
                                 );
                             })}
@@ -666,6 +694,19 @@ export const CommunityChat: React.FC<{
                                         <div className={`absolute top-1 w-2 h-2 bg-white rounded-full transition-all ${localSettings.locked ? 'left-5' : 'left-1'}`}></div>
                                      </div>
                                   </button>
+                                  
+                                  {currentUserData?.chat_passcode ? (
+                                    <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                       <div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div>
+                                       <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
+                                    </button>
+                                  ) : (
+                                    <button onClick={handlePasscodeSetupOrChange} className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all border-b border-white/5 group">
+                                       <div className="flex items-center gap-3 text-red-500 group-hover:text-red-400"><Plus size={16} /><span className="text-[10px] font-bold uppercase">Setup Passcode</span></div>
+                                       <ChevronRightIcon className="w-4 h-4 text-red-900" />
+                                    </button>
+                                  )}
+
                                   <button onClick={() => toggleSetting('muted')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
                                      <div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Channel</span></div>
                                      <div className={`w-8 h-4 rounded-full relative transition-colors ${localSettings.muted ? 'bg-red-600' : 'bg-zinc-800'}`}>
