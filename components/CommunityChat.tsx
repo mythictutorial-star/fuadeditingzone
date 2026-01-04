@@ -89,6 +89,7 @@ export const CommunityChat: React.FC<{
   }, [forceSearchTab, onSearchTabConsumed]);
 
   useEffect(() => {
+    // Nav bar is hidden on mobile if a thread (global or private) is open
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
   }, [isMobileChatOpen, selectedUser, isGlobal, onThreadStateChange]);
 
@@ -269,7 +270,11 @@ export const CommunityChat: React.FC<{
                         </button>
                     )}
                     {filteredUsers.map(u => (
-                        <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
+                        <button 
+                          key={u.id} 
+                          onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} 
+                          className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}
+                        >
                             <UserAvatar user={u} className="w-12 h-12" />
                             <div className="text-left flex-1 min-w-0">
                                 <p className="text-sm font-bold text-white truncate">{u.name}</p>
@@ -365,7 +370,7 @@ export const CommunityChat: React.FC<{
                             </div>
 
                             {/* Input Area - Adjusted for mobile thread view where bottom nav is hidden */}
-                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 ${isMobileChatOpen ? 'pb-6 md:pb-6' : 'pb-24 md:pb-6'}`}>
+                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 ${isMobileChatOpen && (selectedUser || isGlobal) ? 'pb-6 md:pb-6' : 'pb-24 md:pb-6'}`}>
                                 {!isGlobal && !isSelectedFriend ? (
                                     <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] text-center md:text-left">Thread Connection Required</p>
