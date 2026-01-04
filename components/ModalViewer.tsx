@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { GraphicWork, VideoWork, ModalItem } from '../hooks/types';
 import type { Comment as PostComment } from './ExploreFeed';
@@ -22,22 +21,30 @@ interface ModalViewerProps {
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
+const RESTRICTED_HANDLE = 'jiya';
 
 const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
+    const { user: clerkUser } = useUser();
     if (!username) return null;
     const low = username.toLowerCase();
+    const viewerLow = clerkUser?.username?.toLowerCase();
+    
     const isOwner = low === OWNER_HANDLE;
     const isAdmin = low === ADMIN_HANDLE;
-    if (!isOwner && !isAdmin) return null;
-    
-    const delay = (username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
-    
-    return (
-        <i 
-            style={{ animationDelay: `-${delay}s` }} 
-            className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] md:text-[12px] ml-1 fez-verified-badge`}
-        ></i>
-    );
+    const isJiya = low === RESTRICTED_HANDLE;
+    const canSeeJiyaBadge = viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE;
+
+    if (isOwner) return <i className="fa-solid fa-circle-check text-red-600 text-[10px] md:text-[12px] ml-1 fez-verified-badge"></i>;
+    if (isAdmin) return <i className="fa-solid fa-circle-check text-blue-500 text-[10px] md:text-[12px] ml-1 fez-verified-badge"></i>;
+    if (isJiya && canSeeJiyaBadge) {
+        return (
+            <span className="relative inline-flex items-center ml-1 fez-verified-badge">
+                <i className="fa-solid fa-circle-check text-red-600 text-[10px] md:text-[12px]"></i>
+                <i className="fa-solid fa-circle-check text-blue-500 text-[5px] md:text-[6px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
+            </span>
+        );
+    }
+    return null;
 };
 
 const CommentItem: React.FC<{
@@ -132,7 +139,7 @@ const CommentItem: React.FC<{
                             {isLikedByOwner && (
                                 <div className="flex items-center gap-2" title="Liked by author">
                                     <span className="w-px h-2 bg-zinc-800"></span>
-                                    <i style={{ animationDelay: `-${(comment.userName?.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 60)}s` }} className="fa-solid fa-heart text-[8px] text-red-600 fez-verified-badge"></i>
+                                    <i className="fa-solid fa-heart text-[8px] text-red-600 fez-verified-badge"></i>
                                     <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest">Author liked</span>
                                 </div>
                             )}

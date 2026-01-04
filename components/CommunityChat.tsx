@@ -34,14 +34,27 @@ const UserAvatar: React.FC<{ user: Partial<ChatUser>; className?: string; onClic
 };
 
 const VerificationBadge: React.FC<{ username?: string }> = ({ username }) => {
+    const { user: clerkUser } = useUser();
     if (!username) return null;
     const low = username.toLowerCase();
+    const viewerLow = clerkUser?.username?.toLowerCase();
+    
     const isOwner = low === OWNER_HANDLE;
     const isAdmin = low === ADMIN_HANDLE;
-    if (!isOwner && !isAdmin) return null;
-    return (
-        <i className={`fa-solid fa-circle-check ${isOwner ? 'text-red-600' : 'text-blue-500'} text-[10px] ml-1 fez-verified-badge`}></i>
-    );
+    const isJiya = low === RESTRICTED_HANDLE;
+    const canSeeJiyaBadge = viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE;
+
+    if (isOwner) return <i className="fa-solid fa-circle-check text-red-600 text-[10px] ml-1 fez-verified-badge"></i>;
+    if (isAdmin) return <i className="fa-solid fa-circle-check text-blue-500 text-[10px] ml-1 fez-verified-badge"></i>;
+    if (isJiya && canSeeJiyaBadge) {
+        return (
+            <span className="relative inline-flex items-center ml-1 fez-verified-badge" title="Special Verification">
+                <i className="fa-solid fa-circle-check text-red-600 text-[10px]"></i>
+                <i className="fa-solid fa-circle-check text-blue-500 text-[5px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
+            </span>
+        );
+    }
+    return null;
 };
 
 interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; }
@@ -89,7 +102,6 @@ export const CommunityChat: React.FC<{
   }, [forceSearchTab, onSearchTabConsumed]);
 
   useEffect(() => {
-    // Nav bar is hidden on mobile if a thread (global or private) is open
     onThreadStateChange?.(isMobileChatOpen && (!!selectedUser || isGlobal));
   }, [isMobileChatOpen, selectedUser, isGlobal, onThreadStateChange]);
 
@@ -144,11 +156,8 @@ export const CommunityChat: React.FC<{
     e?.preventDefault();
     if (!isSignedIn || !chatPath || !clerkUser || !inputValue.trim()) return;
 
-    // Anti-Spam: 1 second rate limit
     const now = Date.now();
-    if (now - lastSentTimeRef.current < 1000) {
-        return;
-    }
+    if (now - lastSentTimeRef.current < 1000) return;
     lastSentTimeRef.current = now;
 
     setIsMediaUploading(true);
@@ -233,7 +242,6 @@ export const CommunityChat: React.FC<{
   return (
     <div className="flex flex-col h-full w-full overflow-hidden bg-black font-sans">
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
-        {/* Nav Bar Desktop */}
         <nav className="hidden lg:flex flex-col items-center py-10 gap-10 w-20 border-r border-white/5 bg-black flex-shrink-0">
             <button onClick={onBack} className="hover:scale-110 transition-transform"><img src={siteConfig.branding.logoUrl} className="w-8 h-8" alt="" /></button>
             <button onClick={() => { setIsActivityOpen(false); setIsMobileChatOpen(false); setIsDetailsOpen(false); }} className={`p-3 rounded-2xl ${!isActivityOpen && !selectedUser ? 'bg-white text-black' : 'text-zinc-500'}`}><HomeIcon className="w-6 h-6" /></button>
@@ -310,7 +318,6 @@ export const CommunityChat: React.FC<{
                         </div>
                     ) : (
                         <div className="flex-1 flex flex-col min-h-0 h-full">
-                            {/* Header */}
                             <div className="p-4 md:p-6 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl z-10 px-2.5">
                                 <div className="flex items-center gap-4">
                                     <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeftIcon className="w-5 h-5 text-white" /></button>
@@ -337,7 +344,6 @@ export const CommunityChat: React.FC<{
                                 </div>
                             </div>
 
-                            {/* Message List */}
                             <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2.5 pb-10 pt-6 space-y-8">
                                 {messages.map((m, i) => {
                                     const isMe = m.senderId === clerkUser?.id;
@@ -369,7 +375,6 @@ export const CommunityChat: React.FC<{
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            {/* Input Area - Adjusted for mobile thread view where bottom nav is hidden */}
                             <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 ${isMobileChatOpen && (selectedUser || isGlobal) ? 'pb-6 md:pb-6' : 'pb-24 md:pb-6'}`}>
                                 {!isGlobal && !isSelectedFriend ? (
                                     <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
@@ -395,7 +400,6 @@ export const CommunityChat: React.FC<{
                     )}
                 </div>
 
-                {/* Details Sidebar */}
                 <AnimatePresence>
                   {isDetailsOpen && selectedUser && !isGlobal && (
                     <motion.aside 

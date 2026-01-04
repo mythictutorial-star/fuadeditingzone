@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   SignedIn, 
@@ -26,13 +25,25 @@ const db = getDatabase(app);
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
+const RESTRICTED_HANDLE = 'jiya';
 
-const getBadge = (u: string) => {
-  const low = u?.toLowerCase();
-  const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
-  if (low === OWNER_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
-  if (low === ADMIN_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>;
-  return null;
+const VerifiedBadge: React.FC<{ username: string }> = ({ username }) => {
+    const { user: clerkUser } = useUser();
+    const low = username.toLowerCase();
+    const viewerLow = clerkUser?.username?.toLowerCase();
+    
+    if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm fez-verified-badge"></i>;
+    if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm fez-verified-badge"></i>;
+    
+    if (low === RESTRICTED_HANDLE && (viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE)) {
+        return (
+            <span className="relative inline-flex items-center ml-1.5 fez-verified-badge">
+                <i className="fa-solid fa-circle-check text-red-600 text-sm"></i>
+                <i className="fa-solid fa-circle-check text-blue-500 text-[5px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
+            </span>
+        );
+    }
+    return null;
 };
 
 interface NavProps {
@@ -109,8 +120,6 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
             await remove(ref(db, `social/${targetId}/requests/sent/${user.id}`));
             await set(ref(db, `social/${user.id}/friends/${targetId}`), true);
             await set(ref(db, `social/${targetId}/friends/${user.id}`), true);
-            
-            // NOTIFICATION OVERHAUL: "@username accepted your request" logic
             await push(ref(db, `notifications/${targetId}`), {
                 type: 'friend_accepted',
                 fromId: user.id,
@@ -151,18 +160,6 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                             <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Friend Requests</span>
                             <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/5 rounded-full transition-colors"><CloseIcon className="w-4 h-4 text-zinc-500" /></button>
                         </div>
-                        
-                        <div className="flex bg-black/20 border-b border-white/5">
-                            <button onClick={() => setTab('received')} className={`flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all relative ${tab === 'received' ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                                Received
-                                {tab === 'received' && <motion.div layoutId="request-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
-                            </button>
-                            <button onClick={() => setTab('sent')} className={`flex-1 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all relative ${tab === 'sent' ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
-                                Sent
-                                {tab === 'sent' && <motion.div layoutId="request-tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
-                            </button>
-                        </div>
-
                         <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-4 space-y-4">
                             {tab === 'received' ? (
                                 receivedRequests.length === 0 ? (
@@ -175,7 +172,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
-                                                        {getBadge(req.username)}
+                                                        <VerifiedBadge username={req.username} />
                                                     </div>
                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 truncate">{req.profile?.profession || 'Designer'}</p>
                                                 </div>
@@ -198,7 +195,7 @@ const RequestHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => void; o
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1">
                                                         <p className="text-[12px] font-black text-white uppercase tracking-tight truncate">@{ (req.username || 'anonymous').toLowerCase() }</p>
-                                                        {getBadge(req.username)}
+                                                        <VerifiedBadge username={req.username} />
                                                     </div>
                                                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5 italic">Requested</p>
                                                 </div>
@@ -233,8 +230,6 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
             onValue(globalRef, (gSnap) => {
               const gData = gSnap.val() || {};
               const gList = Object.entries(gData).map(([id, info]: [string, any]) => ({ id, ...info, isGlobal: true }));
-              
-              // NOTIFICATION OVERHAUL: Stacking/Merging logic
               const merged = [...rawList, ...gList].reduce((acc: any[], n: any) => {
                   const existingIndex = acc.findIndex(item => item.fromId === n.fromId && item.type === n.type && !n.isGlobal);
                   if (existingIndex !== -1 && n.type === 'post_like') {
@@ -285,9 +280,7 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                 {isOpen && (
                     <motion.div initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 bg-black z-[10000000] flex flex-col overflow-hidden">
                         <div className="p-6 md:p-10 border-b border-white/5 bg-black flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                                <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
-                            </div>
+                            <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
                             <button onClick={() => setIsOpen(false)} className="p-3 bg-white/5 rounded-full hover:bg-red-600 transition-all"><CloseIcon className="w-6 h-6 text-white" /></button>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-20 max-w-4xl mx-auto w-full space-y-2">
@@ -297,7 +290,6 @@ const NotificationHub: React.FC<{ isOpen: boolean; setIsOpen: (v: boolean) => vo
                                     <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1">Non-friends are trying to reach you</p>
                                 </div>
                             )}
-                            
                             {notifications.length === 0 && !hasPendingMsgRequests ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center opacity-20">
                                      <p className="text-sm md:text-xl font-black uppercase tracking-[0.5em] text-zinc-600">No Activity Yet</p>
@@ -340,7 +332,7 @@ export const DesktopHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarket
             <motion.img animate={logoControls} src={siteConfig.branding.logoUrl} alt="Logo" className="h-9 w-9" />
             <div className="flex items-center gap-1">
                 <span className="font-black text-white text-sm uppercase tracking-[0.2em] font-display transition-colors">{siteConfig.branding.name}</span>
-                {getBadge(OWNER_HANDLE)}
+                <VerifiedBadge username={OWNER_HANDLE} />
             </div>
         </div>
         <nav className="flex items-center gap-6">
@@ -384,7 +376,7 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
                 <motion.img animate={logoControls} src={siteConfig.branding.logoUrl} alt="Logo" className="h-8 w-8" />
                 <div className="flex items-center gap-1">
                     <span className="font-bold text-white tracking-widest text-[8px] uppercase font-display">FUAD EDITING ZONE</span>
-                    {getBadge(OWNER_HANDLE)}
+                    <VerifiedBadge username={OWNER_HANDLE} />
                 </div>
             </div>
             <div className="flex items-center gap-3">
@@ -404,12 +396,10 @@ export const MobileHeader: React.FC<NavProps> = ({ onScrollTo, onNavigateMarketp
 
 export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNavigateMarketplace: () => void; onNavigateCommunity: () => void; onCreatePost: () => void; activeRoute?: string; isMinimized?: boolean; hideFAB?: boolean }> = ({ onScrollTo, onNavigateMarketplace, onNavigateCommunity, onCreatePost, activeRoute, isMinimized, hideFAB }) => {
     const { isSignedIn } = useUser();
-    // Hide footer completely when modal is open
     if (isMinimized) return null;
 
     return (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
-            {/* Floating Action Button for Create Post - Hide on Home route and if not signed in or FAB hidden explicitly */}
             {activeRoute !== 'home' && isSignedIn && !hideFAB && (
                 <div className="flex justify-end p-6 pointer-events-auto">
                     <motion.button 
@@ -422,13 +412,9 @@ export const MobileFooterNav: React.FC<{ onScrollTo: (target: any) => void; onNa
                     </motion.button>
                 </div>
             )}
-
             <motion.nav 
                 initial={false}
-                animate={{ 
-                    y: 0,
-                    opacity: 0.9 
-                }}
+                animate={{ y: 0, opacity: 0.9 }}
                 className="pointer-events-auto bg-black backdrop-blur-2xl rounded-t-[2rem] h-20 flex justify-around items-center shadow-2xl border-t border-white/5 px-6 z-[100]"
             >
                 {activeRoute !== 'marketplace' && (

@@ -69,7 +69,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const isJiya = targetUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
     const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
     const isAdmin = clerkUser?.username?.toLowerCase() === ADMIN_HANDLE;
-    const hasAccessToJiya = isOwner;
+    const hasAccessToJiya = isOwner || clerkUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
 
     useEffect(() => {
         if (isOpen && currentProfileId) {
@@ -322,10 +322,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     };
 
     const getVerifiedBadge = (u: string) => {
-        const low = u?.toLowerCase();
-        const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
-        if (low === OWNER_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
-        if (low === ADMIN_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
+        if (!u) return null;
+        const low = u.toLowerCase();
+        const viewerLow = clerkUser?.username?.toLowerCase();
+        
+        if (low === OWNER_HANDLE) return <i className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
+        if (low === ADMIN_HANDLE) return <i className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
+        
+        if (low === RESTRICTED_HANDLE && (viewerLow === OWNER_HANDLE || viewerLow === RESTRICTED_HANDLE)) {
+            return (
+                <span className="relative inline-flex items-center ml-1.5 fez-verified-badge">
+                    <i className="fa-solid fa-circle-check text-red-600 text-sm md:text-lg"></i>
+                    <i className="fa-solid fa-circle-check text-blue-500 text-[6px] md:text-[8px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></i>
+                </span>
+            );
+        }
         return null;
     };
 
@@ -363,7 +374,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
             <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/98 backdrop-blur-3xl" />
                 <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="relative w-full h-full bg-[#050505] border-0 flex flex-col overflow-hidden shadow-2xl">
-                    
                     <div className="p-5 md:p-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
                         <div className="flex items-center gap-4">
                             <button onClick={() => { if (userListMode) setUserListMode(null); else if (showSecurity) setShowSecurity(false); else onClose(); }} className="p-3 rounded-full hover:bg-white/5 transition-all text-white"><ChevronLeftIcon className="w-6 h-6" /></button>
@@ -387,7 +397,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar relative no-scrollbar">
-                        {/* Global Status Banner */}
                         {isLocked && (
                             <div className="bg-red-600 text-white p-3 text-center flex items-center justify-center gap-6 shadow-lg sticky top-0 z-50">
                                 <div className="flex items-center gap-2">
@@ -434,13 +443,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                         </div>
                                     </button>
                                 </div>
-
                                 <div className="space-y-4 pt-10 border-t border-white/5">
                                     <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">System Security</h4>
                                     <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">
-                                            "PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen. A secure verification signal will be broadcast to your Activity hub."
-                                        </p>
+                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">"PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen."</p>
                                     </div>
                                 </div>
                             </div>
@@ -506,7 +512,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                 <div className="space-y-3">
                                                   <p className="text-lg md:text-2xl font-black text-white uppercase tracking-tight leading-none">{targetUser?.name || clerkUser.fullName}</p>
                                                   <p className="text-zinc-400 text-sm md:text-lg font-medium italic leading-relaxed opacity-80">"{targetUser?.profile?.bio || 'Visual Artist & Designer.'}"</p>
-                                                  
                                                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 pt-2">
                                                       <div className="flex items-center gap-2 text-zinc-500">
                                                           <BriefcaseIcon className="w-4 h-4 text-red-600 opacity-60" />
@@ -517,43 +522,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                                           <span className="text-[10px] md:text-xs font-black uppercase tracking-widest">{targetUser?.profile?.origin || 'Earth'}</span>
                                                       </div>
                                                   </div>
-
-                                                  <div className="flex items-center justify-center md:justify-start gap-4 pt-3">
-                                                      {(targetUser?.profile?.networks || []).map((net: any, i: number) => {
-                                                          const cfg = NETWORK_CONFIGS[net.name] || { icon: GlobeAltIcon, baseUrl: '' };
-                                                          return net.handle && (
-                                                              <a key={i} href={`${cfg.baseUrl}${net.handle}`} target="_blank" rel="noopener noreferrer" title={net.name} className="p-2 bg-white/5 hover:bg-red-600/20 rounded-lg border border-white/5 transition-all text-zinc-400 hover:text-red-500">
-                                                                  <cfg.icon className="w-4 h-4" />
-                                                              </a>
-                                                          );
-                                                      })}
-                                                  </div>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 </div>
-
-                                {isEditing && (
-                                    <div className="bg-white/5 p-6 rounded-2xl border border-white/5 space-y-6 max-w-5xl mx-auto">
-                                        <div className="flex justify-between items-center"><h4 className="text-[10px] md:text-xs font-black text-red-600 uppercase tracking-[0.3em]">Social Networks</h4><button onClick={() => { const name = window.prompt("Platform: Facebook, Instagram, YouTube, TikTok, Behance:"); if (name && NETWORK_CONFIGS[name]) setEditData({...editData, profile: {...editData.profile, networks: [...(editData.profile.networks || []), { name, handle: '' }]}}); }} className="text-[10px] text-zinc-500 hover:text-red-600 transition-colors">+ Add Platform</button></div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {(editData.profile?.networks || []).map((net: any, i: number) => {
-                                                const cfg = NETWORK_CONFIGS[net.name] || { icon: GlobeAltIcon, baseUrl: '' };
-                                                return (
-                                                    <div key={i} className="bg-black border border-white/10 rounded-xl p-3 flex items-center gap-3">
-                                                        <cfg.icon className="w-5 h-5 text-zinc-500" />
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[8px] text-zinc-600 font-black uppercase mb-1">{net.name}</p>
-                                                            <input value={net.handle} onChange={e => { const n = [...editData.profile.networks]; n[i].handle = e.target.value.replace('@','').toLowerCase(); setEditData({...editData, profile: {...editData.profile, networks: n}}); }} className="bg-transparent text-sm text-white w-full outline-none font-bold" placeholder="username" />
-                                                        </div>
-                                                        <button onClick={() => setEditData({...editData, profile: {...editData.profile, networks: editData.profile.networks.filter((_:any,idx:number)=>idx!==i)}})} className="text-zinc-600 hover:text-red-600"><CloseIcon className="w-4 h-4"/></button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
 
                                 <div className="space-y-10 pt-12 border-t border-white/10">
                                     <div className="flex items-center justify-between">
@@ -581,20 +554,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             </div>
                                         ))}
                                     </div>
-                                    {userPosts.length === 0 && (
-                                        <div className="py-32 text-center opacity-20">
-                                            <GalleryIcon className="w-16 h-16 mx-auto mb-6" />
-                                            <p className="text-xs md:text-sm font-black uppercase tracking-[0.8em]">No posts yet</p>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Admin/System Bottom Tag */}
                     <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5">
-                        <img src={siteConfig.branding.logoUrl} className="h-8 mx-auto grayscale invert mb-4" alt="" />
                         <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Zone Protocol v4.0</p>
                     </div>
                 </motion.div>

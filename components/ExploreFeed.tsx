@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -94,13 +93,9 @@ const PostItem: React.FC<{
                               onLoad={() => setIsMediaLoaded(true)}
                             />
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 md:p-5">
-                            <h2 className="text-[10px] md:text-xs font-black text-white uppercase tracking-tight leading-tight line-clamp-2">{post.title || 'Masterwork'}</h2>
-                        </div>
                     </div>
                 ) : (
                     <div className="w-full aspect-square bg-[#111] flex flex-col items-center justify-center p-6 border-b border-white/5 relative">
-                         <div className="absolute top-4 right-4 bg-white/5 p-1.5 rounded-full"><ExternalLink className="w-3 h-3 text-red-600" /></div>
                          <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center mb-4 border border-red-600/20">
                             <GlobeAltIcon className="w-6 h-6 text-red-600" />
                          </div>
@@ -136,21 +131,7 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
     const [isPostModalOpen, setIsPostModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Optimized Initial Load with Hyperdrive
     useEffect(() => {
-        const fetchOptimizedPosts = async () => {
-            try {
-                const res = await fetch(`${R2_WORKER_URL}/api/optimized/posts`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setPosts(data);
-                }
-            } catch (err) {
-                console.warn("Optimized fetch failed, waiting for real-time connection.");
-            }
-        };
-        fetchOptimizedPosts();
-
         const postsRef = query(ref(db, 'explore_posts'), limitToLast(200));
         const unsubscribe = onValue(postsRef, (snap) => {
             const data = snap.val();
@@ -159,8 +140,16 @@ export const ExploreFeed: React.FC<{ onOpenProfile?: (id: string, username?: str
                     .sort((a: any, b: any) => b.timestamp - a.timestamp)
                     .filter((p: any) => p.privacy === 'public' || !p.privacy); 
                 
-                if (user?.username?.toLowerCase() !== OWNER_HANDLE) {
-                   list = list.filter(p => (p.userName || '').toLowerCase() !== RESTRICTED_HANDLE);
+                const viewerHandle = user?.username?.toLowerCase();
+                if (viewerHandle !== OWNER_HANDLE) {
+                   // Allow @jiya to see their own posts, hide @jiya from everyone else except owner
+                   list = list.filter(p => {
+                       const postAuthor = (p.userName || '').toLowerCase();
+                       if (postAuthor === RESTRICTED_HANDLE) {
+                           return viewerHandle === RESTRICTED_HANDLE;
+                       }
+                       return true;
+                   });
                 }
                 setPosts(list as Post[]);
             }
