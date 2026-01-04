@@ -72,7 +72,6 @@ export default function App() {
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
   const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
 
-  // NOTIFICATION OVERHAUL: One-time data wipe to clear spam
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
         const hasWiped = localStorage.getItem('fez_overhaul_v1');
@@ -227,7 +226,7 @@ export default function App() {
             onNavigateCommunity={() => navigateTo('community')} 
             onCreatePost={() => setIsCreatePostOpen(true)}
             activeRoute={route} 
-            isMinimized={isCreatePostOpen || isMessageThreadActive}
+            isMinimized={isCreatePostOpen} // Removed isMessageThreadActive logic to keep nav visible while chatting
             hideFAB={false} 
           />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
