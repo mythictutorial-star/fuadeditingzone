@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
@@ -6,14 +7,14 @@ import { ref, push, onValue, set, update, get, query, limitToLast, remove } from
 import { db } from '../firebase'; 
 import { GlobeAltIcon, SearchIcon, ChevronLeftIcon, CloseIcon, HomeIcon, MarketIcon, ChevronRightIcon } from './Icons';
 import { SidebarSubNav } from './Sidebar';
-import { ArrowLeft, Edit, MessageSquare, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, KeyRound, Fingerprint, Lock, Unlock, AlertTriangle, X, PlusSquare, Settings, User, Shield, UserX, BellRing, Reply, Image as ImageIcon, Video as VideoIcon, Paperclip } from 'lucide-react';
+import { ArrowLeft, Edit, MessageSquare, Bell, Check, Trash2, Info, Volume2, VolumeX, ShieldAlert, UserMinus, KeyRound, Fingerprint, Lock, Unlock, AlertTriangle, X, PlusSquare, Settings, User, Shield, UserX, BellRing, Reply } from 'lucide-react';
 import { siteConfig } from '../config';
 import { CreatePostModal } from './CreatePostModal';
 
 const OWNER_HANDLE = 'fuadeditingzone';
 const ADMIN_HANDLE = 'studiomuzammil';
 const RESTRICTED_HANDLE = 'jiya';
-const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev';
+const R2_WORKER_URL = 'https://quiet-haze-1898.fuadeditingzone.workers.dev'; // R2 Worker URL
 
 interface ChatUser {
   id: string;
@@ -44,6 +45,7 @@ interface Message {
     text: string;
     senderName: string;
   };
+  // New fields for media messages
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
 }
@@ -159,7 +161,7 @@ export const CommunityChat: React.FC<{
   forceSearchTab?: boolean;
   onSearchTabConsumed?: () => void;
   onThreadStateChange?: (active: boolean) => void;
-  onOpenChatWithUser?: (userId: string | null) => void; 
+  onOpenChatWithUser?: (userId: string | null) => void; // Added for notification click
 }> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, forceSearchTab, onSearchTabConsumed, onThreadStateChange, onOpenChatWithUser }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
@@ -192,14 +194,14 @@ export const CommunityChat: React.FC<{
   const [blockedUsersData, setBlockedUsersData] = useState<ChatUser[]>([]);
   const [pushEnabled, setPushEnabled] = useState(false);
 
-  // Media states
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for hidden file input
+
+  // Media upload states
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -259,19 +261,24 @@ export const CommunityChat: React.FC<{
     }
   }, [blockedByMe, users]);
 
+  // Handle initial target user from prop (e.g., from notification click)
   useEffect(() => {
     if (initialTargetUserId && users.length > 0 && clerkUser) {
         const userToSelect = users.find(u => u.id === initialTargetUserId);
         if (userToSelect) {
+            // Check if this chat is locked for the current user
             if (lockedChats[userToSelect.id] && userPasscode === null) {
+                // If current user has no passcode set, prompt to set one
                 setPasscodeMode('set');
-                setSelectedUser(userToSelect);
+                setSelectedUser(userToSelect); // Keep selectedUser so overlay knows who it's for
                 setIsMobileChatOpen(true);
             } else if (lockedChats[userToSelect.id] && verifiedTarget !== userToSelect.id) {
+                // If chat is locked and not yet verified, show passcode entry
                 setPasscodeMode('enter');
                 setSelectedUser(userToSelect);
                 setIsMobileChatOpen(true);
             } else {
+                // Otherwise, open directly
                 openChat(userToSelect);
             }
         }
@@ -299,16 +306,20 @@ export const CommunityChat: React.FC<{
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 20 * 1024 * 1024) {
-        alert("File too large. Max 20MB allowed.");
-        return;
-      }
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+      e.target.value = ''; // Clear input for next selection
     }
+  };
+
+  const clearSelectedFile = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setSelectedFile(null);
+    setPreviewUrl(null);
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -316,37 +327,19 @@ export const CommunityChat: React.FC<{
     const text = inputValue.trim();
     if (!isSignedIn || !chatPath || !clerkUser || (!text && !selectedFile)) return;
     
-    setIsUploading(true);
+    setIsUploadingMedia(true); // Start uploading indicator
 
     try {
         const now = Date.now();
         const currentUser = users.find(u => u.id === clerkUser.id);
-        
-        let mediaUrl = '';
-        let mediaType: 'image' | 'video' | undefined;
-
-        if (selectedFile) {
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('folder', 'Messages');
-            const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
-            const result = await res.json();
-            if (result.url) {
-                mediaUrl = result.url;
-                mediaType = selectedFile.type.startsWith('video') ? 'video' : 'image';
-            }
-        }
-
         const newMessage: Message = { 
           senderId: clerkUser.id, 
           senderName: currentUser?.name || clerkUser.fullName || clerkUser.username || "User", 
           senderUsername: (currentUser?.username || clerkUser.username || '').toLowerCase(),
           senderAvatar: clerkUser.imageUrl,
           senderRole: currentUser?.role || 'Client',
-          text: text,
-          timestamp: now,
-          mediaUrl,
-          mediaType
+          text: text, // Text as caption or main message
+          timestamp: now 
         };
 
         if (replyingTo) {
@@ -358,10 +351,29 @@ export const CommunityChat: React.FC<{
           setReplyingTo(null);
         }
 
+        // Handle media upload if a file is selected
+        if (selectedFile) {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('folder', 'Messages'); // Upload to /Messages/ folder
+
+            const res = await fetch(R2_WORKER_URL, { method: 'POST', body: formData });
+            const result = await res.json();
+
+            if (result.url) {
+                newMessage.mediaUrl = result.url;
+                newMessage.mediaType = selectedFile.type.startsWith('video') ? 'video' : 'image';
+            } else {
+                alert("Failed to upload media.");
+                setIsUploadingMedia(false);
+                return;
+            }
+        }
+
         setInputValue('');
-        setSelectedFile(null);
-        setPreviewUrl(null);
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        clearSelectedFile(); // Clear selected file after processing
+
         await push(ref(db, chatPath), newMessage);
         
         if (!isGlobal && selectedUser) {
@@ -373,7 +385,7 @@ export const CommunityChat: React.FC<{
                 fromId: clerkUser.id,
                 fromName: currentUser?.name || clerkUser.fullName || clerkUser.username,
                 fromAvatar: clerkUser.imageUrl,
-                text: text || (mediaType === 'image' ? '[Sent an image]' : '[Sent a video]'),
+                text: newMessage.mediaUrl ? (newMessage.text || `[${newMessage.mediaType} sent]`) : newMessage.text, // Notification text reflects media
                 timestamp: now,
                 read: false,
                 isLocked: !!lockedChats[selectedUser.id]
@@ -387,8 +399,10 @@ export const CommunityChat: React.FC<{
                 get(recipientUnreadRef).then(snap => set(recipientUnreadRef, (snap.val() || 0) + 1));
             }
         }
-    } catch (err) { alert("Something went wrong with the message."); }
-    finally { setIsUploading(false); }
+    } catch (err) { alert("Something went wrong with the message."); console.error(err);}
+    finally {
+        setIsUploadingMedia(false); // Stop uploading indicator
+    }
   };
 
   const togglePushNotifications = async () => {
@@ -408,6 +422,7 @@ export const CommunityChat: React.FC<{
           if (lockedChats[user.id] && verifiedTarget !== user.id) setPasscodeMode('enter');
           else setIsMobileChatOpen(true);
       }
+      // Re-route to community path to ensure URL is consistent
       window.history.pushState(null, '', '/community');
   };
 
@@ -421,6 +436,12 @@ export const CommunityChat: React.FC<{
           return timeB - timeA;
       });
   }, [users, clerkUser, conversations, blockedByMe]);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return users.filter(u => clerkUser?.id !== u.id);
+    return users.filter(u => (u.name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q)));
+  }, [users, searchQuery, clerkUser]);
 
   const handlePasscodeSuccess = (passcode?: string) => {
       if (passcodeMode === 'set' && passcode && clerkUser) {
@@ -456,6 +477,7 @@ export const CommunityChat: React.FC<{
       )}
       <div className="flex-1 flex flex-row min-h-0 h-full w-full">
         
+        {/* Left Nav */}
         <nav className="hidden lg:flex flex-col items-center py-10 gap-10 w-20 flex-shrink-0 border-r border-white/10 bg-black z-[100] fixed left-0 top-0 bottom-0">
             <button onClick={onBack} className="text-white hover:scale-110 mb-4 transition-transform"><img src={siteConfig.branding.logoUrl} className="w-9 h-9" /></button>
             <div className="flex flex-col gap-6">
@@ -470,6 +492,7 @@ export const CommunityChat: React.FC<{
         <div className="flex-1 flex flex-col lg:ml-20 overflow-hidden w-full relative">
             <div className="w-full flex-1 flex flex-row overflow-hidden relative">
                 
+                {/* Conversations List */}
                 <aside className={`${isMobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-[320px] flex-col flex-shrink-0 bg-black md:border-r border-white/10`}>
                     <div className="p-6 border-b border-white/5 flex justify-between items-center">
                         <h2 className="text-xl font-black text-white lowercase">Inbox</h2>
@@ -509,6 +532,7 @@ export const CommunityChat: React.FC<{
                     </div>
                 </aside>
 
+                {/* Main Chat Content */}
                 <main className={`${isMobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-black relative min-w-0 min-h-0`}>
                     {!isGlobal && !selectedUser ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-20"><MessageSquare size={100}/><p className="mt-4 font-black uppercase tracking-widest text-center">Open a thread to start</p></div>
@@ -537,7 +561,7 @@ export const CommunityChat: React.FC<{
                                 {messages.map((msg, i) => {
                                     const isMe = msg.senderId === clerkUser?.id;
                                     const prevMsg = i > 0 ? messages[i - 1] : null;
-                                    const showTimeHeader = !prevMsg || (msg.timestamp - prevMsg.timestamp > 3600000); 
+                                    const showTimeHeader = !prevMsg || (msg.timestamp - prevMsg.timestamp > 3600000); // 1 hour gap
 
                                     return (
                                         <div key={msg.id || i} className="flex flex-col gap-2 w-full min-w-0">
@@ -566,18 +590,26 @@ export const CommunityChat: React.FC<{
                                                           <p className="italic opacity-60 truncate">{msg.replyTo.text}</p>
                                                         </div>
                                                       )}
-
+                                                      
+                                                      {/* Render Media if available */}
                                                       {msg.mediaUrl && (
-                                                        <div className={`mb-1 overflow-hidden rounded-xl border border-white/10 bg-[#0a0a0a] ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
-                                                          {msg.mediaType === 'image' ? (
-                                                            <img src={msg.mediaUrl} className="max-w-full h-auto max-h-[300px] object-cover" alt="" />
-                                                          ) : (
-                                                            <video src={msg.mediaUrl} controls className="max-w-full h-auto max-h-[300px]" />
+                                                        <div className={`my-2 overflow-hidden rounded-xl bg-black ${isMe ? 'self-end' : 'self-start'} shadow-lg border border-white/10 max-w-[280px]`}>
+                                                          {msg.mediaType === 'image' && (
+                                                            <img src={msg.mediaUrl} alt="Shared media" className="w-full h-auto object-cover" />
+                                                          )}
+                                                          {msg.mediaType === 'video' && (
+                                                            <video src={msg.mediaUrl} controls loop muted playsInline className="w-full h-auto object-cover" />
+                                                          )}
+                                                          {msg.text && ( // Show text as caption if media and text exist
+                                                            <p className="p-3 text-[10px] text-zinc-400 leading-snug break-words">
+                                                              {msg.text}
+                                                            </p>
                                                           )}
                                                         </div>
                                                       )}
 
-                                                      {msg.text && (
+                                                      {/* Only render text if no media, or if media exists and text is *not* a caption */}
+                                                      {(!msg.mediaUrl || (msg.mediaUrl && !msg.text)) && (
                                                         <div className={`px-3.5 py-2.5 md:px-4 md:py-2.5 rounded-xl md:rounded-2xl text-[11px] md:text-sm leading-relaxed break-words whitespace-pre-wrap overflow-hidden ${isMe ? 'bg-red-600 text-white rounded-tr-none self-end text-right' : 'bg-zinc-800 text-zinc-200 rounded-tl-none border border-white/5 self-start text-left'}`}>
                                                           {msg.text}
                                                         </div>
@@ -605,7 +637,9 @@ export const CommunityChat: React.FC<{
                                 <AnimatePresence>
                                   {replyingTo && (
                                     <motion.div 
-                                      initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
+                                      initial={{ y: 20, opacity: 0 }}
+                                      animate={{ y: 0, opacity: 1 }}
+                                      exit={{ y: 20, opacity: 0 }}
                                       className="max-w-4xl mx-auto mb-2 p-3 bg-[#111] border border-white/5 rounded-xl flex items-center justify-between group"
                                     >
                                       <div className="flex items-center gap-3 overflow-hidden">
@@ -621,58 +655,50 @@ export const CommunityChat: React.FC<{
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
-
                                 <AnimatePresence>
-                                  {previewUrl && (
-                                    <motion.div 
-                                      initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
-                                      className="max-w-4xl mx-auto mb-2 p-3 bg-[#111] border border-white/5 rounded-xl flex items-center justify-between"
-                                    >
-                                      <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-black">
-                                          {selectedFile?.type.startsWith('video') ? (
-                                            <div className="w-full h-full flex items-center justify-center"><VideoIcon className="text-red-600 w-4 h-4"/></div>
-                                          ) : (
-                                            <img src={previewUrl} className="w-full h-full object-cover" alt="" />
-                                          )}
-                                        </div>
-                                        <div className="min-w-0">
-                                          <p className="text-[9px] font-black text-red-600 uppercase tracking-widest">Selected {selectedFile?.type.startsWith('video') ? 'Video' : 'Image'}</p>
-                                          <p className="text-[11px] text-zinc-500 truncate">{selectedFile?.name}</p>
-                                        </div>
-                                      </div>
-                                      <button onClick={() => { setSelectedFile(null); setPreviewUrl(null); }} className="p-2 text-zinc-600 hover:text-white transition-colors">
-                                        <X size={16} />
-                                      </button>
-                                    </motion.div>
-                                  )}
+                                    {previewUrl && (
+                                        <motion.div
+                                            initial={{ y: 20, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            exit={{ y: 20, opacity: 0 }}
+                                            className="max-w-4xl mx-auto mb-2 p-3 bg-[#111] border border-white/5 rounded-xl flex items-center justify-between"
+                                        >
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-10 h-10 rounded-lg overflow-hidden bg-black flex-shrink-0 border border-white/10">
+                                                    {selectedFile?.type.startsWith('video') ? (
+                                                        <video src={previewUrl} className="w-full h-full object-cover" muted playsInline />
+                                                    ) : (
+                                                        <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
+                                                    )}
+                                                </div>
+                                                <p className="text-[11px] text-white truncate">{selectedFile?.name}</p>
+                                            </div>
+                                            <button onClick={clearSelectedFile} className="p-2 text-zinc-600 hover:text-white transition-colors">
+                                                <X size={16} />
+                                            </button>
+                                        </motion.div>
+                                    )}
                                 </AnimatePresence>
-
                                 <form onSubmit={handleSendMessage} className="w-full max-w-4xl mx-auto flex items-end gap-2 p-1 bg-[#0a0a0a] border border-white/10 rounded-2xl min-h-[46px] md:min-h-[50px] focus-within:border-red-600/40 transition-all overflow-hidden">
                                     <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,video/*" hidden />
                                     <button 
-                                      type="button" 
-                                      onClick={() => fileInputRef.current?.click()}
-                                      className="p-3 text-zinc-500 hover:text-red-600 transition-colors"
-                                      title="Attach Media"
+                                        type="button" 
+                                        onClick={() => fileInputRef.current?.click()} 
+                                        className="p-2.5 md:p-3 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors rounded-xl flex-shrink-0"
+                                        title="Attach media"
                                     >
-                                      <Paperclip className="w-5 h-5" />
+                                        <PlusSquare className="w-5 h-5"/>
                                     </button>
-                                    <textarea 
-                                      ref={textareaRef} 
-                                      value={inputValue} 
-                                      onChange={e => setInputValue(e.target.value)} 
-                                      onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} 
-                                      placeholder="Type message..." 
-                                      rows={1} 
-                                      className="flex-1 bg-transparent px-4 py-2.5 text-[13px] md:text-sm text-white outline-none resize-none placeholder-zinc-700 max-h-32 min-w-0" 
-                                    />
-                                    <button 
-                                      type="submit" 
-                                      disabled={isUploading || (!inputValue.trim() && !selectedFile)} 
-                                      className="px-4 md:px-5 py-2 md:py-2.5 text-red-600 font-black uppercase text-[9px] md:text-[10px] tracking-widest disabled:opacity-20 transition-all flex-shrink-0"
-                                    >
-                                      {isUploading ? <div className="w-4 h-4 border-2 border-red-600/30 border-t-red-600 rounded-full animate-spin"></div> : 'Send'}
+                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}} placeholder="Type message..." rows={1} className="flex-1 bg-transparent px-4 py-2.5 text-[13px] md:text-sm text-white outline-none resize-none placeholder-zinc-700 max-h-32 min-w-0" disabled={isUploadingMedia} />
+                                    <button type="submit" disabled={isUploadingMedia || (!inputValue.trim() && !selectedFile)} className="px-4 md:px-5 py-2 md:py-2.5 text-red-600 font-black uppercase text-[9px] md:text-[10px] tracking-widest disabled:opacity-20 transition-all flex-shrink-0 flex items-center gap-2">
+                                        {isUploadingMedia ? (
+                                            <>
+                                                <div className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                                                Sending...
+                                            </>
+                                        ) : (
+                                            <>Send</>
+                                        )}
                                     </button>
                                 </form>
                             </div>
