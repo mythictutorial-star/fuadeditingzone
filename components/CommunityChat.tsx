@@ -103,7 +103,6 @@ export const CommunityChat: React.FC<{
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
-  const [activePreset, setActivePreset] = useState<string>(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
@@ -302,7 +301,7 @@ export const CommunityChat: React.FC<{
       if (passcodeInput === code) { setPasscodeVerified(true); setPasscodeErrorCount(0); setPasscodeInput(''); }
       else {
           const errors = passcodeErrorCount + 1; setPasscodeErrorCount(errors); setPasscodeInput('');
-          if (errors >= 5) handlePasscodeReset();
+          if (errors >= 5) setShowResetFlow(true);
           else alert(`Incorrect identity code. Attempt ${errors}/5`);
       }
   };
@@ -313,7 +312,7 @@ export const CommunityChat: React.FC<{
       if (passcodeInput === code) { setIsVaultUnlocked(true); setVaultPasscodeModalOpen(false); setPasscodeErrorCount(0); setPasscodeInput(''); }
       else {
           const errors = passcodeErrorCount + 1; setPasscodeErrorCount(errors); setPasscodeInput('');
-          if (errors >= 5) handlePasscodeReset();
+          if (errors >= 5) setShowResetFlow(true);
           else alert(`Incorrect identity code. Attempt ${errors}/5`);
       }
   };
@@ -337,7 +336,7 @@ export const CommunityChat: React.FC<{
   };
 
   const openChat = (user: ChatUser | null) => {
-      setIsDetailsOpen(false); setPasscodeVerified(false); setPasscodeInput(''); setPasscodeErrorCount(0);
+      setIsDetailsOpen(false); setPasscodeVerified(false); setPasscodeInput(''); setPasscodeErrorCount(0); setShowResetFlow(false);
       if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); }
       else { setIsGlobal(false); setSelectedUser(user); setIsMobileChatOpen(true); }
   };
@@ -411,42 +410,53 @@ export const CommunityChat: React.FC<{
                         onDragEnd={(e, info) => { if (info.offset.y > 70) setVaultPasscodeModalOpen(true); setPullProgress(0); setIsPulling(false); }}
                         className="flex-1 flex flex-col min-h-0"
                     >
-                        <motion.div style={{ height: pullProgress, opacity: pullProgress / 80 }} className="flex items-center justify-center overflow-hidden bg-white/[0.02]">
+                        <motion.div style={{ height: pullProgress, opacity: pullProgress / 80 }} className="flex items-center justify-center overflow-hidden bg-white/[0.02] flex-shrink-0">
                            <div className={`transition-all duration-300 ${pullProgress > 60 ? 'scale-110 text-red-600 drop-shadow-[0_0_8px_red]' : 'scale-90 text-zinc-700'}`}><LockKeyhole size={28} /></div>
                         </motion.div>
 
                         <div className="flex-1 overflow-y-auto no-scrollbar overscroll-contain">
-                            {isVaultUnlocked && (
-                                <div className="bg-red-600/5 border-y border-white/5 p-4 flex items-center justify-between animate-fade-in">
-                                    <div className="flex items-center gap-2"><LockKeyhole size={14} className="text-red-600" /><span className="text-[10px] font-black text-white uppercase tracking-widest">Archive Unlocked</span></div>
-                                    <button onClick={() => setIsVaultUnlocked(false)} className="text-[8px] font-black text-zinc-500 uppercase tracking-widest hover:text-white border border-white/10 px-2 py-1 rounded">Lock Hub</button>
-                                </div>
-                            )}
+                            <AnimatePresence mode="popLayout">
+                                {isVaultUnlocked && (
+                                    <motion.div 
+                                        layout
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ type: 'spring', bounce: 0.4, duration: 0.6 }}
+                                        className="bg-red-600/5 border-b border-white/5 p-4 flex items-center justify-between overflow-hidden"
+                                    >
+                                        <div className="flex items-center gap-2"><LockKeyhole size={14} className="text-red-600" /><span className="text-[10px] font-black text-white uppercase tracking-widest">Archive Unlocked</span></div>
+                                        <button onClick={() => setIsVaultUnlocked(false)} className="text-[8px] font-black text-zinc-500 uppercase tracking-widest hover:text-white border border-white/10 px-2 py-1 rounded">Lock Hub</button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
-                            {!sidebarSearchQuery && (
-                                <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
-                                    <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
-                                    <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
-                                </button>
-                            )}
-                            
-                            {filteredUsers.map(u => {
-                                if (localSettings.blocked && selectedUser?.id === u.id) return null;
-                                const isItemLocked = allChatSettings[u.id]?.locked;
-                                return (
-                                    <button key={u.id} onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'} ${isItemLocked ? 'bg-red-600/[0.03]' : ''}`}>
-                                        <UserAvatar user={u} className="w-12 h-12" />
-                                        <div className="text-left flex-1 min-w-0">
-                                            <div className="flex items-center gap-1">
-                                                <p className="text-sm font-bold text-white truncate">{u.name}</p>
-                                                <VerificationBadge username={u.username} custom_badge={u.custom_badge} viewer={clerkUser?.username} />
-                                            </div>
-                                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
-                                        </div>
-                                        {unreadCounts[u.id] > 0 && <div className={`w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red] ${isItemLocked && !isVaultUnlocked ? 'hidden' : ''}`}></div>}
+                            <div className="flex flex-col">
+                                {!sidebarSearchQuery && (
+                                    <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
+                                        <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
+                                        <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
                                     </button>
-                                );
-                            })}
+                                )}
+                                
+                                {filteredUsers.map(u => {
+                                    if (localSettings.blocked && selectedUser?.id === u.id) return null;
+                                    const isItemLocked = allChatSettings[u.id]?.locked;
+                                    return (
+                                        <button key={u.id} onClick={() => sidebarTab === 'search' ? navigateToProfile(u.id, u.username) : openChat(u)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'} ${isItemLocked ? 'bg-red-600/[0.03]' : ''}`}>
+                                            <UserAvatar user={u} className="w-12 h-12" />
+                                            <div className="text-left flex-1 min-w-0">
+                                                <div className="flex items-center gap-1">
+                                                    <p className="text-sm font-bold text-white truncate">{u.name}</p>
+                                                    <VerificationBadge username={u.username} custom_badge={u.custom_badge} viewer={clerkUser?.username} />
+                                                </div>
+                                                <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none">@{u.username?.toLowerCase()}</p>
+                                            </div>
+                                            {unreadCounts[u.id] > 0 && <div className={`w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse shadow-[0_0_8px_red] ${isItemLocked && !isVaultUnlocked ? 'hidden' : ''}`}></div>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </motion.div>
                 </div>
@@ -462,7 +472,13 @@ export const CommunityChat: React.FC<{
                                 <div className="flex gap-6 items-center">{[...Array(4)].map((_, i) => (<div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>))}</div>
                                 <input ref={hiddenInputRef} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={passcodeInput} onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))} className="absolute inset-0 opacity-0 cursor-default h-full w-full" autoFocus />
                             </div>
-                            <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"><KeyRound size={14}/> Recovery Hub</button>
+                            
+                            {showResetFlow && (
+                                <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                                    <KeyRound size={14}/> Forgot Passcode
+                                </button>
+                            )}
+                            
                             <button onClick={(e) => { e.stopPropagation(); setIsMobileChatOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Return to Feed</button>
                         </div>
                     ) : isActivityOpen ? (
@@ -517,9 +533,9 @@ export const CommunityChat: React.FC<{
                                 })}
                                 <div ref={messagesEndRef} />
                             </div>
-                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-24 md:pb-6`}>
+                            <div className={`p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-8 md:pb-6`}>
                                 {!isGlobal && !isSelectedFriend ? (<div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4"><p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Connection Required</p><button className="w-full md:w-auto bg-red-600 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Connect</button></div>) : (
-                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto w-full"><textarea ref={textareaRef} value={inputValue} onChange={e => handleTyping(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-2 px-2 outline-none resize-none max-h-32 min-h-[40px]" /><button type="submit" disabled={isMediaUploading || !inputValue.trim() || localSettings.blocked} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 disabled:opacity-50 flex-shrink-0"><SendIcon className="w-5 h-5" /></button></form>
+                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto w-full"><textarea ref={textareaRef} value={inputValue} onChange={e => handleTyping(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-2 px-2 outline-none resize-none max-h-32 min-h-[40px]" /><button type="submit" disabled={isMediaUploading || !inputValue.trim() || localSettings.blocked} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 disabled:opacity-50 flex-shrink-0"><SendIcon className="w-6 h-6" /></button></form>
                                 )}
                             </div>
                         </div>
@@ -552,7 +568,15 @@ export const CommunityChat: React.FC<{
 
       <AnimatePresence>
         {vaultPasscodeModalOpen && (
-          <div className="fixed inset-0 z-[6000000] flex items-center justify-center p-6"><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVaultPasscodeModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" /><motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12 cursor-pointer" onClick={() => vaultHiddenInputRef.current?.focus()}><div className="w-20 h-20 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2"><Lock size={32} /></div><div><h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Locked Hub</h3><p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest opacity-60">Identity verification required.</p></div><div className="relative"><div className="flex gap-6 items-center">{[...Array(4)].map((_, i) => (<div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>))}</div><input ref={vaultHiddenInputRef} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={passcodeInput} onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))} className="absolute inset-0 opacity-0 cursor-default h-full w-full" autoFocus /></div><button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"><KeyRound size={14}/> Recovery Hub</button><button onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button></motion.div></div>
+          <div className="fixed inset-0 z-[6000000] flex items-center justify-center p-6"><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setVaultPasscodeModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-2xl" /><motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-sm flex flex-col items-center text-center space-y-12 cursor-pointer" onClick={() => vaultHiddenInputRef.current?.focus()}><div className="w-20 h-20 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 mb-2"><Lock size={32} /></div><div><h3 className="text-xl font-black text-white uppercase tracking-[0.2em] mb-3">Locked Hub</h3><p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest opacity-60">Identity verification required.</p></div><div className="relative"><div className="flex gap-6 items-center">{[...Array(4)].map((_, i) => (<div key={i} className={`w-4 h-4 rounded-full transition-all duration-300 ${passcodeInput.length > i ? 'bg-red-600 scale-125 shadow-[0_0_12px_red]' : 'bg-zinc-800 border border-white/10'}`}></div>))}</div><input ref={vaultHiddenInputRef} type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={passcodeInput} onChange={e => setPasscodeInput(e.target.value.replace(/\D/g,''))} className="absolute inset-0 opacity-0 cursor-default h-full w-full" autoFocus /></div>
+          
+          {showResetFlow && (
+              <button onClick={(e) => { e.stopPropagation(); handlePasscodeReset(); }} className="px-8 py-3 bg-white/5 border border-white/10 text-white rounded-full font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                  <KeyRound size={14}/> Forgot Passcode
+              </button>
+          )}
+
+          <button onClick={(e) => { e.stopPropagation(); setVaultPasscodeModalOpen(false); }} className="text-zinc-700 font-black uppercase text-[9px] tracking-[0.3em] hover:text-white transition-colors pt-10">Dismiss</button></motion.div></div>
         )}
       </AnimatePresence>
     </div>

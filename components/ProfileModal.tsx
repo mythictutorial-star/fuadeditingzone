@@ -291,7 +291,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
         }
     };
 
-    // Define handleSwitchToOtherProfile to fix "Cannot find name" errors
     const handleSwitchToOtherProfile = (userId: string, username?: string) => {
         setUserListMode(null);
         onShowProfile?.(userId, username);
