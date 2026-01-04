@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getDatabase, ref, push, onValue, set, update, get, query, limitToLast, remove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
-import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
-import { Phone, Video, Image as ImageIcon, Lock, Bell, Mic, Camera, PhoneOff, User, ShieldCheck, Check } from 'lucide-react';
+// Added ChevronRightIcon to imports
+import { GlobeAltIcon, SearchIcon, SendIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HomeIcon, MarketIcon, LockIcon, ChatBubbleIcon } from './Icons';
+import { Phone, Video, Image as ImageIcon, Lock, Bell, Mic, Camera, PhoneOff, User, ShieldCheck, Check, Info, MoreHorizontal, Slash, ShieldAlert } from 'lucide-react';
 import { siteConfig } from '../config';
 
 const firebaseConfig = {
@@ -74,7 +75,7 @@ const CallOverlay: React.FC<{
           </>
         ) : (
           <>
-            <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-red-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
+            <button onClick={onEnd} className="w-20 h-20 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-2xl shadow-green-600/20 active:scale-95 transition-all"><PhoneOff size={32} /></button>
           </>
         )}
       </div>
@@ -82,7 +83,7 @@ const CallOverlay: React.FC<{
   );
 };
 
-interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; }
+interface ChatUser { id: string; name: string; username: string; avatar?: string; role?: string; online?: boolean; lastActive?: number; }
 interface Message { id?: string; senderId: string; senderName: string; senderUsername?: string; senderAvatar?: string; text?: string; mediaUrl?: string; mediaType?: 'image' | 'video'; timestamp: number; }
 
 export const CommunityChat: React.FC<{ 
@@ -91,7 +92,10 @@ export const CommunityChat: React.FC<{
   onBack?: () => void; 
   onNavigateMarket?: () => void;
   onThreadStateChange?: (active: boolean) => void;
-}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, onThreadStateChange }) => {
+  forceSearchTab?: boolean;
+  onSearchTabConsumed?: () => void;
+  onOpenPost?: (postId: string, commentId?: string) => void;
+}> = ({ onShowProfile, initialTargetUserId, onBack, onNavigateMarket, onThreadStateChange, forceSearchTab, onSearchTabConsumed, onOpenPost }) => {
   const { user: clerkUser, isSignedIn } = useUser();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -109,7 +113,8 @@ export const CommunityChat: React.FC<{
   const [activePreset, setActivePreset] = useState<string>(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
   const [isMediaUploading, setIsMediaUploading] = useState(false);
   const [showLockAlert, setShowLockAlert] = useState(false);
-  
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
   // Call States
   const [activeCall, setActiveCall] = useState<{ type: 'audio' | 'video'; user: Partial<ChatUser>; meetingId: string } | null>(null);
   const [incomingCall, setIncomingCall] = useState<{ fromId: string; fromUsername: string; fromAvatar: string; type: 'audio' | 'video'; meetingId: string } | null>(null);
@@ -118,6 +123,13 @@ export const CommunityChat: React.FC<{
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
+
+  useEffect(() => {
+    if (forceSearchTab) {
+        setSidebarTab('search');
+        onSearchTabConsumed?.();
+    }
+  }, [forceSearchTab, onSearchTabConsumed]);
 
   // Listen for incoming 1v1 calls
   useEffect(() => {
@@ -235,10 +247,8 @@ export const CommunityChat: React.FC<{
           timestamp: Date.now()
         };
         
-        // Send signal to recipient
         await set(ref(db, `calls/${selectedUser.id}`), callInvite);
-        
-        setActivePreset('03a2f6a5-954a-4e10-8364-b0892044cedf'); // GROUP_HOST as 1v1 relay
+        setActivePreset('03a2f6a5-954a-4e10-8364-b0892044cedf'); 
         setActiveCall({ type, user: selectedUser, meetingId });
     } else {
         setShowLockAlert(true);
@@ -249,11 +259,8 @@ export const CommunityChat: React.FC<{
   const handleAcceptCall = async () => {
     if (!incomingCall || !clerkUser) return;
     const { type, meetingId, fromId, fromUsername, fromAvatar } = incomingCall;
-    
-    // Clear invite signal
     await remove(ref(db, `calls/${clerkUser.id}`));
-    
-    setActivePreset('084c0e88-fa5c-478d-b921-26697bdae794'); // GROUP_GUEST
+    setActivePreset('084c0e88-fa5c-478d-b921-26697bdae794'); 
     setActiveCall({ 
       type, 
       user: { id: fromId, username: fromUsername, avatar: fromAvatar }, 
@@ -263,17 +270,14 @@ export const CommunityChat: React.FC<{
   };
 
   const handleEndCall = async () => {
-    if (activeCall && selectedUser) {
-        await remove(ref(db, `calls/${selectedUser.id}`));
-    }
-    if (clerkUser) {
-        await remove(ref(db, `calls/${clerkUser.id}`));
-    }
+    if (activeCall && selectedUser) await remove(ref(db, `calls/${selectedUser.id}`));
+    if (clerkUser) await remove(ref(db, `calls/${clerkUser.id}`));
     setActiveCall(null);
     setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER);
   };
 
   const openChat = (user: ChatUser | null) => {
+      setIsDetailsOpen(false);
       if (user === null) { setIsGlobal(true); setSelectedUser(null); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }
       else { setIsGlobal(false); setSelectedUser(user); setIsMobileChatOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.GROUP_GUEST); }
   };
@@ -289,6 +293,17 @@ export const CommunityChat: React.FC<{
           return { ...u, name: "Community Member", username: "guest", avatar: undefined };
       }
       return u;
+  };
+
+  const getTimeAgo = (timestamp?: number) => {
+    if (!timestamp) return 'inactive';
+    const diff = Date.now() - timestamp;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
   };
 
   const filteredUsers = useMemo(() => {
@@ -308,7 +323,7 @@ export const CommunityChat: React.FC<{
         {/* Nav Bar Desktop */}
         <nav className="hidden lg:flex flex-col items-center py-10 gap-10 w-20 border-r border-white/5 bg-black flex-shrink-0">
             <button onClick={onBack} className="hover:scale-110 transition-transform"><img src={siteConfig.branding.logoUrl} className="w-8 h-8" alt="" /></button>
-            <button onClick={() => { setIsActivityOpen(false); setIsMobileChatOpen(false); }} className={`p-3 rounded-2xl ${!isActivityOpen && !selectedUser ? 'bg-white text-black' : 'text-zinc-500'}`}><HomeIcon className="w-6 h-6" /></button>
+            <button onClick={() => { setIsActivityOpen(false); setIsMobileChatOpen(false); setIsDetailsOpen(false); }} className={`p-3 rounded-2xl ${!isActivityOpen && !selectedUser ? 'bg-white text-black' : 'text-zinc-500'}`}><HomeIcon className="w-6 h-6" /></button>
             <button onClick={() => { setIsActivityOpen(true); setActivePreset(siteConfig.api.realtimeKit.presets.LIVESTREAM_VIEWER); }} className={`p-3 rounded-2xl ${isActivityOpen ? 'bg-white text-black' : 'text-zinc-500'}`}><Bell className="w-6 h-6" /></button>
             <button onClick={() => onNavigateMarket()} className="p-3 rounded-2xl text-zinc-500"><MarketIcon className="w-6 h-6" /></button>
         </nav>
@@ -321,19 +336,27 @@ export const CommunityChat: React.FC<{
                             <button onClick={onBack} className="md:hidden p-2 bg-white/5 rounded-lg text-white hover:text-red-500 transition-colors"><HomeIcon className="w-5 h-5"/></button>
                             <h2 className="text-xl font-black text-white lowercase">{(clerkUser?.username || 'user')}</h2>
                         </div>
-                        <button onClick={() => setSidebarTab(sidebarTab === 'search' ? 'messages' : 'search')} className="text-white hover:text-red-500 transition-colors"><SearchIcon className="w-5 h-5" /></button>
+                        <button onClick={() => setSidebarTab(sidebarTab === 'search' ? 'messages' : 'search')} className={`transition-all ${sidebarTab === 'search' ? 'text-red-600 rotate-90 scale-110' : 'text-white hover:text-red-500'}`}><SearchIcon className="w-5 h-5" /></button>
                     </div>
-                    {sidebarTab === 'search' && <input value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Type a name..." className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-[10px] outline-none focus:ring-1 focus:ring-red-600/30" />}
-                    <div className="flex gap-6 border-b border-white/5">
-                        <button onClick={() => setInboxView('primary')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all ${inboxView === 'primary' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Primary</button>
-                        <button onClick={() => setInboxView('requests')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${inboxView === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Requests {filteredUsers.length > 0 && inboxView === 'requests' && <span className="ml-1 bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full">{filteredUsers.length}</span>}</button>
-                    </div>
+                    {sidebarTab === 'search' ? (
+                        <div className="flex items-center gap-2 animate-fade-in">
+                            <button onClick={() => { setSidebarTab('messages'); setSidebarSearchQuery(''); }} className="p-2 bg-white/5 rounded-xl text-zinc-400 hover:text-white transition-colors"><ChevronLeftIcon className="w-5 h-5" /></button>
+                            <input autoFocus value={sidebarSearchQuery} onChange={e => setSidebarSearchQuery(e.target.value)} placeholder="Search by name..." className="flex-1 bg-zinc-900 border-none rounded-xl py-3 px-4 text-white text-[10px] outline-none focus:ring-1 focus:ring-red-600/30" />
+                        </div>
+                    ) : (
+                        <div className="flex gap-6 border-b border-white/5">
+                            <button onClick={() => setInboxView('primary')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all ${inboxView === 'primary' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Primary</button>
+                            <button onClick={() => setInboxView('requests')} className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${inboxView === 'requests' ? 'text-white border-b-2 border-white' : 'text-zinc-500'}`}>Requests {filteredUsers.length > 0 && inboxView === 'requests' && <span className="ml-1 bg-red-600 text-white text-[8px] px-1.5 py-0.5 rounded-full">{filteredUsers.length}</span>}</button>
+                        </div>
+                    )}
                 </div>
                 <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
-                    <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
-                        <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
-                        <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
-                    </button>
+                    {!sidebarSearchQuery && (
+                        <button onClick={() => openChat(null)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
+                            <div className="w-12 h-12 rounded-full bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500"><GlobeAltIcon className="w-6 h-6" /></div>
+                            <div className="text-left"><p className="text-sm font-bold text-white">Global Feed</p><p className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">Open Network</p></div>
+                        </button>
+                    )}
                     {filteredUsers.map(u => (
                         <button key={u.id} onClick={() => openChat(u)} className={`w-full flex items-center gap-4 px-6 py-4 transition-all ${selectedUser?.id === u.id && !isGlobal ? 'bg-white/5' : 'hover:bg-zinc-900'}`}>
                             <UserAvatar user={u} className="w-12 h-12" />
@@ -347,117 +370,187 @@ export const CommunityChat: React.FC<{
                 </div>
             </aside>
 
-            <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-h-0 bg-black relative`}>
-                <AnimatePresence>
-                    {incomingCall && (
-                      <CallOverlay 
-                        key="incoming" 
-                        user={{ username: incomingCall.fromUsername, avatar: incomingCall.fromAvatar }} 
-                        type={incomingCall.type} 
-                        isIncoming 
-                        onEnd={async () => { await remove(ref(db, `calls/${clerkUser?.id}`)); setIncomingCall(null); }} 
-                        onAccept={handleAcceptCall}
-                      />
-                    )}
-                    {activeCall && <CallOverlay key="active" user={activeCall.user} type={activeCall.type} onEnd={handleEndCall} />}
-                    {showLockAlert && (
-                        <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute top-24 right-6 z-[60] bg-red-600/90 backdrop-blur-xl border border-red-500 p-4 rounded-2xl shadow-2xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-white">Connect to Unlock Calls</p>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+            <main className={`${isMobileChatOpen || isActivityOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-row min-h-0 bg-black relative`}>
+                <div className="flex-1 flex flex-col min-h-0 relative">
+                    <AnimatePresence>
+                        {incomingCall && (
+                          <CallOverlay 
+                            key="incoming" 
+                            user={{ username: incomingCall.fromUsername, avatar: incomingCall.fromAvatar }} 
+                            type={incomingCall.type} 
+                            isIncoming 
+                            onEnd={async () => { await remove(ref(db, `calls/${clerkUser?.id}`)); setIncomingCall(null); }} 
+                            onAccept={handleAcceptCall}
+                          />
+                        )}
+                        {activeCall && <CallOverlay key="active" user={activeCall.user} type={activeCall.type} onEnd={handleEndCall} />}
+                        {showLockAlert && (
+                            <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="absolute top-24 right-6 z-[60] bg-red-600/90 backdrop-blur-xl border border-red-500 p-4 rounded-2xl shadow-2xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white">Connect to Unlock Calls</p>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
-                {isActivityOpen ? (
-                    <div className="flex-1 flex flex-col h-full bg-black">
-                        <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0">
-                            <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
-                            <button onClick={() => setIsActivityOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors"><CloseIcon className="w-6 h-6 text-white" /></button>
+                    {isActivityOpen ? (
+                        <div className="flex-1 flex flex-col h-full bg-black">
+                            <div className="p-6 md:p-10 border-b border-white/5 flex items-center justify-between bg-black flex-shrink-0">
+                                <h2 className="text-xl md:text-3xl font-black text-white uppercase tracking-[0.2em]">Activity</h2>
+                                <button onClick={() => setIsActivityOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors"><CloseIcon className="w-6 h-6 text-white" /></button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
+                                {notifications.length === 0 ? <div className="h-full flex items-center justify-center opacity-20"><p className="text-sm uppercase font-black tracking-[0.5em]">No Activity</p></div> : notifications.map(n => (
+                                    <div key={n.id} onClick={() => n.fromId && navigateToProfile(n.fromId, n.fromName)} className="p-8 border-b border-white/5 bg-black hover:bg-zinc-900 cursor-pointer">
+                                        <p className="text-sm md:text-lg text-white font-bold">{n.text}</p>
+                                        <p className="text-[10px] text-zinc-600 uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleTimeString()}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
-                            {notifications.length === 0 ? <div className="h-full flex items-center justify-center opacity-20"><p className="text-sm uppercase font-black tracking-[0.5em]">No Activity</p></div> : notifications.map(n => (
-                                <div key={n.id} onClick={() => n.fromId && navigateToProfile(n.fromId, n.fromName)} className="p-8 border-b border-white/5 bg-black hover:bg-zinc-900 cursor-pointer">
-                                    <p className="text-sm md:text-lg text-white font-bold">{n.text}</p>
-                                    <p className="text-[10px] text-zinc-600 uppercase mt-2 tracking-widest">{new Date(n.timestamp).toLocaleTimeString()}</p>
-                                </div>
-                            ))}
+                    ) : !selectedUser && !isGlobal ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-20 text-center">
+                            <ChatBubbleIcon className="w-16 h-16 mb-6" />
+                            <p className="text-xs uppercase font-black tracking-widest">Select a channel to enter</p>
                         </div>
-                    </div>
-                ) : !selectedUser && !isGlobal ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-20 text-center">
-                        <ChatBubbleIcon className="w-16 h-16 mb-6" />
-                        <p className="text-xs uppercase font-black tracking-widest">Select a channel to enter</p>
-                    </div>
-                ) : (
-                    <div className="flex-1 flex flex-col min-h-0 h-full">
-                        {/* Instagram Style Header */}
-                        <div className="p-4 md:p-6 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl z-10">
-                            <div className="flex items-center gap-4">
-                                <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeftIcon className="w-5 h-5 text-white" /></button>
-                                <div onClick={() => { if (!isGlobal && selectedUser) navigateToProfile(selectedUser.id, selectedUser.username); }} className="flex items-center gap-3 cursor-pointer">
-                                    {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={maskUser(selectedUser!)} className="w-10 h-10" />}
-                                    <div className="min-w-0">
-                                        <div className="flex items-center">
-                                            <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1">{isGlobal ? 'Global' : maskUser(selectedUser!).username?.toLowerCase()}</h3>
-                                            {!isGlobal && <VerificationBadge username={maskUser(selectedUser!).username} />}
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isGlobal ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,1)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]'}`}></div>
-                                            <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">{isGlobal ? 'Open Public Network' : 'Zone Thread'}</p>
+                    ) : (
+                        <div className="flex-1 flex flex-col min-h-0 h-full">
+                            {/* Instagram Style Header */}
+                            <div className="p-4 md:p-6 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl z-10 px-2.5">
+                                <div className="flex items-center gap-4">
+                                    <button onClick={() => setIsMobileChatOpen(false)} className="md:hidden p-2 bg-white/5 rounded-lg"><ChevronLeftIcon className="w-5 h-5 text-white" /></button>
+                                    <div onClick={() => { if (!isGlobal && selectedUser) navigateToProfile(selectedUser.id, selectedUser.username); }} className="flex items-center gap-3 cursor-pointer group">
+                                        {isGlobal ? <div className="w-10 h-10 rounded-full bg-red-600/10 flex items-center justify-center text-red-500 border border-red-600/20"><GlobeAltIcon className="w-5 h-5" /></div> : <UserAvatar user={maskUser(selectedUser!)} className="w-10 h-10" />}
+                                        <div className="min-w-0">
+                                            <div className="flex items-center">
+                                                <h3 className="text-sm font-black text-white uppercase truncate leading-none mb-1 group-hover:text-red-500 transition-colors">{isGlobal ? 'Global Feed' : maskUser(selectedUser!).username?.toLowerCase()}</h3>
+                                                {!isGlobal && <VerificationBadge username={maskUser(selectedUser!).username} />}
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className={`w-1.5 h-1.5 rounded-full ${isGlobal || maskUser(selectedUser!).online ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)] animate-pulse' : 'bg-zinc-600'}`}></div>
+                                                <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest leading-none">
+                                                  {isGlobal ? 'Open Public Network' : (maskUser(selectedUser!).online ? 'Active' : `Active ${getTimeAgo(maskUser(selectedUser!).lastActive)}`)}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                                <div className="flex items-center gap-1.5">
+                                    {!isGlobal && (
+                                        <>
+                                            <button onClick={() => initiateCall('audio')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Phone size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
+                                            <button onClick={() => initiateCall('video')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Video size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
+                                            <button onClick={() => setIsDetailsOpen(!isDetailsOpen)} className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${isDetailsOpen ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}><Info size={20} /></button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                {!isGlobal && (
-                                    <>
-                                        <button onClick={() => initiateCall('audio')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Phone size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
-                                        <button onClick={() => initiateCall('video')} className={`p-2.5 rounded-xl transition-all flex items-center justify-center relative ${isSelectedFriend ? 'hover:bg-red-600 text-white' : 'text-zinc-700 opacity-50'}`}><Video size={20}/>{!isSelectedFriend && <Lock size={8} className="absolute top-1 right-1 text-red-600" />}</button>
-                                    </>
+
+                            {/* Message List */}
+                            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2.5 pb-10 pt-6 space-y-8">
+                                {messages.map((m, i) => {
+                                    const isMe = m.senderId === clerkUser?.id;
+                                    const isMsgRestricted = m.senderUsername === RESTRICTED_HANDLE && !isOwner;
+                                    const sender = isMsgRestricted ? { name: 'Community Member', username: 'guest', avatar: undefined } : { name: m.senderName || 'Guest', username: m.senderUsername || 'guest', avatar: m.senderAvatar };
+                                    
+                                    return (
+                                        <div key={m.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group`}>
+                                            <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, m.senderUsername || 'guest'); }} />
+                                            <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                                <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer group/msg" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, m.senderUsername || 'guest'); }}>
+                                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em] group-hover/msg:text-white transition-colors">{sender.username?.toLowerCase()}</span>
+                                                    <VerificationBadge username={sender.username} />
+                                                </div>
+                                                <div className={`px-4 py-3 rounded-2xl text-[13px] md:text-sm font-medium leading-relaxed break-all whitespace-pre-wrap shadow-lg ${isMe ? 'bg-red-600 text-white rounded-br-none' : 'bg-zinc-900 text-zinc-200 rounded-bl-none border border-white/5'}`}>{m.text}</div>
+                                                <span className="text-[7px] text-zinc-700 font-black uppercase mt-1.5 tracking-widest">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <div ref={messagesEndRef} />
+                            </div>
+
+                            {/* Input Area */}
+                            <div className="p-4 md:p-6 border-t border-white/5 bg-black px-2.5 pb-20 md:pb-6">
+                                {!isGlobal && !isSelectedFriend ? (
+                                    <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] text-center md:text-left">Thread Connection Required</p>
+                                        <button className="w-full md:w-auto bg-red-600 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-600/20">Connect</button>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto">
+                                        <button type="button" className="p-2 text-zinc-500 hover:text-white transition-colors"><ImageIcon size={20}/></button>
+                                        <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-1.5 outline-none resize-none max-h-32" />
+                                        <button type="submit" disabled={isMediaUploading || !inputValue.trim()} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20"><SendIcon className="w-5 h-5" /></button>
+                                    </form>
                                 )}
                             </div>
                         </div>
+                    )}
+                </div>
 
-                        {/* Message List with Safe Padding */}
-                        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-2.5 pb-5 pt-6 space-y-8">
-                            {messages.map((m, i) => {
-                                const isMe = m.senderId === clerkUser?.id;
-                                const isMsgRestricted = m.senderUsername === RESTRICTED_HANDLE && !isOwner;
-                                const sender = isMsgRestricted ? { name: 'Community Member', username: 'guest', avatar: undefined } : { name: m.senderName || 'Guest', username: m.senderUsername || 'guest', avatar: m.senderAvatar };
-                                
-                                return (
-                                    <div key={m.id || i} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end group`}>
-                                        <UserAvatar user={sender} className="w-8 h-8" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, m.senderUsername || 'guest'); }} />
-                                        <div className={`max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                            <div className="flex items-center gap-1.5 mb-1.5 px-1 cursor-pointer" onClick={() => { if(!isMsgRestricted && m.senderId) navigateToProfile(m.senderId, m.senderUsername || 'guest'); }}>
-                                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.2em]">{sender.username?.toLowerCase()}</span>
-                                                <VerificationBadge username={sender.username} />
-                                            </div>
-                                            <div className={`px-4 py-3 rounded-2xl text-[13px] md:text-sm font-medium leading-relaxed break-all whitespace-pre-wrap shadow-lg ${isMe ? 'bg-red-600 text-white rounded-br-none' : 'bg-zinc-900 text-zinc-200 rounded-bl-none border border-white/5'}`}>{m.text}</div>
-                                            <span className="text-[7px] text-zinc-700 font-black uppercase mt-1.5 tracking-widest">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            <div ref={messagesEndRef} />
-                        </div>
+                {/* Details Sidebar */}
+                <AnimatePresence>
+                  {isDetailsOpen && selectedUser && !isGlobal && (
+                    <motion.aside 
+                      initial={{ x: '100%', opacity: 0 }} 
+                      animate={{ x: 0, opacity: 1 }} 
+                      exit={{ x: '100%', opacity: 0 }}
+                      className="absolute md:relative right-0 inset-y-0 w-full md:w-[320px] bg-black border-l border-white/5 z-50 flex flex-col overflow-hidden shadow-2xl"
+                    >
+                      <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                         <h2 className="text-xs font-black text-white uppercase tracking-[0.2em]">Details</h2>
+                         <button onClick={() => setIsDetailsOpen(false)} className="p-1 hover:bg-white/5 rounded-full"><CloseIcon className="w-5 h-5 text-zinc-500" /></button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto no-scrollbar p-8 text-center space-y-10">
+                         <div className="flex flex-col items-center gap-4">
+                            <div className="w-24 h-24 rounded-full border-2 border-red-600 p-1">
+                                <img src={selectedUser.avatar || siteConfig.branding.logoUrl} className="w-full h-full object-cover rounded-full" alt="" />
+                            </div>
+                            <div>
+                               <div className="flex items-center justify-center gap-1">
+                                  <h3 className="text-lg font-black text-white uppercase tracking-tighter">{selectedUser.name}</h3>
+                                  <VerificationBadge username={selectedUser.username} />
+                               </div>
+                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">@{selectedUser.username?.toLowerCase()}</p>
+                            </div>
+                            <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="bg-white text-black px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">View Profile</button>
+                         </div>
 
-                        {/* Input Area */}
-                        <div className="p-4 md:p-6 border-t border-white/5 bg-black">
-                            {!isGlobal && !isSelectedFriend ? (
-                                <div className="bg-zinc-900 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
-                                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] text-center md:text-left">Unauthorized Thread Connection Required</p>
-                                    <button className="w-full md:w-auto bg-red-600 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-600/20">Connect</button>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-zinc-900 border border-white/10 rounded-2xl p-2.5 focus-within:border-red-600/40 transition-all shadow-2xl max-w-6xl mx-auto">
-                                    <button type="button" className="p-2 text-zinc-500 hover:text-white transition-colors"><ImageIcon size={20}/></button>
-                                    <textarea ref={textareaRef} value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} placeholder="Type a message..." rows={1} className="flex-1 bg-transparent border-none text-sm text-white py-1.5 outline-none resize-none max-h-32" />
-                                    <button type="submit" disabled={isMediaUploading || !inputValue.trim()} className="bg-red-600 text-white p-2.5 rounded-xl hover:bg-red-700 active:scale-90 transition-all disabled:opacity-50 shadow-lg shadow-red-600/20"><SendIcon className="w-5 h-5" /></button>
-                                </form>
-                            )}
-                        </div>
-                    </div>
-                )}
+                         <div className="space-y-6 text-left">
+                            <div className="space-y-3">
+                               <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Chat Settings</p>
+                               <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
+                                  <button className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                     <div className="flex items-center gap-3 text-zinc-300"><Lock size={16} /><span className="text-[10px] font-bold uppercase">Lock Chat</span></div>
+                                     <div className="w-8 h-4 bg-zinc-800 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-zinc-600 rounded-full"></div></div>
+                                  </button>
+                                  <button onClick={() => navigateToProfile(selectedUser.id, selectedUser.username)} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all border-b border-white/5">
+                                     <div className="flex items-center gap-3 text-zinc-300"><ShieldCheck size={16} /><span className="text-[10px] font-bold uppercase">Change Passcode</span></div>
+                                     <ChevronRightIcon className="w-4 h-4 text-zinc-700" />
+                                  </button>
+                                  <button className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-all">
+                                     <div className="flex items-center gap-3 text-zinc-300"><Bell size={16} /><span className="text-[10px] font-bold uppercase">Mute Messages</span></div>
+                                     <div className="w-8 h-4 bg-zinc-800 rounded-full relative"><div className="absolute left-1 top-1 w-2 h-2 bg-zinc-600 rounded-full"></div></div>
+                                  </button>
+                               </div>
+                            </div>
+
+                            <div className="space-y-3">
+                               <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-1">Privacy & Safety</p>
+                               <div className="bg-zinc-900/50 rounded-2xl border border-white/5 overflow-hidden">
+                                  <button className="w-full p-4 flex items-center justify-between hover:bg-red-600/10 transition-all text-red-500">
+                                     <div className="flex items-center gap-3"><ShieldAlert size={16} /><span className="text-[10px] font-bold uppercase">Block Member</span></div>
+                                     <Slash size={14} className="opacity-50" />
+                                  </button>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                      <div className="p-8 text-center opacity-20 border-t border-white/5">
+                         <p className="text-[8px] font-black uppercase tracking-[0.4em]">Encrypted Interaction</p>
+                      </div>
+                    </motion.aside>
+                  )}
+                </AnimatePresence>
             </main>
         </div>
       </div>
