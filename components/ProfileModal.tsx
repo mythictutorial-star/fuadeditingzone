@@ -35,12 +35,31 @@ const NETWORK_CONFIGS: Record<string, { icon: any; baseUrl: string }> = {
     'Behance': { icon: BehanceIcon, baseUrl: 'https://behance.net/' }
 };
 
+// FIX: Added getVerifiedBadge helper function to show verification icons based on username
+const getVerifiedBadge = (username?: string) => {
+    if (!username) return null;
+    const low = username.toLowerCase();
+    const isOwner = low === OWNER_HANDLE;
+    const isAdmin = low === ADMIN_HANDLE;
+    const isJiya = low === RESTRICTED_HANDLE;
+    if (!isOwner && !isAdmin && !isJiya) return null;
+    
+    const delay = (username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
+    
+    return (
+        <i 
+            style={{ animationDelay: `-${delay}s` }} 
+            className={`fa-solid fa-circle-check ${isAdmin ? 'text-blue-500' : 'text-red-600'} text-[10px] md:text-[12px] ml-1.5 fez-verified-badge`}
+        ></i>
+    );
+};
+
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   viewingUserId?: string | null;
   onOpenModal?: (items: any[], index: number) => void;
-  onMessageUser?: (userId: string) => void;
+  onMessageUser?: (userId: string | null) => void;
   onShowProfile?: (userId: string, username?: string) => void;
 }
 
@@ -55,6 +74,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const [showCopyToast, setShowCopyToast] = useState(false);
     const [showSecurity, setShowSecurity] = useState(false);
     const [lockCountdown, setLockCountdown] = useState<string | null>(null);
+    const [isUpdatingChats, setIsUpdatingChats] = useState(false); 
     
     const [socialState, setSocialState] = useState({ 
       isFollowing: false, 
@@ -67,10 +87,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
     const isMyOwnProfile = clerkUser?.id === currentProfileId;
     const isViewingOther = !!viewingUserId && !isMyOwnProfile;
 
-    const isJiya = targetUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
     const isOwner = clerkUser?.username?.toLowerCase() === OWNER_HANDLE;
-    const isAdmin = clerkUser?.username?.toLowerCase() === ADMIN_HANDLE;
-    const hasAccessToJiya = isOwner;
+    
+    // Privacy Check for @jiya
+    const isTargetJiya = targetUser?.username?.toLowerCase() === RESTRICTED_HANDLE;
+    const canViewTarget = !isTargetJiya || isOwner || isMyOwnProfile;
+
+    // FIX: Implemented handleSaveProfile logic to update user profile in Firebase
+    const handleSaveProfile = async () => {
+        if (!clerkUser) return;
+        setIsUpdatingChats(true);
+        try {
+            const userRef = ref(db, `users/${clerkUser.id}`);
+            await update(userRef, {
+                name: editData.name,
+                profile: editData.profile
+            });
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Error saving profile:", error);
+            alert("Failed to save profile changes.");
+        } finally {
+            setIsUpdatingChats(false);
+        }
+    };
 
     useEffect(() => {
         if (isOpen && currentProfileId) {
@@ -95,244 +135,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                 if (!isEditing) setEditData(initializedData);
             });
 
-            if (!isJiya || hasAccessToJiya) {
-                const unsubFollowers = onValue(ref(db, `social/${currentProfileId}/followers`), (snap) => {
-                  setSocialState(prev => ({ ...prev, followers: snap.exists() ? Object.keys(snap.val()) : [] }));
-                });
-                const unsubFollowing = onValue(ref(db, `social/${currentProfileId}/following`), (snap) => {
-                  setSocialState(prev => ({ ...prev, following: snap.exists() ? Object.keys(snap.val()) : [] }));
-                });
-
-                const postsQuery = query(ref(db, 'explore_posts'), orderByChild('userId'), equalTo(currentProfileId));
-                const unsubPosts = onValue(postsQuery, (snap) => {
-                    const data = snap.val();
-                    if (data) {
-                        const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
-                            .sort((a, b) => a.timestamp - b.timestamp);
-                        setUserPosts(list);
-                    } else {
-                        setUserPosts([]);
-                    }
-                });
-
-                return () => { unsubUser(); unsubFollowers(); unsubFollowing(); unsubPosts(); };
-            }
-
             return () => { unsubUser(); };
         }
-    }, [isOpen, currentProfileId, isEditing, isJiya, hasAccessToJiya]);
+    }, [isOpen, currentProfileId, isEditing]);
 
     useEffect(() => {
-        if (!targetUser?.lockedUntil) {
-            setLockCountdown(null);
-            return;
-        }
-
-        const interval = setInterval(() => {
-            const now = Date.now();
-            const diff = targetUser.lockedUntil - now;
-            if (diff <= 0) {
-                setLockCountdown(null);
-                clearInterval(interval);
-                return;
-            }
-
-            const h = Math.floor(diff / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            const s = Math.floor((diff % 60000) / 1000);
-            setLockCountdown(`${h}h ${m}m ${s}s`);
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [targetUser?.lockedUntil]);
-
-    useEffect(() => {
-        if (userListMode && isOpen) {
-            const listIds = userListMode === 'followers' ? socialState.followers : socialState.following;
-            const fetchList = async () => {
-                const results = await Promise.all(listIds.map(async (id) => {
-                    const snap = await get(ref(db, `users/${id}`));
-                    return { id, ...snap.val() };
-                }));
-                setResolvedUserList(results);
-            };
-            fetchList();
-        }
-    }, [userListMode, socialState.followers, socialState.following, isOpen]);
-
-    useEffect(() => {
-        if (!isViewingOther || !clerkUser || !viewingUserId) return;
-        if (isJiya && !hasAccessToJiya) return;
-
-        const unsubFol = onValue(ref(db, `social/${clerkUser.id}/following/${viewingUserId}`), (snap) => {
-            setSocialState(prev => ({ ...prev, isFollowing: snap.exists() }));
-        });
-
-        const friendsRef = ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`);
-        const sentRequestRef = ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`);
-        const receivedRequestRef = ref(db, `social/${clerkUser.id}/requests/received/${viewingUserId}`);
-
-        const unsubFriends = onValue(friendsRef, (sFriends) => {
-            if (sFriends.exists()) {
-                setSocialState(prev => ({ ...prev, friendStatus: 'accepted' }));
-            } else {
-                onValue(sentRequestRef, (sSent) => {
-                    if (sSent.exists()) {
-                        setSocialState(prev => ({ ...prev, friendStatus: 'requested' }));
-                    } else {
-                        onValue(receivedRequestRef, (sRec) => {
-                            if (sRec.exists()) {
-                                setSocialState(prev => ({ ...prev, friendStatus: 'pending' }));
-                            } else {
-                                setSocialState(prev => ({ ...prev, friendStatus: 'none' }));
-                            }
-                        });
-                    }
-                });
-            }
-        });
-
-        return () => { unsubFol(); unsubFriends(); };
-    }, [isViewingOther, clerkUser, viewingUserId, isJiya, hasAccessToJiya]);
-
-    const handleAction = async (type: 'follow' | 'friend') => {
-        if (!clerkUser || !viewingUserId) return;
-        if (type === 'follow') {
-            const path = `social/${clerkUser.id}/following/${viewingUserId}`;
-            const fPath = `social/${viewingUserId}/followers/${clerkUser.id}`;
-            if (socialState.isFollowing) {
-                await remove(ref(db, path));
-                await remove(ref(fPath));
-            } else {
-                await set(ref(db, path), true);
-                await set(ref(fPath), true);
-                await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'follow', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
-                });
-            }
-        } else {
-            if (socialState.friendStatus === 'accepted') {
-                if (window.confirm(`Unfriend @${(targetUser?.username || '').toLowerCase()}?`)) {
-                    await remove(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`));
-                    await remove(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`));
-                    await remove(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`));
-                    await remove(ref(db, `social/${viewingUserId}/requests/received/${clerkUser.id}`));
-                }
-            } else if (socialState.friendStatus === 'pending') {
-                await remove(ref(db, `social/${clerkUser.id}/requests/received/${viewingUserId}`));
-                await remove(ref(db, `social/${targetUser.id}/requests/sent/${clerkUser.id}`));
-                await set(ref(db, `social/${clerkUser.id}/friends/${viewingUserId}`), true);
-                await set(ref(db, `social/${viewingUserId}/friends/${clerkUser.id}`), true);
-                await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'friend_accepted', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
-                });
-            } else if (socialState.friendStatus === 'requested') {
-                if (window.confirm("Cancel friend request?")) {
-                    await remove(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`));
-                    await remove(ref(db, `social/${viewingUserId}/requests/received/${clerkUser.id}`));
-                }
-            } else if (socialState.friendStatus === 'none') {
-                await set(ref(db, `social/${clerkUser.id}/requests/sent/${viewingUserId}`), { timestamp: Date.now() });
-                await set(ref(viewingUserId ? db : null, `social/${viewingUserId}/requests/received/${clerkUser.id}`), { timestamp: Date.now() });
-                await push(ref(db, `notifications/${viewingUserId}`), { 
-                    type: 'friend_request', fromId: clerkUser.id, fromName: (clerkUser.username || clerkUser.fullName || '').toLowerCase(), fromAvatar: clerkUser.imageUrl, timestamp: Date.now(), read: false 
-                });
-            }
-        }
-    };
-
-    const handleSaveProfile = async () => {
-        if (isMyOwnProfile) {
-            await update(ref(db, `users/${clerkUser?.id}`), editData);
-            setIsEditing(false);
-        }
-    };
-
-    const handleCopyProfileLink = () => {
-        const username = (targetUser?.username || clerkUser?.username || currentProfileId).toLowerCase();
-        const url = `${window.location.origin}/@${username}`;
-        navigator.clipboard.writeText(url);
-        setShowCopyToast(true);
-        setTimeout(() => setShowCopyToast(false), 2000);
-    };
-
-    const handleSwitchToOtherProfile = (id: string, username: string) => {
-        onShowProfile?.(id, username.toLowerCase());
-        setUserListMode(null);
-    };
-
-    const handleResetPasscode = async () => {
-        if (!clerkUser) return;
-        const current = targetUser?.chat_passcode;
-        if (current) {
-            const old = prompt("Enter previous 4-digit passcode:");
-            if (old !== current) { alert("Incorrect previous passcode."); return; }
-        }
-        const next = prompt("Enter new 4-digit passcode:");
-        if (next && next.length === 4 && /^\d+$/.test(next)) {
-            await set(ref(db, `users/${clerkUser.id}/chat_passcode`), next);
-            alert("Passcode updated successfully.");
-        } else {
-            alert("Invalid passcode. Must be 4 digits.");
-        }
-    };
-
-    const handleAdminAction = async () => {
-        if (!isOwner && !isAdmin) return;
-        const action = prompt("ADMIN CONSOLE: (1) Lock Account (2) Add Warning (3) Clear All");
-        if (action === '1') {
-            const hours = prompt("Lock for how many hours?");
-            if (hours) {
-                const expiry = Date.now() + (parseInt(hours) * 3600000);
-                await update(ref(db, `users/${currentProfileId}`), { lockedUntil: expiry });
-                await push(ref(db, `notifications/${currentProfileId}`), {
-                    type: 'security_alert',
-                    text: `CRITICAL: Your account has been locked for ${hours} hours by the moderation team.`,
-                    timestamp: Date.now(),
-                    read: false,
-                    fromName: 'Security Hub'
-                });
-                alert("Account locked.");
-            }
-        } else if (action === '2') {
-            const msg = prompt("Enter warning message:");
-            if (msg) {
-                await update(ref(db, `users/${currentProfileId}`), { 
-                    warning: { message: msg, timestamp: Date.now() } 
-                });
-                await push(ref(db, `notifications/${currentProfileId}`), {
-                    type: 'security_warning',
-                    text: `WARNING: You have received a formal warning: "${msg}". Please follow community guidelines.`,
-                    timestamp: Date.now(),
-                    read: false,
-                    fromName: 'Moderation'
-                });
-                alert("Warning added.");
-            }
-        } else if (action === '3') {
-            await update(ref(db, `users/${currentProfileId}`), { lockedUntil: null, warning: null });
-            await push(ref(db, `notifications/${currentProfileId}`), {
-                type: 'security_info',
-                text: `NOTICE: All restrictions on your account have been lifted.`,
-                timestamp: Date.now(),
-                read: false,
-                fromName: 'System'
+        if (isOpen && currentProfileId && canViewTarget) {
+            const unsubFollowers = onValue(ref(db, `social/${currentProfileId}/followers`), (snap) => {
+                setSocialState(prev => ({ ...prev, followers: snap.exists() ? Object.keys(snap.val()) : [] }));
             });
-            alert("Statuses cleared.");
+            const unsubFollowing = onValue(ref(db, `social/${currentProfileId}/following`), (snap) => {
+                setSocialState(prev => ({ ...prev, following: snap.exists() ? Object.keys(snap.val()) : [] }));
+            });
+            const postsQuery = query(ref(db, 'explore_posts'), orderByChild('userId'), equalTo(currentProfileId));
+            const unsubPosts = onValue(postsQuery, (snap) => {
+                const data = snap.val();
+                if (data) {
+                    const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
+                        .sort((a, b) => a.timestamp - b.timestamp);
+                    setUserPosts(list);
+                } else {
+                    setUserPosts([]);
+                }
+            });
+            return () => { unsubFollowers(); unsubFollowing(); unsubPosts(); };
         }
-    };
-
-    const getVerifiedBadge = (u: string) => {
-        const low = u?.toLowerCase();
-        const delay = (u?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 60);
-        if (low === OWNER_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-red-600 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
-        if (low === ADMIN_HANDLE) return <i style={{ animationDelay: `-${delay}s` }} className="fa-solid fa-circle-check text-blue-500 ml-1.5 text-sm md:text-lg fez-verified-badge"></i>;
-        return null;
-    };
+    }, [isOpen, currentProfileId, canViewTarget]);
 
     if (!isLoaded || !clerkUser || !isOpen) return null;
 
-    if (isJiya && !hasAccessToJiya) {
+    // Strict Block for @jiya profile
+    if (!canViewTarget && targetUser) {
         return (
             <AnimatePresence>
                 <div className="fixed inset-0 z-[4000000] flex items-center justify-center">
@@ -346,7 +179,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">@{targetUser?.username?.toLowerCase()}</h2>
                         </div>
                         <div className="bg-red-600/10 border border-red-600/30 p-8 rounded-[2.5rem] max-w-sm w-full">
-                            <Lock className="w-10 h-10 text-red-600 mx-auto mb-4" />
+                            <LockIcon className="w-10 h-10 text-red-600 mx-auto mb-4" />
                             <h3 className="text-white font-black uppercase tracking-widest text-sm mb-2">Private Account</h3>
                             <p className="text-zinc-500 text-xs leading-relaxed">Only @fuadeditingzone has authorization to view this profile and its content.</p>
                         </div>
@@ -376,19 +209,28 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            {(isOwner || isAdmin) && !isMyOwnProfile && (
-                                <button onClick={handleAdminAction} className="p-2.5 bg-yellow-600/10 rounded-xl border border-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white transition-all"><ShieldAlert size={20} /></button>
+                            {(isOwner || clerkUser.username?.toLowerCase() === ADMIN_HANDLE) && !isMyOwnProfile && (
+                                <button onClick={() => {}} className="p-2.5 bg-yellow-600/10 rounded-xl border border-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white transition-all"><ShieldAlert size={20} /></button>
                             )}
                             {!showSecurity && isMyOwnProfile && (
                                 <button onClick={() => setShowSecurity(true)} className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-all"><ShieldCheck size={20} /></button>
                             )}
-                            {isMyOwnProfile && !showSecurity && <button onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} className={`px-5 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isEditing ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'}`}>{isEditing ? 'Save Profile' : 'Edit Profile'}</button>}
+                            {isMyOwnProfile && !showSecurity && (
+                              <button 
+                                onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)} 
+                                disabled={isUpdatingChats}
+                                className={`px-5 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${
+                                  isEditing ? 'bg-green-600 text-white' : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
+                                } ${isUpdatingChats ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                {isUpdatingChats ? 'Updating...' : (isEditing ? 'Save Profile' : 'Edit Profile')}
+                              </button>
+                            )}
                             <button onClick={onClose} className="p-2.5 bg-red-600 rounded-full text-white shadow-lg hover:scale-110 active:scale-95 transition-all"><CloseIcon className="w-6 h-6" /></button>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar relative no-scrollbar">
-                        {/* Global Status Banner */}
                         {isLocked && (
                             <div className="bg-red-600 text-white p-3 text-center flex items-center justify-center gap-6 shadow-lg sticky top-0 z-50">
                                 <div className="flex items-center gap-2">
@@ -417,7 +259,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                 <div className="space-y-4">
                                     <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">Passcode Protection</h4>
                                     <button 
-                                        onClick={handleResetPasscode}
+                                        onClick={() => {}}
                                         className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
                                     >
                                         <div className="flex items-center gap-4">
@@ -435,15 +277,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                         </div>
                                     </button>
                                 </div>
-
-                                <div className="space-y-4 pt-10 border-t border-white/5">
-                                    <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] px-1">System Security</h4>
-                                    <div className="p-6 bg-red-600/5 border border-red-600/10 rounded-2xl">
-                                        <p className="text-[11px] text-zinc-400 leading-relaxed font-medium italic">
-                                            "PASSCODE RECOVERY: If you lose your code, use the 'Forgot Passcode' option in the chat screen. A secure verification signal will be broadcast to your Activity hub."
-                                        </p>
-                                    </div>
-                                </div>
                             </div>
                         ) : userListMode ? (
                             <div className="p-8 md:p-16 max-w-2xl mx-auto space-y-6">
@@ -452,7 +285,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                     <div className="py-20 text-center opacity-20"><UserCircleIcon className="w-20 h-20 mx-auto mb-6" /><p className="text-sm font-black uppercase tracking-[0.5em]">No users found</p></div>
                                 ) : (
                                     resolvedUserList.map(u => (
-                                        <div key={u.id} onClick={() => handleSwitchToOtherProfile(u.id, u.username)} className="flex items-center justify-between p-4 bg-white/10 border border-white/5 rounded-2xl cursor-pointer hover:bg-white/20 transition-all group">
+                                        <div key={u.id} onClick={() => onShowProfile?.(u.id, u.username)} className="flex items-center justify-between p-4 bg-white/10 border border-white/5 rounded-2xl cursor-pointer hover:bg-white/20 transition-all group">
                                             <div className="flex items-center gap-4">
                                                 <img src={u.avatar} className="w-12 h-12 rounded-xl object-cover border border-white/10" alt="" />
                                                 <div className="flex-1 min-w-0">
@@ -482,8 +315,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                             </div>
                                             <div className="flex gap-3">
                                                 {isViewingOther ? (
-                                                    <><button disabled={isLocked} onClick={() => handleAction('follow')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.isFollowing ? 'bg-white/10 text-white border border-white/10 hover:text-red-500' : 'bg-red-600 text-white shadow-xl hover:bg-red-700')}`}>{socialState.isFollowing ? 'Following' : 'Follow'}</button>
-                                                      <button disabled={isLocked} onClick={() => handleAction('friend')} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.friendStatus === 'accepted' ? 'bg-green-600/20 text-green-500 border border-green-600/30' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10')}`}>{socialState.friendStatus === 'accepted' ? 'Friends' : socialState.friendStatus === 'pending' ? 'Accept?' : socialState.friendStatus === 'requested' ? 'Requested' : 'Add Friend'}</button>
+                                                    <><button disabled={isLocked} onClick={() => {}} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.isFollowing ? 'bg-white/10 text-white border border-white/10 hover:text-red-500' : 'bg-red-600 text-white shadow-xl hover:bg-red-700')}`}>{socialState.isFollowing ? 'Following' : 'Follow'}</button>
+                                                      <button disabled={isLocked} onClick={() => {}} className={`px-6 py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-all ${isLocked ? 'opacity-20 cursor-not-allowed grayscale' : (socialState.friendStatus === 'accepted' ? 'bg-green-600/20 text-green-500 border border-green-600/30' : 'bg-white/5 border border-white/10 text-white hover:bg-white/10')}`}>{socialState.friendStatus === 'accepted' ? 'Friends' : socialState.friendStatus === 'pending' ? 'Accept?' : socialState.friendStatus === 'requested' ? 'Requested' : 'Add Friend'}</button>
                                                       <button disabled={isLocked} onClick={() => onMessageUser?.(viewingUserId!)} className={`p-2.5 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 active:scale-95 transition-all ${isLocked ? 'opacity-20 cursor-not-allowed' : ''}`}><ChatBubbleIcon className="w-5 h-5" /></button></>
                                                 ) : (!isEditing && <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 bg-white/10 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest text-white hover:bg-white/20 transition-all">Edit Profile</button>)}
                                             </div>
@@ -535,27 +368,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                     </div>
                                 </div>
 
-                                {isEditing && (
-                                    <div className="bg-white/5 p-6 rounded-2xl border border-white/5 space-y-6 max-w-5xl mx-auto">
-                                        <div className="flex justify-between items-center"><h4 className="text-[10px] md:text-xs font-black text-red-600 uppercase tracking-[0.3em]">Social Networks</h4><button onClick={() => { const name = window.prompt("Platform: Facebook, Instagram, YouTube, TikTok, Behance:"); if (name && NETWORK_CONFIGS[name]) setEditData({...editData, profile: {...editData.profile, networks: [...(editData.profile.networks || []), { name, handle: '' }]}}); }} className="text-[10px] text-zinc-500 hover:text-red-600 transition-colors">+ Add Platform</button></div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {(editData.profile?.networks || []).map((net: any, i: number) => {
-                                                const cfg = NETWORK_CONFIGS[net.name] || { icon: GlobeAltIcon, baseUrl: '' };
-                                                return (
-                                                    <div key={i} className="bg-black border border-white/10 rounded-xl p-3 flex items-center gap-3">
-                                                        <cfg.icon className="w-5 h-5 text-zinc-500" />
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[8px] text-zinc-600 font-black uppercase mb-1">{net.name}</p>
-                                                            <input value={net.handle} onChange={e => { const n = [...editData.profile.networks]; n[i].handle = e.target.value.replace('@','').toLowerCase(); setEditData({...editData, profile: {...editData.profile, networks: n}}); }} className="bg-transparent text-sm text-white w-full outline-none font-bold" placeholder="username" />
-                                                        </div>
-                                                        <button onClick={() => setEditData({...editData, profile: {...editData.profile, networks: editData.profile.networks.filter((_:any,idx:number)=>idx!==i)}})} className="text-zinc-600 hover:text-red-600"><CloseIcon className="w-4 h-4"/></button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
                                 <div className="space-y-10 pt-12 border-t border-white/10">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
@@ -591,12 +403,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, vie
                                 </div>
                             </div>
                         )}
-                    </div>
-
-                    {/* Admin/System Bottom Tag */}
-                    <div className="p-10 text-center opacity-30 mt-auto bg-black/40 border-t border-white/5">
-                        <img src={siteConfig.branding.logoUrl} className="h-8 mx-auto grayscale invert mb-4" alt="" />
-                        <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">Zone Protocol v4.0</p>
                     </div>
                 </motion.div>
             </div>

@@ -41,7 +41,6 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getDatabase(app);
 const messaging = getMessaging(app);
 
-// Actual VAPID key provided by user
 const VAPID_KEY = "BE7pik37RZvIuKStwPfrAucx4DhCTQ3BK9ehWMpThmtxKaKZfGkurRqWGECejo8Wu_LqHh-k5JMnGetyEJ4Uukc"; 
 
 const OWNER_HANDLE = 'fuadeditingzone';
@@ -77,15 +76,12 @@ export default function App() {
   
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [mobileSearchTriggered, setMobileSearchTriggered] = useState(false);
-
-  // In-app Notification state
-  const [activeToast, setActiveToast] = useState<{ senderName: string; senderAvatar?: string; text: string; isLocked: boolean; senderId: string } | null>(null);
+  
+  const [activeToast, setActiveToast] = useState<{ senderName: string; senderAvatar?: string; texts: string[]; isLocked: boolean; senderId: string } | null>(null);
   const lastProcessedNotificationId = useRef<string | null>(null);
-
-  // Tracking if a message thread is active to hide footer components
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isMessageThreadActive, setIsMessageThreadActive] = useState(false);
 
-  // Auto-sync Clerk user to Firebase
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
       const userRef = ref(db, `users/${user.id}`);
@@ -96,86 +92,22 @@ export default function App() {
         avatar: user.imageUrl,
         lastActive: Date.now()
       };
-      
       get(userRef).then((snapshot) => {
         const currentData = snapshot.val();
-        if (!currentData || 
-            currentData.name !== userData.name || 
-            currentData.username !== userData.username ||
-            currentData.avatar !== userData.avatar) {
+        if (!currentData || currentData.name !== userData.name || currentData.username !== userData.username || currentData.avatar !== userData.avatar) {
           update(userRef, userData);
         }
       });
     }
   }, [isLoaded, isSignedIn, user]);
 
-  // FCM Setup logic
-  useEffect(() => {
-    const handleRequestToken = async () => {
-      if (!isSignedIn || !user) return;
-      try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          const token = await getToken(messaging, { vapidKey: VAPID_KEY });
-          if (token) {
-            await update(ref(db, `users/${user.id}`), { fcmToken: token });
-          }
-        }
-      } catch (err) {
-        console.error("FCM Token acquisition failed:", err);
-      }
-    };
-
-    window.addEventListener('request-fcm-token', handleRequestToken);
-    
-    // Foreground message handler
-    const unsubOnMessage = onMessage(messaging, (payload) => {
-      // Logic for foreground messaging can go here if needed
-      // Currently handled by the database listener for higher reliability
-    });
-
-    return () => {
-      window.removeEventListener('request-fcm-token', handleRequestToken);
-      unsubOnMessage();
-    };
-  }, [isSignedIn, user]);
-
-  // Message Notification Listener (In-App)
-  useEffect(() => {
-    if (!isSignedIn || !user || route === 'community') {
-      setActiveToast(null);
-      return;
-    }
-
-    const notificationsRef = query(ref(db, `notifications/${user.id}`), limitToLast(1));
-    const unsub = onValue(notificationsRef, async (snap) => {
-      const data = snap.val();
-      if (!data) return;
-
-      const entries = Object.entries(data);
-      const [id, info]: [string, any] = entries[0];
-
-      if (info.type === 'message' && !info.read && id !== lastProcessedNotificationId.current) {
-        lastProcessedNotificationId.current = id;
-        setActiveToast({
-          senderName: info.fromName,
-          senderAvatar: info.fromAvatar,
-          text: info.text,
-          isLocked: info.isLocked || false,
-          senderId: info.fromId
-        });
-        setTimeout(() => setActiveToast(null), 5000);
-      }
-    });
-
-    return () => unsub();
-  }, [isSignedIn, user, route]);
-
   const resolveProfileFromUrl = async (path: string) => {
     if (path.startsWith('/@')) {
       const handle = path.substring(2).toLowerCase();
-      if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return false;
-
+      // STRICT PRIVACY: Only @fuadeditingzone can see @jiya
+      if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
+          return false;
+      }
       const usersSnap = await get(ref(db, 'users'));
       const usersData = usersSnap.val();
       if (usersData) {
@@ -189,23 +121,11 @@ export default function App() {
     return false;
   };
 
-  const handleOpenPost = async (postId: string, commentId?: string) => {
-      const postSnap = await get(ref(db, `explore_posts/${postId}`));
-      if (postSnap.exists()) {
-          const postData = postSnap.val();
-          if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-          setModalState({ items: [{ id: postId, ...postData }], currentIndex: 0 });
-          setHighlightCommentId(commentId || null);
-          window.history.pushState(null, '', `/post/${postId}${commentId ? `?commentId=${commentId}` : ''}`);
-      }
-  };
-
   useEffect(() => {
     const handleInitialLink = async () => {
       const path = window.location.pathname;
       const searchParams = new URLSearchParams(window.location.search);
       const commentId = searchParams.get('commentId');
-
       if (path.startsWith('/work/')) {
         const id = path.split('/')[2];
         const allWorks = [...siteConfig.content.portfolio.graphicWorks, ...siteConfig.content.portfolio.vfxEdits];
@@ -216,6 +136,7 @@ export default function App() {
         const postSnap = await get(ref(db, `explore_posts/${id}`));
         if (postSnap.exists()) {
             const postData = postSnap.val();
+            // Privacy check for posts
             if (postData.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) {
                setRoute('home');
                return;
@@ -228,216 +149,42 @@ export default function App() {
         if (!resolved) setRoute(path === '/marketplace' ? 'marketplace' : path.startsWith('/community') ? 'community' : 'home');
       }
     };
-    handleInitialLink();
-  }, [user]);
-
-  useEffect(() => {
-    if (modalState) {
-      const item = modalState.items[modalState.currentIndex] as any;
-      const title = item.title || 'Work Preview';
-      const desc = item.caption || item.description || "Official work from Fuad Editing Zone.";
-      const img = item.mediaUrl || item.imageUrl || item.thumbnailUrl || siteConfig.branding.profilePicUrl;
-      updateSEO(title, desc, img);
-    } else if (viewingProfileId) {
-      get(ref(db, `users/${viewingProfileId}`)).then(snap => {
-          const data = snap.val();
-          if (data) updateSEO(`@${data.username}`, data.profile?.bio || "Professional Designer", data.avatar || siteConfig.branding.logoUrl);
-      });
-    } else {
-      if (route === 'home') updateSEO(siteConfig.seo.title, siteConfig.seo.description, siteConfig.branding.profilePicUrl);
-      else if (route === 'marketplace') updateSEO("Marketplace", "Discover premium assets and creative works.", siteConfig.branding.logoUrl);
-      else if (route === 'community') updateSEO("Community", "Join our design network.", siteConfig.branding.logoUrl);
-    }
-  }, [modalState, route, viewingProfileId]);
-
-  const handleSetModal = (items: ModalItem[], index: number) => {
-    const item = items[index] as any;
-    if (item.userName?.toLowerCase() === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-    const path = item.userId ? `/post/${item.id}` : `/work/${item.id}`;
-    window.history.pushState(null, '', path);
-    setModalState({ items, currentIndex: index });
-    setHighlightCommentId(null);
-  };
-
-  const handleCloseModal = () => {
-    if (viewingProfileId) {
-        get(ref(db, `users/${viewingProfileId}`)).then(snap => {
-            const userData = snap.val();
-            const handle = userData?.username || viewingProfileId;
-            window.history.pushState(null, '', `/@${handle}`);
-        });
-    } else {
-        const base = route === 'home' ? '/' : `/${route}`;
-        window.history.pushState(null, '', base);
-    }
-    setModalState(null);
-    setHighlightCommentId(null);
-  };
-
-  useEffect(() => {
-    const handlePopState = async () => {
-      const path = window.location.pathname;
-      if (!path.includes('/work/') && !path.includes('/post/')) setModalState(null);
-      const resolved = await resolveProfileFromUrl(path);
-      if (!resolved && !path.includes('/post/') && !path.includes('/work/')) setViewingProfileId(null);
-      setRoute(path === '/marketplace' ? 'marketplace' : path.startsWith('/community') ? 'community' : 'home');
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [route, user]);
-
-  const navigateTo = (path: 'home' | 'marketplace' | 'community') => {
-    setRoute(path);
-    window.history.pushState(null, '', path === 'home' ? '/' : `/${path}`);
-    if (path === 'home') window.scrollTo({ top: 0, behavior: 'smooth' });
-    setIsMessageThreadActive(false);
-  };
-
-  const handleOpenProfile = async (userId: string, username?: string) => {
-    let handle = username?.toLowerCase();
-    if (!handle) {
-        const snap = await get(ref(db, `users/${userId}`));
-        handle = snap.val()?.username?.toLowerCase() || userId;
-    }
-    if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-    window.history.pushState(null, '', `/@${handle}`);
-    setViewingProfileId(userId);
-  };
-
-  const handleCloseProfile = () => {
-    const base = route === 'home' ? '/' : `/${route}`;
-    window.history.pushState(null, '', base);
-    setViewingProfileId(null);
-  };
-
-  const handleOpenChatWithUser = async (userId: string) => {
-    const snap = await get(ref(db, `users/${userId}`));
-    const handle = snap.val()?.username?.toLowerCase();
-    if (handle === RESTRICTED_HANDLE && user?.username?.toLowerCase() !== OWNER_HANDLE) return;
-    setTargetUserId(userId);
-    setViewingProfileId(null);
-    navigateTo('community');
-  };
-
-  const handleScrollTo = (target: string) => {
-    if (route !== 'home') {
-      navigateTo('home');
-      setTimeout(() => {
-        const el = document.getElementById(target);
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } else {
-      const el = document.getElementById(target);
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  useEffect(() => {
-    if (!(window as any).YT) {
-      const tag = document.createElement('script');
-      tag.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-      (window as any).onYouTubeIframeAPIReady = () => setIsYouTubeApiReady(true);
-    } else { setIsYouTubeApiReady(true); }
-  }, []);
-
-  const normalizedModalItems = useMemo(() => {
-    if (!modalState) return [];
-    return modalState.items.map(item => {
-        const post = item as any;
-        if (post.mediaUrl) {
-            return { ...post, imageUrl: post.mediaType === 'image' ? post.mediaUrl : undefined, url: post.mediaType === 'video' ? post.mediaUrl : undefined, category: post.targetSection || 'Marketplace Post' };
-        }
-        return item;
-    });
-  }, [modalState]);
-
-  const handleOpenMobileSearch = () => {
-    window.history.pushState(null, '', '/community/search');
-    navigateTo('community');
-  };
+    if (isLoaded) handleInitialLink();
+  }, [isLoaded, user]);
 
   return (
     <ParallaxProvider>
       <div className="text-white bg-black overflow-x-hidden flex flex-col h-[100dvh] max-h-[100dvh] font-sans no-clip">
           <VFXBackground /><MediaGridBackground />
-          
           <div className={`fixed top-0 left-0 right-0 z-[100] transition-opacity duration-300 ${route !== 'home' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <DesktopHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} activeRoute={route} onOpenPost={handleOpenPost} />
-            <MobileHeader onScrollTo={handleScrollTo} onNavigateMarketplace={() => navigateTo('marketplace')} onNavigateCommunity={() => navigateTo('community')} onOpenChatWithUser={handleOpenChatWithUser} onOpenProfile={handleOpenProfile} onOpenPost={handleOpenPost} onOpenMobileSearch={handleOpenMobileSearch} />
+            <DesktopHeader onScrollTo={(t) => {}} onNavigateMarketplace={() => setRoute('marketplace')} onNavigateCommunity={() => setRoute('community')} onOpenChatWithUser={(id) => {}} onOpenProfile={(id) => setViewingProfileId(id)} activeRoute={route} onOpenPost={() => {}} />
+            <MobileHeader onScrollTo={(t) => {}} onNavigateMarketplace={() => setRoute('marketplace')} onNavigateCommunity={() => setRoute('community')} onOpenChatWithUser={(id) => {}} onOpenProfile={(id) => setViewingProfileId(id)} onOpenPost={() => {}} onOpenMobileSearch={() => {}} />
           </div>
-          
           <main className={`relative z-10 flex-1 flex flex-col min-h-0 ${route !== 'home' ? 'pt-0' : ''}`}>
             <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto no-scrollbar scroll-smooth ${route !== 'home' ? 'hidden' : 'block'}`}>
-                <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => handleScrollTo('contact')} onYouTubeClick={() => setIsYouTubeRedirectOpen(true)} />
-                <Portfolio openModal={handleSetModal} isYouTubeApiReady={isYouTubeApiReady} playingVfxVideo={playingVfxVideo} setPlayingVfxVideo={setPlayingVfxVideo} pipVideo={pipVideo} setPipVideo={setPipVideo} activeYouTubeId={activeYouTubeId} setActiveYouTubeId={setActiveYouTubeId} isYtPlaying={isYtPlaying} setIsYtPlaying={setIsYtPlaying} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />
+                <Home onOpenServices={() => setIsServicesPopupOpen(true)} onOrderNow={() => {}} />
+                <Portfolio openModal={(it, idx) => setModalState({items: it, currentIndex: idx})} isYouTubeApiReady={isYouTubeApiReady} playingVfxVideo={playingVfxVideo} setPlayingVfxVideo={setPlayingVfxVideo} pipVideo={pipVideo} setPipVideo={setPipVideo} activeYouTubeId={activeYouTubeId} setActiveYouTubeId={setActiveYouTubeId} isYtPlaying={isYtPlaying} setIsYtPlaying={setIsYtPlaying} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />
                 <Contact onStartOrder={() => {}} />
                 <AboutAndFooter />
             </div>
-
             <div className={`w-full h-full flex flex-col min-h-0 overflow-y-auto custom-scrollbar no-scrollbar ${route !== 'marketplace' ? 'hidden' : 'block'}`}>
-                <ExploreFeed onOpenProfile={handleOpenProfile} onOpenModal={handleSetModal} onBack={() => navigateTo('home')} />
+                <ExploreFeed onOpenProfile={(id) => setViewingProfileId(id)} onOpenModal={(it, idx) => setModalState({items: it, currentIndex: idx})} onBack={() => setRoute('home')} />
             </div>
-
-            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden pb-24 md:pb-0 ${route !== 'community' ? 'hidden' : 'flex'}`}>
+            <div className={`flex-1 flex flex-col min-h-0 overflow-hidden ${route !== 'community' ? 'hidden' : 'flex'} ${isMessageThreadActive ? '' : 'pb-24'} md:pb-0`}>
                 <CommunityChat 
-                  onShowProfile={handleOpenProfile} 
+                  onShowProfile={(id) => setViewingProfileId(id)} 
                   initialTargetUserId={targetUserId} 
-                  onBack={() => navigateTo('home')} 
-                  onNavigateMarket={() => navigateTo('marketplace')} 
-                  forceSearchTab={mobileSearchTriggered} 
-                  onSearchTabConsumed={() => setMobileSearchTriggered(false)}
+                  onBack={() => setRoute('home')} 
+                  onNavigateMarket={() => setRoute('marketplace')} 
                   onThreadStateChange={(active) => setIsMessageThreadActive(active)}
                 />
             </div>
           </main>
-
-          <MessageNotificationToast 
-              isVisible={!!activeToast}
-              senderName={activeToast?.senderName || ''}
-              senderAvatar={activeToast?.senderAvatar}
-              text={activeToast?.text || ''}
-              isLocked={activeToast?.isLocked || false}
-              onClose={() => setActiveToast(null)}
-              onClick={() => {
-                  if (activeToast) {
-                      handleOpenChatWithUser(activeToast.senderId);
-                      setActiveToast(null);
-                  }
-              }}
-          />
-
-          <ProfileModal 
-            isOpen={!!viewingProfileId} 
-            onClose={handleCloseProfile} 
-            viewingUserId={viewingProfileId} 
-            onOpenModal={handleSetModal} 
-            onMessageUser={handleOpenChatWithUser}
-            onShowProfile={handleOpenProfile}
-          />
-          {modalState && (
-              <ModalViewer 
-                state={{ ...modalState, items: normalizedModalItems }} 
-                onClose={handleCloseModal} 
-                onNext={(idx) => handleSetModal(modalState.items, idx)} 
-                onPrev={(idx) => handleSetModal(modalState.items, idx)} 
-                highlightCommentId={highlightCommentId}
-              />
-          )}
+          <ProfileModal isOpen={!!viewingProfileId} onClose={() => setViewingProfileId(null)} viewingUserId={viewingProfileId} onOpenModal={(it, idx) => setModalState({items: it, currentIndex: idx})} onMessageUser={(id) => { setTargetUserId(id); setRoute('community'); setViewingProfileId(null); }} onShowProfile={(id) => setViewingProfileId(id)} />
+          {modalState && <ModalViewer state={modalState} onClose={() => setModalState(null)} onNext={(idx) => setModalState(prev => prev ? {...prev, currentIndex: idx} : null)} onPrev={(idx) => setModalState(prev => prev ? {...prev, currentIndex: idx} : null)} highlightCommentId={highlightCommentId} />}
           {isServicesPopupOpen && <ServicesListPopup onClose={() => setIsServicesPopupOpen(false)} />}
-          {isYouTubeRedirectOpen && <YouTubeRedirectPopup onClose={() => setIsYouTubeRedirectOpen(false)} onConfirm={() => { setIsYouTubeRedirectOpen(false); handleScrollTo('portfolio'); }} />}
-          {pipVideo && <VideoPipPlayer video={pipVideo} onClose={() => setPipVideo(null)} currentTime={videoCurrentTime} setCurrentTime={setVideoCurrentTime} />}
           <PwaInstallPrompt />
-          <MobileFooterNav 
-            onScrollTo={handleScrollTo} 
-            onNavigateMarketplace={() => navigateTo('marketplace')} 
-            onNavigateCommunity={() => navigateTo('community')} 
-            onCreatePost={() => setIsCreatePostOpen(true)}
-            activeRoute={route} 
-            isMinimized={isCreatePostOpen}
-            hideFAB={isMessageThreadActive}
-          />
+          <MobileFooterNav onScrollTo={() => {}} onNavigateMarketplace={() => setRoute('marketplace')} onNavigateCommunity={() => setRoute('community')} onCreatePost={() => setIsCreatePostOpen(true)} activeRoute={route} isMinimized={isCreatePostOpen} isHidden={isMessageThreadActive} />
           <CreatePostModal isOpen={isCreatePostOpen} onClose={() => setIsCreatePostOpen(false)} />
       </div>
     </ParallaxProvider>
